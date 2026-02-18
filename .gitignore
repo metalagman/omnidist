@@ -1,9 +1,14 @@
 # Binaries
+omnidist
 go2npm
 dist/
 
 # npm packages
 npm/
+
+# Config (can be customized per repo)
+omnidist.yaml
+go2npm.yaml
 
 # Go
 *.exe

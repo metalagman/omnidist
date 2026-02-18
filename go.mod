@@ -1,4 +1,4 @@
-module github.com/metalagman/go2npm
+module github.com/metalagman/omnidist
 
 go 1.25.5
 

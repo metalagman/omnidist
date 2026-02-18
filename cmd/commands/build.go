@@ -6,7 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/metalagman/go2npm/internal/config"
+	"github.com/metalagman/omnidist/internal/config"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -33,7 +33,7 @@ var buildCmd = &cobra.Command{
 func loadConfig() (*config.Config, error) {
 	configFile := viper.ConfigFileUsed()
 	if configFile == "" {
-		configFile = "go2npm.yaml"
+		configFile = "omnidist.yaml"
 	}
 	return config.Load(configFile)
 }
@@ -53,7 +53,7 @@ func runBuild(cfg *config.Config) error {
 }
 
 func buildTarget(cfg *config.Config, target config.Target) error {
-	outputDir := filepath.Join("dist", target.OS, target.CPU)
+	outputDir := filepath.Join("dist", target.OS, config.MapCPUToNPM(target.CPU))
 	if err := os.MkdirAll(outputDir, 0755); err != nil {
 		return err
 	}
@@ -74,7 +74,7 @@ func buildTarget(cfg *config.Config, target config.Target) error {
 	args = append(args, "-o", outputPath, cfg.Tool.Main)
 
 	buildCmd := exec.Command("go", args...)
-	buildCmd.Env = append(os.Environ(), "GOOS="+target.OS, "GOARCH="+target.CPU)
+	buildCmd.Env = append(os.Environ(), "GOOS="+target.OS, "GOARCH="+config.MapCPUFromNPM(target.CPU))
 	if cfg.Build.CGO {
 		buildCmd.Env = append(buildCmd.Env, "CGO_ENABLED=1")
 	} else {

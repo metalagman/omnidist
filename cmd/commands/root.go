@@ -8,8 +8,8 @@ import (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "go2npm",
-	Short: "Go to npm Binary Bundling Toolkit",
+	Use:   "omnidist",
+	Short: "Omni-platform Binary Distribution Toolkit",
 	Long:  `A repeatable way to build, package, and publish a Go CLI as an npm-installable tool.`,
 }
 

@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/metalagman/go2npm/internal/config"
+	"github.com/metalagman/omnidist/internal/config"
 	"github.com/spf13/cobra"
 )
 
@@ -15,12 +15,12 @@ var initCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		cfg := config.DefaultConfig()
 
-		if err := config.Save(cfg, "go2npm.yaml"); err != nil {
+		if err := config.Save(cfg, "omnidist.yaml"); err != nil {
 			fmt.Fprintln(os.Stderr, "Error saving config:", err)
 			os.Exit(1)
 		}
 
-		fmt.Println("Created go2npm.yaml")
+		fmt.Println("Created omnidist.yaml")
 
 		if err := createNpmStructure(cfg); err != nil {
 			fmt.Fprintln(os.Stderr, "Error creating npm structure:", err)
@@ -44,7 +44,7 @@ func createNpmStructure(cfg *config.Config) error {
 	}
 
 	for _, target := range cfg.Targets {
-		pkgDir := fmt.Sprintf("%s-%s-%s", cfg.NPM.Package, target.OS, target.CPU)
+		pkgDir := fmt.Sprintf("%s-%s-%s", cfg.NPM.Package, target.OS, config.MapCPUToNPM(target.CPU))
 		if target.Variant != "" {
 			pkgDir = fmt.Sprintf("%s-%s", pkgDir, target.Variant)
 		}

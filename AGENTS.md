@@ -40,18 +40,18 @@ bd sync               # Sync with git
 
 ---
 
-# go2npm - Go to npm Binary Bundling Toolkit
+# Omnidist - Omni-platform Binary Distribution Toolkit
 
 A repeatable way to build, package, and publish a Go CLI as an npm-installable tool.
 
 ## Quick Reference
 
 ```bash
-go2npm init       # Bootstrap npm workspace packaging in existing Go repo
-go2npm build      # Compile Go binaries for configured targets
-go2npm stage      # Assemble npm packages from built artifacts
-go2npm verify     # Enforce correctness before publishing
-go2npm publish    # Publish to npm registry
+omnidist init       # Bootstrap npm workspace packaging in existing Go repo
+omnidist build      # Compile Go binaries for configured targets
+omnidist stage      # Assemble npm packages from built artifacts
+omnidist verify     # Enforce correctness before publishing
+omnidist publish    # Publish to npm registry
 ```
 
 ## Product Overview
@@ -119,12 +119,12 @@ repo/
     linux/arm64/<name>
     linux/x64/<name>
     win32/x64/<name>.exe
-  go2npm.yaml           # configuration
+  omnidist.yaml         # configuration
 ```
 
 ## Configuration Spec
 
-`go2npm.yaml` at repo root:
+`omnidist.yaml` at repo root:
 
 ```yaml
 tool:
@@ -163,11 +163,11 @@ The toolkit uses [Cobra](https://github.com/spf13/cobra) for CLI implementation.
 
 | Command | Description |
 |---------|-------------|
-| `go2npm init` | Bootstrap npm workspace packaging |
-| `go2npm build` | Compile Go binaries for targets |
-| `go2npm stage` | Assemble npm packages from artifacts |
-| `go2npm verify` | Enforce correctness before publish |
-| `go2npm publish` | Publish to npm registry |
+| `omnidist init` | Bootstrap npm workspace packaging |
+| `omnidist build` | Compile Go binaries for targets |
+| `omnidist stage` | Assemble npm packages from artifacts |
+| `omnidist verify` | Enforce correctness before publish |
+| `omnidist publish` | Publish to npm registry |
 
 ## Runtime Behavior (Meta Shim)
 
@@ -190,10 +190,10 @@ If platform package missing, message includes:
 
 1. Tag repo: `git tag v1.0.0`
 2. CI runs:
-   - `go2npm build`
-   - `go2npm stage`
-   - `go2npm verify`
-   - `go2npm publish`
+   - `omnidist build`
+   - `omnidist stage`
+   - `omnidist verify`
+   - `omnidist publish`
 
 All packages share identical semver.
 
@@ -202,7 +202,7 @@ All packages share identical semver.
 - `npm i -g <pkg>` works on: macOS arm64+x64, Linux arm64+x64, Windows x64
 - Installed command runs: `<name> --version`
 - No npm scripts in any published package
-- `go2npm verify` passes on CI
+- `omnidist verify` passes on CI
 - Version parity enforced across all packages
 
 ## Backlog (Post-MVP)

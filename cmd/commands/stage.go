@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/metalagman/go2npm/internal/config"
+	"github.com/metalagman/omnidist/internal/config"
 	"github.com/spf13/cobra"
 )
 
