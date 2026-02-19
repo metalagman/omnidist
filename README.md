@@ -55,7 +55,34 @@ omnidist npm publish --otp 123456
 
 ## Installation
 
-Build locally:
+Install with Go toolchain (global binary):
+
+```bash
+go install github.com/metalagman/omnidist/cmd/omnidist@latest
+omnidist --help
+```
+
+Add as a project tool (`go get -tool`) and run via `go tool`:
+
+```bash
+go get -tool github.com/metalagman/omnidist/cmd/omnidist@latest
+go tool omnidist --help
+```
+
+Run via `npx` (no global install):
+
+```bash
+npx -y @omnidist/omnidist --help
+```
+
+Install globally with npm:
+
+```bash
+npm i -g @omnidist/omnidist
+omnidist --help
+```
+
+Build locally from source:
 
 ```bash
 go build -o omnidist ./cmd/omnidist
