@@ -1,9 +1,9 @@
 # Binaries
-omnidist
+/omnidist
 dist/
 
 # npm packages
-npm/
+/npm/
 
 # Config (can be customized per repo)
 omnidist.yaml
@@ -21,3 +21,5 @@ omnidist.yaml
 .idea/
 .vscode/
 *.swp
+
+.env
