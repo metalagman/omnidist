@@ -20,12 +20,6 @@ type ToolConfig struct {
 	Main string `yaml:"main"`
 }
 
-type NPMConfig struct {
-	Package  string `yaml:"package"`
-	Registry string `yaml:"registry"`
-	Access   string `yaml:"access"`
-}
-
 type VersionConfig struct {
 	Source string `yaml:"source"`
 }
@@ -71,6 +65,15 @@ func MapArchFromNPM(arch string) string {
 	}
 }
 
+func MapOSToGo(os string) string {
+	switch os {
+	case "win32":
+		return "windows"
+	default:
+		return os
+	}
+}
+
 type BuildConfig struct {
 	Ldflags string   `yaml:"ldflags"`
 	Tags    []string `yaml:"tags"`
@@ -80,8 +83,8 @@ type BuildConfig struct {
 func DefaultConfig() *Config {
 	return &Config{
 		Tool: ToolConfig{
-			Name: "mytool",
-			Main: "./cmd/mytool",
+			Name: "omnidist",
+			Main: "./cmd/omnidist",
 		},
 		Version: VersionConfig{
 			Source: "git-tag",
@@ -100,7 +103,7 @@ func DefaultConfig() *Config {
 		},
 		Distributions: map[string]DistributionConfig{
 			"npm": {
-				Package:  "mytool",
+				Package:  "@omnidist/omnidist",
 				Registry: "https://registry.npmjs.org",
 				Access:   "public",
 			},

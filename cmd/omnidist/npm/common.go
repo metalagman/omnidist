@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/metalagman/omnidist/internal/config"
 	"github.com/spf13/viper"
@@ -20,26 +21,58 @@ func loadConfig() (*config.Config, error) {
 	return config.Load(configFile)
 }
 
-func getVersion(cfg *config.Config, dev bool) string {
+func npmDistribution(cfg *config.Config) (config.DistributionConfig, error) {
+	if cfg == nil {
+		return config.DistributionConfig{}, fmt.Errorf("config is nil")
+	}
+	dist, ok := cfg.Distributions["npm"]
+	if !ok {
+		return config.DistributionConfig{}, fmt.Errorf("missing required distribution: npm")
+	}
+
+	dist.Package = strings.TrimSpace(dist.Package)
+	dist.Registry = strings.TrimSpace(dist.Registry)
+	dist.Access = strings.TrimSpace(dist.Access)
+	if dist.Package == "" {
+		return config.DistributionConfig{}, fmt.Errorf("npm distribution package is required")
+	}
+	if dist.Access != "" && dist.Access != "public" && dist.Access != "restricted" {
+		return config.DistributionConfig{}, fmt.Errorf("invalid npm access %q: expected public or restricted", dist.Access)
+	}
+	return dist, nil
+}
+
+func getVersion(cfg *config.Config, dev bool) (string, error) {
+	if cfg == nil {
+		return "", fmt.Errorf("config is nil")
+	}
+
 	var version string
 	switch cfg.Version.Source {
 	case "git-tag":
-		if v, err := getGitTagVersion(dev); err == nil {
-			version = v
+		v, err := getGitTagVersion(dev)
+		if err != nil {
+			return "", fmt.Errorf("resolve git tag version: %w", err)
 		}
+		version = v
 	case "file":
-		if data, err := os.ReadFile("VERSION"); err == nil {
-			version = string(data)
+		data, err := os.ReadFile("VERSION")
+		if err != nil {
+			return "", fmt.Errorf("read VERSION file: %w", err)
 		}
+		version = string(data)
 	case "env":
-		if v := os.Getenv("VERSION"); v != "" {
-			version = v
-		}
+		version = os.Getenv("VERSION")
+	default:
+		return "", fmt.Errorf("unknown version source %q", cfg.Version.Source)
 	}
+
+	version = strings.TrimSpace(version)
 	if version == "" {
-		version = "0.0.0"
+		return "", fmt.Errorf("empty version from source %q", cfg.Version.Source)
 	}
-	return version
+
+	return version, nil
 }
 
 func getGitTagVersion(dev bool) (string, error) {
