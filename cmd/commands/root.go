@@ -21,6 +21,10 @@ func AddCommand(cmd *cobra.Command) {
 	rootCmd.AddCommand(cmd)
 }
 
+func AddCommandTo(parent *cobra.Command, cmd *cobra.Command) {
+	parent.AddCommand(cmd)
+}
+
 func ExitOnError(err error) {
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)

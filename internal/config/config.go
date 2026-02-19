@@ -8,11 +8,11 @@ import (
 )
 
 type Config struct {
-	Tool    ToolConfig    `yaml:"tool"`
-	NPM     NPMConfig     `yaml:"npm"`
-	Version VersionConfig `yaml:"version"`
-	Targets []Target      `yaml:"targets"`
-	Build   BuildConfig   `yaml:"build"`
+	Tool          ToolConfig                    `yaml:"tool"`
+	Version       VersionConfig                 `yaml:"version"`
+	Targets       []Target                      `yaml:"targets"`
+	Build         BuildConfig                   `yaml:"build"`
+	Distributions map[string]DistributionConfig `yaml:"distributions"`
 }
 
 type ToolConfig struct {
@@ -32,16 +32,23 @@ type VersionConfig struct {
 
 type Target struct {
 	OS      string `yaml:"os"`
-	CPU     string `yaml:"cpu"`
+	Arch    string `yaml:"arch"`
 	Variant string `yaml:"variant,omitempty"`
 }
 
-func (t *Target) NPMName() string {
-	return MapCPUToNPM(t.CPU)
+type DistributionConfig struct {
+	Package  string `yaml:"package"`
+	Registry string `yaml:"registry,omitempty"`
+	Access   string `yaml:"access,omitempty"`
+	IndexURL string `yaml:"index-url,omitempty"`
 }
 
-func MapCPUToNPM(cpu string) string {
-	switch cpu {
+func (t *Target) NPMName() string {
+	return MapArchToNPM(t.Arch)
+}
+
+func MapArchToNPM(arch string) string {
+	switch arch {
 	case "amd64":
 		return "x64"
 	case "arm64":
@@ -49,18 +56,18 @@ func MapCPUToNPM(cpu string) string {
 	case "386":
 		return "x86"
 	default:
-		return cpu
+		return arch
 	}
 }
 
-func MapCPUFromNPM(cpu string) string {
-	switch cpu {
+func MapArchFromNPM(arch string) string {
+	switch arch {
 	case "x64":
 		return "amd64"
 	case "x86":
 		return "386"
 	default:
-		return cpu
+		return arch
 	}
 }
 
@@ -76,25 +83,27 @@ func DefaultConfig() *Config {
 			Name: "mytool",
 			Main: "./cmd/mytool",
 		},
-		NPM: NPMConfig{
-			Package:  "mytool",
-			Registry: "https://registry.npmjs.org",
-			Access:   "public",
-		},
 		Version: VersionConfig{
 			Source: "git-tag",
 		},
 		Targets: []Target{
-			{OS: "darwin", CPU: "x64"},
-			{OS: "darwin", CPU: "arm64"},
-			{OS: "linux", CPU: "x64"},
-			{OS: "linux", CPU: "arm64"},
-			{OS: "win32", CPU: "x64"},
+			{OS: "darwin", Arch: "amd64"},
+			{OS: "darwin", Arch: "arm64"},
+			{OS: "linux", Arch: "amd64"},
+			{OS: "linux", Arch: "arm64"},
+			{OS: "win32", Arch: "amd64"},
 		},
 		Build: BuildConfig{
 			Ldflags: "-s -w",
 			Tags:    []string{},
 			CGO:     false,
+		},
+		Distributions: map[string]DistributionConfig{
+			"npm": {
+				Package:  "mytool",
+				Registry: "https://registry.npmjs.org",
+				Access:   "public",
+			},
 		},
 	}
 }

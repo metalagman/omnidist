@@ -74,7 +74,7 @@ func runVerify(cfg *config.Config) *VerificationResult {
 
 func verifyPlatformPackages(cfg *config.Config, version string, result *VerificationResult) error {
 	for _, target := range cfg.Targets {
-		pkgName := platformPackageName(cfg.NPM.Package, target)
+		pkgName := platformPackageName(cfg.Distributions["npm"].Package, target)
 		pkgDir := filepath.Join("npm", pkgName)
 
 		pkgJSON, err := readPackageJSON(pkgDir)
@@ -102,8 +102,8 @@ func verifyPlatformPackages(cfg *config.Config, version string, result *Verifica
 		if !ok || len(cpuList) == 0 {
 			result.Errors = append(result.Errors, fmt.Sprintf("Missing cpu field in %s", pkgName))
 			result.Valid = false
-		} else if cpuList[0] != config.MapCPUToNPM(target.CPU) {
-			result.Errors = append(result.Errors, fmt.Sprintf("cpu mismatch in %s: got %v, expected %s", pkgName, cpuList, config.MapCPUToNPM(target.CPU)))
+		} else if cpuList[0] != config.MapArchToNPM(target.Arch) {
+			result.Errors = append(result.Errors, fmt.Sprintf("cpu mismatch in %s: got %v, expected %s", pkgName, cpuList, config.MapArchToNPM(target.Arch)))
 			result.Valid = false
 		}
 
@@ -129,7 +129,7 @@ func verifyPlatformPackages(cfg *config.Config, version string, result *Verifica
 }
 
 func verifyMetaPackage(cfg *config.Config, version string, result *VerificationResult) error {
-	metaDir := filepath.Join("npm", cfg.NPM.Package)
+	metaDir := filepath.Join("npm", cfg.Distributions["npm"].Package)
 
 	pkgJSON, err := readPackageJSON(metaDir)
 	if err != nil {
@@ -156,7 +156,7 @@ func verifyMetaPackage(cfg *config.Config, version string, result *VerificationR
 		result.Valid = false
 	} else {
 		for _, target := range cfg.Targets {
-			pkgName := platformPackageName(cfg.NPM.Package, target)
+			pkgName := platformPackageName(cfg.Distributions["npm"].Package, target)
 			if _, exists := optionalDeps[pkgName]; !exists {
 				result.Errors = append(result.Errors, fmt.Sprintf("Missing %s in optionalDependencies", pkgName))
 				result.Valid = false
@@ -191,5 +191,5 @@ func readPackageJSON(dir string) (map[string]interface{}, error) {
 }
 
 func init() {
-	AddCommand(verifyCmd)
+	AddCommandTo(npmCmd, verifyCmd)
 }

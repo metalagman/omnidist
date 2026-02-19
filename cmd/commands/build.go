@@ -45,7 +45,7 @@ func runBuild(cfg *config.Config) error {
 
 	for _, target := range cfg.Targets {
 		if err := buildTarget(cfg, target); err != nil {
-			return fmt.Errorf("failed to build %s/%s: %w", target.OS, target.CPU, err)
+			return fmt.Errorf("failed to build %s/%s: %w", target.OS, target.Arch, err)
 		}
 	}
 
@@ -53,7 +53,7 @@ func runBuild(cfg *config.Config) error {
 }
 
 func buildTarget(cfg *config.Config, target config.Target) error {
-	outputDir := filepath.Join("dist", target.OS, config.MapCPUToNPM(target.CPU))
+	outputDir := filepath.Join("dist", target.OS, config.MapArchToNPM(target.Arch))
 	if err := os.MkdirAll(outputDir, 0755); err != nil {
 		return err
 	}
@@ -74,7 +74,7 @@ func buildTarget(cfg *config.Config, target config.Target) error {
 	args = append(args, "-o", outputPath, cfg.Tool.Main)
 
 	buildCmd := exec.Command("go", args...)
-	buildCmd.Env = append(os.Environ(), "GOOS="+target.OS, "GOARCH="+config.MapCPUFromNPM(target.CPU))
+	buildCmd.Env = append(os.Environ(), "GOOS="+target.OS, "GOARCH="+config.MapArchFromNPM(target.Arch))
 	if cfg.Build.CGO {
 		buildCmd.Env = append(buildCmd.Env, "CGO_ENABLED=1")
 	} else {

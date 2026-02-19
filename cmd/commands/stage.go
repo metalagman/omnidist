@@ -34,7 +34,7 @@ func runStage(cfg *config.Config) error {
 
 	for _, target := range cfg.Targets {
 		if err := stagePlatformPackage(cfg, target, version); err != nil {
-			return fmt.Errorf("failed to stage %s/%s: %w", target.OS, target.CPU, err)
+			return fmt.Errorf("failed to stage %s/%s: %w", target.OS, target.Arch, err)
 		}
 	}
 
@@ -46,7 +46,7 @@ func runStage(cfg *config.Config) error {
 }
 
 func stagePlatformPackage(cfg *config.Config, target config.Target, version string) error {
-	pkgName := platformPackageName(cfg.NPM.Package, target)
+	pkgName := platformPackageName(cfg.Distributions["npm"].Package, target)
 	pkgDir := filepath.Join("npm", pkgName)
 
 	if err := os.MkdirAll(filepath.Join(pkgDir, "bin"), 0755); err != nil {
@@ -58,7 +58,7 @@ func stagePlatformPackage(cfg *config.Config, target config.Target, version stri
 		binaryName += ".exe"
 	}
 
-	srcPath := filepath.Join("dist", target.OS, target.CPU, binaryName)
+	srcPath := filepath.Join("dist", target.OS, config.MapArchToNPM(target.Arch), binaryName)
 	dstPath := filepath.Join(pkgDir, "bin", binaryName)
 
 	if err := copyFile(srcPath, dstPath); err != nil {
@@ -72,9 +72,9 @@ func stagePlatformPackage(cfg *config.Config, target config.Target, version stri
 	pkgJSON := map[string]interface{}{
 		"name":        pkgName,
 		"version":     version,
-		"description": cfg.NPM.Package + " binary for " + target.OS + "/" + target.CPU,
+		"description": cfg.Distributions["npm"].Package + " binary for " + target.OS + "/" + target.Arch,
 		"os":          []string{target.OS},
-		"cpu":         []string{config.MapCPUToNPM(target.CPU)},
+		"cpu":         []string{config.MapArchToNPM(target.Arch)},
 		"bin": map[string]string{
 			cfg.Tool.Name: "bin/" + binaryName,
 		},
@@ -85,7 +85,7 @@ func stagePlatformPackage(cfg *config.Config, target config.Target, version stri
 }
 
 func stageMetaPackage(cfg *config.Config, version string) error {
-	metaDir := filepath.Join("npm", cfg.NPM.Package)
+	metaDir := filepath.Join("npm", cfg.Distributions["npm"].Package)
 
 	if err := os.MkdirAll(metaDir, 0755); err != nil {
 		return err
@@ -93,12 +93,12 @@ func stageMetaPackage(cfg *config.Config, version string) error {
 
 	optionalDeps := make(map[string]string)
 	for _, target := range cfg.Targets {
-		pkgName := platformPackageName(cfg.NPM.Package, target)
+		pkgName := platformPackageName(cfg.Distributions["npm"].Package, target)
 		optionalDeps[pkgName] = version
 	}
 
 	pkgJSON := map[string]interface{}{
-		"name":                 cfg.NPM.Package,
+		"name":                 cfg.Distributions["npm"].Package,
 		"version":              version,
 		"description":          "Meta package for " + cfg.Tool.Name,
 		"bin":                  cfg.Tool.Name,
@@ -111,7 +111,7 @@ func stageMetaPackage(cfg *config.Config, version string) error {
 	}
 
 	shimPath := filepath.Join(metaDir, cfg.Tool.Name+".js")
-	if err := writeShim(shimPath, cfg.Tool.Name, cfg.NPM.Package); err != nil {
+	if err := writeShim(shimPath, cfg.Tool.Name, cfg.Distributions["npm"].Package); err != nil {
 		return err
 	}
 
@@ -119,7 +119,7 @@ func stageMetaPackage(cfg *config.Config, version string) error {
 }
 
 func platformPackageName(meta string, target config.Target) string {
-	name := meta + "-" + target.OS + "-" + config.MapCPUToNPM(target.CPU)
+	name := meta + "-" + target.OS + "-" + config.MapArchToNPM(target.Arch)
 	if target.Variant != "" {
 		name += "-" + target.Variant
 	}
@@ -213,5 +213,5 @@ func loadConfigForStage() (*config.Config, error) {
 }
 
 func init() {
-	AddCommand(stageCmd)
+	AddCommandTo(npmCmd, stageCmd)
 }

@@ -39,25 +39,25 @@ var publishCmd = &cobra.Command{
 func runPublish(cfg *config.Config) error {
 	platformPackages := []string{}
 	for _, target := range cfg.Targets {
-		pkgName := platformPackageName(cfg.NPM.Package, target)
+		pkgName := platformPackageName(cfg.Distributions["npm"].Package, target)
 		platformPackages = append(platformPackages, pkgName)
 	}
 
 	fmt.Println("Publishing platform packages first...")
 	for _, pkgName := range platformPackages {
 		pkgDir := filepath.Join("npm", pkgName)
-		if err := publishPackage(pkgDir, cfg.NPM.Registry); err != nil {
+		if err := publishPackage(pkgDir, cfg.Distributions["npm"].Registry); err != nil {
 			return fmt.Errorf("failed to publish %s: %w", pkgName, err)
 		}
 		fmt.Printf("Published: %s\n", pkgName)
 	}
 
 	fmt.Println("Publishing meta package...")
-	metaDir := filepath.Join("npm", cfg.NPM.Package)
-	if err := publishPackage(metaDir, cfg.NPM.Registry); err != nil {
+	metaDir := filepath.Join("npm", cfg.Distributions["npm"].Package)
+	if err := publishPackage(metaDir, cfg.Distributions["npm"].Registry); err != nil {
 		return fmt.Errorf("failed to publish meta package: %w", err)
 	}
-	fmt.Printf("Published: %s\n", cfg.NPM.Package)
+	fmt.Printf("Published: %s\n", cfg.Distributions["npm"].Package)
 
 	return nil
 }
@@ -87,10 +87,5 @@ func publishPackage(dir, registry string) error {
 }
 
 func init() {
-	publishCmd.Flags().BoolVar(&flagDryRun, "dry-run", false, "Simulate publish")
-	publishCmd.Flags().StringVar(&flagTag, "tag", "latest", "NPM dist-tag")
-	publishCmd.Flags().StringVar(&flagRegistry, "registry", "", "NPM registry URL")
-	publishCmd.Flags().StringVar(&flagOTP, "otp", "", "NPM one-time password")
-
-	AddCommand(publishCmd)
+	AddCommandTo(npmCmd, publishCmd)
 }
