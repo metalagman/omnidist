@@ -3,6 +3,7 @@ package npm
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -182,4 +183,142 @@ func TestGetVersionErrors(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestBuildPublishArgs(t *testing.T) {
+	t.Parallel()
+
+	got := buildPublishArgs("https://registry.npmjs.org", "public", PublishOptions{})
+	want := []string{
+		"publish",
+		"--access", "public",
+		"--registry", "https://registry.npmjs.org",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("buildPublishArgs() = %#v, want %#v", got, want)
+	}
+}
+
+func TestBuildPublishArgsFlagOverrides(t *testing.T) {
+	t.Parallel()
+
+	got := buildPublishArgs("https://registry.npmjs.org", "restricted", PublishOptions{
+		DryRun:   true,
+		Tag:      "next",
+		Registry: "https://npm.example.internal",
+		OTP:      "123456",
+	})
+	want := []string{
+		"publish",
+		"--access", "restricted",
+		"--dry-run",
+		"--tag", "next",
+		"--registry", "https://npm.example.internal",
+		"--otp", "123456",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("buildPublishArgs() = %#v, want %#v", got, want)
+	}
+}
+
+func TestStageAndVerifyPasses(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	t.Setenv("VERSION", "1.2.3")
+
+	cfg := testConfig()
+	if err := createDistArtifacts(cfg); err != nil {
+		t.Fatalf("createDistArtifacts() error = %v", err)
+	}
+
+	if err := Stage(cfg, StageOptions{}); err != nil {
+		t.Fatalf("Stage() error = %v", err)
+	}
+
+	result := Verify(cfg)
+	if !result.Valid {
+		t.Fatalf("Verify().Valid = false, errors = %v", result.Errors)
+	}
+}
+
+func TestVerifyDetectsPlatformVersionMismatch(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	t.Setenv("VERSION", "2.0.0")
+
+	cfg := testConfig()
+	if err := createDistArtifacts(cfg); err != nil {
+		t.Fatalf("createDistArtifacts() error = %v", err)
+	}
+	if err := Stage(cfg, StageOptions{}); err != nil {
+		t.Fatalf("Stage() error = %v", err)
+	}
+
+	target := cfg.Targets[0]
+	pkgName := platformPackageName(cfg.Distributions["npm"].Package, target)
+	pkgDir := filepath.Join("npm", pkgName)
+	pkgJSON, err := readPackageJSON(pkgDir)
+	if err != nil {
+		t.Fatalf("readPackageJSON(%q) error = %v", pkgDir, err)
+	}
+	pkgJSON["version"] = "9.9.9"
+	if err := writePackageJSON(pkgDir, pkgJSON); err != nil {
+		t.Fatalf("writePackageJSON(%q) error = %v", pkgDir, err)
+	}
+
+	result := Verify(cfg)
+	if result.Valid {
+		t.Fatalf("Verify().Valid = true, want false")
+	}
+
+	foundMismatch := false
+	for _, errMsg := range result.Errors {
+		if strings.Contains(errMsg, "Version mismatch in "+pkgName) {
+			foundMismatch = true
+			break
+		}
+	}
+	if !foundMismatch {
+		t.Fatalf("Verify() errors = %v, want version mismatch for %s", result.Errors, pkgName)
+	}
+}
+
+func testConfig() *config.Config {
+	return &config.Config{
+		Tool: config.ToolConfig{
+			Name: "omnidist",
+		},
+		Version: config.VersionConfig{
+			Source: "env",
+		},
+		Targets: []config.Target{
+			{OS: "linux", Arch: "amd64"},
+			{OS: "win32", Arch: "amd64"},
+		},
+		Distributions: map[string]config.DistributionConfig{
+			"npm": {
+				Package:  "@omnidist/omnidist",
+				Registry: "https://registry.npmjs.org",
+				Access:   "public",
+			},
+		},
+	}
+}
+
+func createDistArtifacts(cfg *config.Config) error {
+	for _, target := range cfg.Targets {
+		binaryName := cfg.Tool.Name
+		if target.OS == "win32" {
+			binaryName += ".exe"
+		}
+
+		outPath := filepath.Join("dist", target.OS, config.MapArchToNPM(target.Arch), binaryName)
+		if err := os.MkdirAll(filepath.Dir(outPath), 0755); err != nil {
+			return err
+		}
+		if err := os.WriteFile(outPath, []byte("binary"), 0755); err != nil {
+			return err
+		}
+	}
+	return nil
 }
