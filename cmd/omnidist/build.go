@@ -1,4 +1,4 @@
-package commands
+package main
 
 import (
 	"fmt"
@@ -74,7 +74,7 @@ func buildTarget(cfg *config.Config, target config.Target) error {
 	args = append(args, "-o", outputPath, cfg.Tool.Main)
 
 	buildCmd := exec.Command("go", args...)
-	buildCmd.Env = append(os.Environ(), "GOOS="+target.OS, "GOARCH="+config.MapArchFromNPM(target.Arch))
+	buildCmd.Env = append(os.Environ(), "GOOS="+config.MapOSToGo(target.OS), "GOARCH="+config.MapArchFromNPM(target.Arch))
 	if cfg.Build.CGO {
 		buildCmd.Env = append(buildCmd.Env, "CGO_ENABLED=1")
 	} else {

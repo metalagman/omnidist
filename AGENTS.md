@@ -47,11 +47,11 @@ A repeatable way to build, package, and publish a Go CLI as an npm-installable t
 ## Quick Reference
 
 ```bash
-omnidist init       # Bootstrap npm workspace packaging in existing Go repo
-omnidist build      # Compile Go binaries for configured targets
-omnidist stage      # Assemble npm packages from built artifacts
-omnidist verify     # Enforce correctness before publishing
-omnidist publish    # Publish to npm registry
+omnidist init            # Bootstrap npm workspace packaging in existing Go repo
+omnidist build           # Compile Go binaries for configured targets
+omnidist npm stage       # Assemble npm packages from built artifacts
+omnidist npm verify      # Enforce correctness before publishing
+omnidist npm publish     # Publish to npm registry
 ```
 
 ## Product Overview
@@ -165,9 +165,9 @@ The toolkit uses [Cobra](https://github.com/spf13/cobra) for CLI implementation.
 |---------|-------------|
 | `omnidist init` | Bootstrap npm workspace packaging |
 | `omnidist build` | Compile Go binaries for targets |
-| `omnidist stage` | Assemble npm packages from artifacts |
-| `omnidist verify` | Enforce correctness before publish |
-| `omnidist publish` | Publish to npm registry |
+| `omnidist npm stage` | Assemble npm packages from artifacts |
+| `omnidist npm verify` | Enforce correctness before publish |
+| `omnidist npm publish` | Publish to npm registry |
 
 ## Runtime Behavior (Meta Shim)
 
@@ -191,9 +191,9 @@ If platform package missing, message includes:
 1. Tag repo: `git tag v1.0.0`
 2. CI runs:
    - `omnidist build`
-   - `omnidist stage`
-   - `omnidist verify`
-   - `omnidist publish`
+   - `omnidist npm stage`
+   - `omnidist npm verify`
+   - `omnidist npm publish`
 
 All packages share identical semver.
 
@@ -202,7 +202,7 @@ All packages share identical semver.
 - `npm i -g <pkg>` works on: macOS arm64+x64, Linux arm64+x64, Windows x64
 - Installed command runs: `<name> --version`
 - No npm scripts in any published package
-- `omnidist verify` passes on CI
+- `omnidist npm verify` passes on CI
 - Version parity enforced across all packages
 
 ## Backlog (Post-MVP)
