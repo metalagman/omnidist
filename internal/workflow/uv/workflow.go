@@ -126,12 +126,18 @@ func Publish(cfg *config.Config, opts PublishOptions) error {
 	}
 
 	args := buildPublishArgs(uvDist.IndexURL, opts, artifacts)
+	token, err := resolvePublishToken(opts)
+	if err != nil {
+		return err
+	}
 
 	cmd := exec.Command("uv", args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Env = append([]string{}, os.Environ()...)
-	if token := strings.TrimSpace(opts.Token); token != "" {
+	// Always use token auth mode for uv publish.
+	cmd.Env = append(cmd.Env, "UV_PUBLISH_USERNAME=__token__")
+	if token != "" {
 		cmd.Env = append(cmd.Env, "UV_PUBLISH_TOKEN="+token)
 	}
 
@@ -159,6 +165,17 @@ func buildPublishArgs(defaultIndexURL string, opts PublishOptions, artifacts []s
 
 	args = append(args, artifacts...)
 	return args
+}
+
+func resolvePublishToken(opts PublishOptions) (string, error) {
+	token := strings.TrimSpace(opts.Token)
+	if token == "" {
+		token = strings.TrimSpace(os.Getenv("UV_PUBLISH_TOKEN"))
+	}
+	if token == "" && !opts.DryRun {
+		return "", fmt.Errorf("uv publish requires token auth: pass --token or set UV_PUBLISH_TOKEN")
+	}
+	return token, nil
 }
 
 func uvDistribution(cfg *config.Config) (config.DistributionConfig, error) {

@@ -21,7 +21,7 @@ func init() {
 	publishCmd.Flags().StringVar(&publishURL, "publish-url", "", "Override uv publish URL (upload endpoint)")
 	publishCmd.Flags().StringVar(&publishLegacyURL, "repository-url", "", "Deprecated alias for --publish-url")
 	_ = publishCmd.Flags().MarkDeprecated("repository-url", "use --publish-url instead")
-	publishCmd.Flags().StringVar(&publishToken, "token", "", "PyPI token for uv publish (sets UV_PUBLISH_TOKEN)")
+	publishCmd.Flags().StringVar(&publishToken, "token", "", "PyPI token for uv publish (or set UV_PUBLISH_TOKEN)")
 }
 
 var publishCmd = &cobra.Command{

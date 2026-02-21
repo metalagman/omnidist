@@ -151,6 +151,60 @@ func TestUVDistValidation(t *testing.T) {
 	}
 }
 
+func TestResolvePublishToken(t *testing.T) {
+	tests := []struct {
+		name     string
+		opts     PublishOptions
+		envToken string
+		want     string
+		wantErr  bool
+	}{
+		{
+			name:     "uses_flag_token",
+			opts:     PublishOptions{Token: "flag-token"},
+			envToken: "env-token",
+			want:     "flag-token",
+		},
+		{
+			name:     "uses_env_token",
+			opts:     PublishOptions{},
+			envToken: "env-token",
+			want:     "env-token",
+		},
+		{
+			name:    "dry_run_allows_missing_token",
+			opts:    PublishOptions{DryRun: true},
+			want:    "",
+			wantErr: false,
+		},
+		{
+			name:    "publish_requires_token",
+			opts:    PublishOptions{},
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("UV_PUBLISH_TOKEN", tc.envToken)
+			got, err := resolvePublishToken(tc.opts)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("resolvePublishToken() error = nil, want error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("resolvePublishToken() error = %v", err)
+			}
+			if got != tc.want {
+				t.Fatalf("resolvePublishToken() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
 func testConfig() *config.Config {
 	return &config.Config{
 		Tool: config.ToolConfig{Name: "omnidist"},
