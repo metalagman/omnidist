@@ -301,11 +301,57 @@ func TestEnsureWorkspaceNPMRC(t *testing.T) {
 	content := string(data)
 	for _, want := range []string{
 		"registry=https://registry.npmjs.org",
-		"//registry.npmjs.org/:_authToken=${NPM_TOKEN}",
+		"//registry.npmjs.org/:_authToken=${NPM_PUBLISH_TOKEN}",
 	} {
 		if !strings.Contains(content, want) {
 			t.Fatalf(".npmrc missing %q, got:\n%s", want, content)
 		}
+	}
+}
+
+func TestResolvePublishToken(t *testing.T) {
+	tests := []struct {
+		name       string
+		publishTok string
+		dryRun     bool
+		want       string
+		wantErr    bool
+	}{
+		{
+			name:       "prefers_publish_token",
+			publishTok: "publish-token",
+			want:       "publish-token",
+		},
+		{
+			name:    "missing_token_fails_non_dry_run",
+			wantErr: true,
+		},
+		{
+			name:    "dry_run_allows_missing_token",
+			dryRun:  true,
+			want:    "",
+			wantErr: false,
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("NPM_PUBLISH_TOKEN", tc.publishTok)
+			got, err := resolvePublishToken(tc.dryRun)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("resolvePublishToken() error = nil, want error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("resolvePublishToken() error = %v", err)
+			}
+			if got != tc.want {
+				t.Fatalf("resolvePublishToken() = %q, want %q", got, tc.want)
+			}
+		})
 	}
 }
 

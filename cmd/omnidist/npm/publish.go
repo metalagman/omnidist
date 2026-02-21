@@ -40,9 +40,9 @@ var publishCmd = &cobra.Command{
 			OTP:      flagOTP,
 		}
 
-		if err := npmworkflow.CheckAuth(cfg, opts.Registry); err != nil {
+		if err := npmworkflow.CheckAuth(cfg, opts.Registry, opts.DryRun); err != nil {
 			fmt.Fprintln(os.Stderr, "NPM authentication failed:", err)
-			fmt.Fprintln(os.Stderr, "Set NPM_TOKEN in environment for .npmrc substitution, or run 'npm login'")
+			fmt.Fprintln(os.Stderr, "Set NPM_PUBLISH_TOKEN in environment for .npmrc substitution, or run 'npm login'")
 			os.Exit(1)
 		}
 
