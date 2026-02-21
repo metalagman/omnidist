@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/metalagman/omnidist/internal/config"
+	"github.com/metalagman/omnidist/internal/workflow/shared"
 )
 
 func TestWriteShimResolvesScopedPlatformPackage(t *testing.T) {
@@ -122,12 +123,12 @@ func TestGetVersionFromEnvTrimsWhitespace(t *testing.T) {
 	t.Setenv("VERSION", " 1.2.3 \n")
 	cfg := &config.Config{Version: config.VersionConfig{Source: "env"}}
 
-	got, err := getVersion(cfg, false)
+	got, err := shared.ResolveVersion(cfg, false)
 	if err != nil {
-		t.Fatalf("getVersion() error = %v", err)
+		t.Fatalf("ResolveVersion() error = %v", err)
 	}
 	if got != "1.2.3" {
-		t.Fatalf("getVersion() = %q, want %q", got, "1.2.3")
+		t.Fatalf("ResolveVersion() = %q, want %q", got, "1.2.3")
 	}
 }
 
@@ -140,12 +141,12 @@ func TestGetVersionFromFileTrimsWhitespace(t *testing.T) {
 	}
 
 	cfg := &config.Config{Version: config.VersionConfig{Source: "file"}}
-	got, err := getVersion(cfg, false)
+	got, err := shared.ResolveVersion(cfg, false)
 	if err != nil {
-		t.Fatalf("getVersion() error = %v", err)
+		t.Fatalf("ResolveVersion() error = %v", err)
 	}
 	if got != "2.4.6" {
-		t.Fatalf("getVersion() = %q, want %q", got, "2.4.6")
+		t.Fatalf("ResolveVersion() = %q, want %q", got, "2.4.6")
 	}
 }
 
@@ -177,9 +178,9 @@ func TestGetVersionErrors(t *testing.T) {
 			if tc.setup != nil {
 				tc.setup(t)
 			}
-			_, err := getVersion(tc.cfg, false)
+			_, err := shared.ResolveVersion(tc.cfg, false)
 			if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
-				t.Fatalf("getVersion() error = %v, want substring %q", err, tc.wantErr)
+				t.Fatalf("ResolveVersion() error = %v, want substring %q", err, tc.wantErr)
 			}
 		})
 	}

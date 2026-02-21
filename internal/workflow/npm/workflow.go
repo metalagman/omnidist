@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/metalagman/omnidist/internal/config"
+	"github.com/metalagman/omnidist/internal/workflow/shared"
 )
 
 type StageOptions struct {
@@ -46,7 +47,7 @@ func Stage(cfg *config.Config, opts StageOptions) error {
 		return err
 	}
 
-	version, err := getVersion(cfg, opts.Dev)
+	version, err := shared.ResolveVersion(cfg, opts.Dev)
 	if err != nil {
 		return err
 	}
@@ -78,7 +79,7 @@ func Verify(cfg *config.Config) *VerificationResult {
 		return result
 	}
 
-	version, err := getVersion(cfg, false)
+	version, err := shared.ResolveVersion(cfg, false)
 	if err != nil {
 		result.Errors = append(result.Errors, err.Error())
 		result.Valid = false
@@ -153,68 +154,6 @@ func npmDistribution(cfg *config.Config) (config.DistributionConfig, error) {
 		return config.DistributionConfig{}, fmt.Errorf("invalid npm access %q: expected public or restricted", dist.Access)
 	}
 	return dist, nil
-}
-
-func getVersion(cfg *config.Config, dev bool) (string, error) {
-	if cfg == nil {
-		return "", fmt.Errorf("config is nil")
-	}
-
-	var version string
-	switch cfg.Version.Source {
-	case "git-tag":
-		v, err := getGitTagVersion(dev)
-		if err != nil {
-			return "", fmt.Errorf("resolve git tag version: %w", err)
-		}
-		version = v
-	case "file":
-		data, err := os.ReadFile("VERSION")
-		if err != nil {
-			return "", fmt.Errorf("read VERSION file: %w", err)
-		}
-		version = string(data)
-	case "env":
-		version = os.Getenv("VERSION")
-	default:
-		return "", fmt.Errorf("unknown version source %q", cfg.Version.Source)
-	}
-
-	version = strings.TrimSpace(version)
-	if version == "" {
-		return "", fmt.Errorf("empty version from source %q", cfg.Version.Source)
-	}
-
-	return version, nil
-}
-
-func getGitTagVersion(dev bool) (string, error) {
-	args := []string{"describe", "--tags", "--always"}
-	if dev {
-		// Include commit count since tag for dev versions
-		args = append(args, "--long")
-	}
-	cmd := exec.Command("git", args...)
-	out, err := cmd.Output()
-	if err != nil {
-		return "", err
-	}
-	version := string(bytes.TrimSpace(out))
-	// Remove 'v' prefix if present
-	if len(version) > 0 && version[0] == 'v' {
-		version = version[1:]
-	}
-	// For dev builds, convert git describe format (0.1.0-5-gabc123) to semver prerelease (0.1.0-dev.5.gabc123)
-	if dev && len(version) > 0 {
-		// git describe --long produces: tag-commits-gsha
-		// We want: tag-dev.commits.gsha
-		parts := bytes.Split([]byte(version), []byte("-"))
-		if len(parts) >= 3 {
-			// parts[2] already includes the 'g' prefix from git describe
-			version = string(parts[0]) + "-dev." + string(parts[1]) + "." + string(parts[2])
-		}
-	}
-	return version, nil
 }
 
 func platformPackageName(meta string, target config.Target) string {

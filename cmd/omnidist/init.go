@@ -18,7 +18,7 @@ var initCmd = &cobra.Command{
 		}
 
 		fmt.Println("Created omnidist.yaml")
-		fmt.Println("Created npm/ directory structure")
+		fmt.Println("Created npm/ and uv/ directory structure")
 	},
 }
 

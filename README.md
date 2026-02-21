@@ -1,57 +1,35 @@
 # omnidist
 
-`omnidist` is a Go toolkit for distributing a Go CLI through npm as prebuilt platform packages.
+`omnidist` is a Go toolkit for distributing a Go CLI through npm and uv as prebuilt platform artifacts.
 
-It builds binaries for multiple targets, stages npm packages (meta + platform-specific), verifies package integrity, and publishes to npm.
+It builds binaries for multiple targets, stages distribution artifacts, verifies integrity, and publishes to registries.
 
 ## Why
 
 - Install once with npm: `npm i -g <package>`
-- No install-time download scripts
-- npm `os`/`cpu` constraints select the right platform package
+- Publish Python wheel artifacts to PyPI-compatible indexes with uv
+- No install-time download scripts for npm
 - Reproducible release flow from a single config file
 
 ## How It Works
 
-`omnidist` creates:
+`omnidist` supports two additive backends:
 
-- A meta package (for example `@scope/tool`) that contains:
-  - a tiny Node shim entrypoint
-  - `optionalDependencies` pointing to all platform packages at the same version
-- Platform packages (for example `@scope/tool-linux-x64`) that contain:
-  - prebuilt binary in `bin/`
-  - `os` and `cpu` constraints in `package.json`
-
-At install time, npm installs the meta package and the matching platform package.
+- `npm`:
+  - meta package (for example `@scope/tool`) with shim and `optionalDependencies`
+  - platform packages (for example `@scope/tool-linux-x64`) with prebuilt binaries
+- `uv`:
+  - per-target platform wheel artifacts in `uv/dist/`
+  - one wheel per configured target with embedded binary in `<pkg>/bin/`
 
 ## Requirements
 
 - Go 1.25+
-- Node.js + npm
+- Node.js + npm (for npm distribution commands)
+- `uv` (for uv distribution commands)
 - `git` (when `version.source: git-tag`)
 - npm auth (`npm login`) before `omnidist npm publish`
-
-## npm Auth and 2FA
-
-For CI/non-interactive publish, use an npm **Automation Token** (2FA bypass for publish).
-
-Create token:
-
-- `https://www.npmjs.com/settings/<username>/tokens`
-
-Use token:
-
-```bash
-export NPM_TOKEN=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-npm config set //registry.npmjs.org/:_authToken "$NPM_TOKEN"
-omnidist npm publish
-```
-
-If you publish with regular account auth and 2FA is enabled for writes, pass OTP:
-
-```bash
-omnidist npm publish --otp 123456
-```
+- PyPI token auth before `omnidist uv publish` (or `--dry-run`)
 
 ## Installation
 
@@ -59,26 +37,6 @@ Install with Go toolchain (global binary):
 
 ```bash
 go install github.com/metalagman/omnidist/cmd/omnidist@latest
-omnidist --help
-```
-
-Add as a project tool (`go get -tool`) and run via `go tool`:
-
-```bash
-go get -tool github.com/metalagman/omnidist/cmd/omnidist@latest
-go tool omnidist --help
-```
-
-Run via `npx` (no global install):
-
-```bash
-npx -y @omnidist/omnidist --help
-```
-
-Install globally with npm:
-
-```bash
-npm i -g @omnidist/omnidist
 omnidist --help
 ```
 
@@ -97,7 +55,7 @@ go run ./cmd/omnidist --help
 
 ## Quick Start
 
-1. Initialize config and npm folder structure:
+1. Initialize config and distribution folder structure:
 
 ```bash
 omnidist init
@@ -109,22 +67,25 @@ omnidist init
 omnidist build
 ```
 
-3. Stage npm packages from `dist/`:
+3. Stage and verify npm artifacts:
 
 ```bash
 omnidist npm stage
-```
-
-4. Verify staged packages:
-
-```bash
 omnidist npm verify
 ```
 
-5. Publish to npm:
+4. Stage and verify uv wheel artifacts:
+
+```bash
+omnidist uv stage
+omnidist uv verify
+```
+
+5. Publish when verification passes:
 
 ```bash
 omnidist npm publish
+omnidist uv publish
 ```
 
 ## Configuration
@@ -161,61 +122,11 @@ distributions:
     package: "@omnidist/omnidist"
     registry: https://registry.npmjs.org
     access: public # public | restricted
-```
 
-## Usage Examples
-
-### 1) Build and Stage a Release From a Git Tag
-
-```bash
-git tag v1.2.0
-omnidist build
-omnidist npm stage
-omnidist npm verify
-```
-
-With `version.source: git-tag`, package versions are derived from `git describe`.
-
-### 2) Create a Dev Pre-release Stage
-
-```bash
-omnidist npm stage --dev
-```
-
-This converts git describe output to semver prerelease form like:
-
-- `v1.2.0-5-gabc123` -> `1.2.0-dev.5.gabc123`
-
-### 3) Use VERSION File as Version Source
-
-```yaml
-version:
-  source: file
-```
-
-```bash
-echo "1.3.0" > VERSION
-omnidist npm stage
-omnidist npm verify
-```
-
-### 4) Use Environment Variable as Version Source
-
-```yaml
-version:
-  source: env
-```
-
-```bash
-export VERSION=2.0.0
-omnidist npm stage
-omnidist npm verify
-```
-
-### 5) Dry-run Publish With Custom Registry/Tag
-
-```bash
-omnidist npm publish --dry-run --tag next --registry https://registry.npmjs.org
+  uv:
+    package: omnidist
+    index-url: https://upload.pypi.org/legacy/
+    linux-tag: manylinux2014 # manylinux2014 | musllinux_1_2
 ```
 
 ## Command Reference
@@ -225,6 +136,7 @@ Top-level:
 - `omnidist init`
 - `omnidist build`
 - `omnidist npm`
+- `omnidist uv`
 
 NPM subcommands:
 
@@ -232,21 +144,88 @@ NPM subcommands:
 - `omnidist npm verify`
 - `omnidist npm publish [--dry-run] [--tag <tag>] [--registry <url>] [--otp <code>]`
 
+UV subcommands:
+
+- `omnidist uv stage [--dev]`
+- `omnidist uv verify`
+- `omnidist uv publish [--dry-run] [--repository-url <url>] [--token <pypi-token>]`
+
+## Usage Examples
+
+### npm release path
+
+```bash
+git tag v1.2.0
+omnidist build
+omnidist npm stage
+omnidist npm verify
+omnidist npm publish
+```
+
+### uv release path
+
+```bash
+git tag v1.2.0
+omnidist build
+omnidist uv stage
+omnidist uv verify
+omnidist uv publish --repository-url https://upload.pypi.org/legacy/
+```
+
+### uv dry-run publish
+
+```bash
+omnidist uv publish --dry-run --repository-url https://test.pypi.org/legacy/
+```
+
+### version from environment
+
+```yaml
+version:
+  source: env
+```
+
+```bash
+export VERSION=2.0.0
+omnidist npm stage
+omnidist uv stage
+```
+
+## Migration Guide (npm -> dual backend)
+
+1. Pull latest `omnidist` and run `omnidist init` in a clean branch to get uv defaults in config.
+2. Keep existing `distributions.npm` unchanged.
+3. Add/update `distributions.uv` values:
+   - `package` for wheel distribution name
+   - `index-url` for target registry
+   - `linux-tag` policy (`manylinux2014` default)
+4. Extend CI pipeline with uv stage/verify gates (see next section).
+5. Release both backends in the same version cycle.
+
+This is additive: npm support remains first-class and is not deprecated.
+
+## CI and Release Flow (Dual Backend)
+
+Recommended release sequence:
+
+1. `omnidist build`
+2. `omnidist npm stage`
+3. `omnidist npm verify`
+4. `omnidist uv stage`
+5. `omnidist uv verify`
+6. `omnidist npm publish`
+7. `omnidist uv publish`
+
+For CI verification-only jobs, run steps 1-5.
+
 ## Project Layout
 
 ```text
 cmd/omnidist/               CLI entrypoint and commands
 internal/config/            Config model and YAML load/save
+internal/workflow/          build/init/npm/uv workflows
 dist/                       Built binaries by os/arch
-npm/                        Staged npm packages (meta + platform packages)
+npm/                        Staged npm packages
+uv/dist/                    Staged wheel artifacts
 omnidist.yaml               Project configuration
 ```
-
-## Notes
-
-- `omnidist npm verify` enforces:
-  - version parity across staged packages
-  - presence of expected binaries
-  - `optionalDependencies` correctness in meta package
-  - no `scripts.postinstall` in staged packages
-- Version resolution is strict: unresolved/empty version sources fail fast.

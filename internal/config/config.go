@@ -1,8 +1,10 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -35,6 +37,7 @@ type DistributionConfig struct {
 	Registry string `yaml:"registry,omitempty"`
 	Access   string `yaml:"access,omitempty"`
 	IndexURL string `yaml:"index-url,omitempty"`
+	LinuxTag string `yaml:"linux-tag,omitempty"`
 }
 
 func (t *Target) NPMName() string {
@@ -107,6 +110,11 @@ func DefaultConfig() *Config {
 				Registry: "https://registry.npmjs.org",
 				Access:   "public",
 			},
+			"uv": {
+				Package:  "omnidist",
+				IndexURL: "https://upload.pypi.org/legacy/",
+				LinuxTag: "manylinux2014",
+			},
 		},
 	}
 }
@@ -122,7 +130,75 @@ func Load(path string) (*Config, error) {
 		return nil, err
 	}
 
+	applyDistributionDefaults(&cfg)
+	if err := validate(&cfg); err != nil {
+		return nil, err
+	}
+
 	return &cfg, nil
+}
+
+func applyDistributionDefaults(cfg *Config) {
+	if cfg.Distributions == nil {
+		cfg.Distributions = map[string]DistributionConfig{}
+	}
+
+	npmDist := cfg.Distributions["npm"]
+	npmDist.Package = strings.TrimSpace(npmDist.Package)
+	npmDist.Registry = strings.TrimSpace(npmDist.Registry)
+	npmDist.Access = strings.TrimSpace(npmDist.Access)
+	if npmDist.Registry == "" {
+		npmDist.Registry = "https://registry.npmjs.org"
+	}
+	if npmDist.Access == "" {
+		npmDist.Access = "public"
+	}
+	if npmDist.Package == "" {
+		npmDist.Package = "@omnidist/omnidist"
+	}
+	cfg.Distributions["npm"] = npmDist
+
+	uvDist := cfg.Distributions["uv"]
+	uvDist.Package = strings.TrimSpace(uvDist.Package)
+	uvDist.IndexURL = strings.TrimSpace(uvDist.IndexURL)
+	uvDist.LinuxTag = strings.TrimSpace(uvDist.LinuxTag)
+	if uvDist.Package == "" {
+		uvDist.Package = "omnidist"
+	}
+	if uvDist.IndexURL == "" {
+		uvDist.IndexURL = "https://upload.pypi.org/legacy/"
+	}
+	if uvDist.LinuxTag == "" {
+		uvDist.LinuxTag = "manylinux2014"
+	}
+	cfg.Distributions["uv"] = uvDist
+}
+
+func validate(cfg *Config) error {
+	if cfg == nil {
+		return fmt.Errorf("config is nil")
+	}
+
+	if npmDist, ok := cfg.Distributions["npm"]; ok {
+		switch npmDist.Access {
+		case "", "public", "restricted":
+		default:
+			return fmt.Errorf("invalid distributions.npm.access %q: expected public or restricted", npmDist.Access)
+		}
+	}
+
+	if uvDist, ok := cfg.Distributions["uv"]; ok {
+		if uvDist.Package == "" {
+			return fmt.Errorf("distributions.uv.package is required")
+		}
+		switch uvDist.LinuxTag {
+		case "manylinux2014", "musllinux_1_2":
+		default:
+			return fmt.Errorf("invalid distributions.uv.linux-tag %q: expected manylinux2014 or musllinux_1_2", uvDist.LinuxTag)
+		}
+	}
+
+	return nil
 }
 
 func Save(cfg *Config, path string) error {
