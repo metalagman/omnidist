@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"hash/crc32"
 	"io"
 	"net/url"
 	"os"
@@ -451,12 +452,15 @@ func writeWheel(wheelPath string, cfg *config.Config, uvDist config.Distribution
 func addZipFile(zipWriter *zip.Writer, name string, data []byte, mode os.FileMode) error {
 	header := &zip.FileHeader{
 		Name:   name,
-		Method: zip.Deflate,
+		Method: zip.Store,
 	}
+	header.UncompressedSize64 = uint64(len(data))
+	header.CompressedSize64 = uint64(len(data))
+	header.CRC32 = crc32.ChecksumIEEE(data)
 	header.SetMode(mode)
 	header.Modified = time.Unix(0, 0)
 
-	writer, err := zipWriter.CreateHeader(header)
+	writer, err := zipWriter.CreateRaw(header)
 	if err != nil {
 		return fmt.Errorf("create zip entry %s: %w", name, err)
 	}

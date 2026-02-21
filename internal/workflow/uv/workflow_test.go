@@ -110,6 +110,39 @@ func TestStageCleansOldArtifacts(t *testing.T) {
 	}
 }
 
+func TestStageWheelsHaveNoDataDescriptors(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	t.Setenv("VERSION", "1.2.3")
+
+	cfg := testConfig()
+	if err := createDistArtifacts(cfg); err != nil {
+		t.Fatalf("createDistArtifacts() error = %v", err)
+	}
+	if err := Stage(cfg, StageOptions{}); err != nil {
+		t.Fatalf("Stage() error = %v", err)
+	}
+
+	uvDist := cfg.Distributions["uv"]
+	for _, target := range cfg.Targets {
+		wheelPath, err := wheelPathForTarget(uvDist, target, "1.2.3")
+		if err != nil {
+			t.Fatalf("wheelPathForTarget() error = %v", err)
+		}
+		reader, err := zip.OpenReader(wheelPath)
+		if err != nil {
+			t.Fatalf("zip.OpenReader(%q) error = %v", wheelPath, err)
+		}
+		for _, f := range reader.File {
+			if f.Flags&0x8 != 0 {
+				reader.Close()
+				t.Fatalf("wheel %s file %s uses data descriptor flag", wheelPath, f.Name)
+			}
+		}
+		reader.Close()
+	}
+}
+
 func TestCheckDependencyMissing(t *testing.T) {
 	originalPath := os.Getenv("PATH")
 	t.Setenv("PATH", t.TempDir())
