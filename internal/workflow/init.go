@@ -25,7 +25,7 @@ func Init(configPath string) error {
 		return err
 	}
 
-	if err := EnsureGitignore(".gitignore"); err != nil {
+	if err := EnsureWorkspaceGitignore(filepath.Join(paths.WorkspaceDir, ".gitignore")); err != nil {
 		return err
 	}
 
@@ -75,16 +75,21 @@ func CreateUVStructure(cfg *config.Config) error {
 	return nil
 }
 
-func EnsureGitignore(path string) error {
+func EnsureWorkspaceGitignore(path string) error {
 	required := []string{
-		"/.omnidist/",
-		"/omnidist/",
+		"dist/",
+		"npm/",
+		"uv/",
 	}
 
 	existing := ""
 	if data, err := os.ReadFile(path); err == nil {
 		existing = string(data)
 	} else if !os.IsNotExist(err) {
+		return err
+	}
+
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		return err
 	}
 
@@ -106,7 +111,7 @@ func EnsureGitignore(path string) error {
 	if existing != "" {
 		builder.WriteString("\n")
 	}
-	builder.WriteString("# omnidist generated\n")
+	builder.WriteString("# omnidist generated artifacts\n")
 	for _, line := range missing {
 		builder.WriteString(line)
 		builder.WriteString("\n")

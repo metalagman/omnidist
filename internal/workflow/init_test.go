@@ -22,7 +22,7 @@ func TestInitCreatesNPMAndUVStructure(t *testing.T) {
 		filepath.Join(paths.NPMDir, "@omnidist", "omnidist"),
 		filepath.Join(paths.NPMDir, "@omnidist", "omnidist-linux-x64", "bin"),
 		paths.UVDistDir,
-		".gitignore",
+		filepath.Join(paths.WorkspaceDir, ".gitignore"),
 	}
 
 	for _, p := range requiredPaths {
@@ -31,14 +31,18 @@ func TestInitCreatesNPMAndUVStructure(t *testing.T) {
 		}
 	}
 
-	data, err := os.ReadFile(".gitignore")
+	data, err := os.ReadFile(filepath.Join(paths.WorkspaceDir, ".gitignore"))
 	if err != nil {
-		t.Fatalf("os.ReadFile(.gitignore) error = %v", err)
+		t.Fatalf("os.ReadFile(workspace .gitignore) error = %v", err)
 	}
 	content := string(data)
-	for _, required := range []string{"/.omnidist/", "/omnidist/"} {
+	for _, required := range []string{"dist/", "npm/", "uv/"} {
 		if !strings.Contains(content, required) {
-			t.Fatalf(".gitignore missing %q, got:\n%s", required, content)
+			t.Fatalf("workspace .gitignore missing %q, got:\n%s", required, content)
 		}
+	}
+
+	if _, err := os.Stat(".gitignore"); !os.IsNotExist(err) {
+		t.Fatalf("expected root .gitignore to be untouched in fresh repo, got err=%v", err)
 	}
 }

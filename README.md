@@ -19,7 +19,7 @@ It builds binaries for multiple targets, stages distribution artifacts, verifies
   - meta package (for example `@scope/tool`) with shim and `optionalDependencies`
   - platform packages (for example `@scope/tool-linux-x64`) with prebuilt binaries
 - `uv`:
-  - per-target platform wheel artifacts in `omnidist/uv/dist/`
+  - per-target platform wheel artifacts in `.omnidist/uv/dist/`
   - one wheel per configured target with embedded binary in `<pkg>/bin/`
 
 ## Requirements
@@ -63,8 +63,8 @@ omnidist init
 
 This creates:
 - `.omnidist/omnidist.yaml`
-- `omnidist/` workspace directories
-- `.gitignore` entries for generated paths
+- `.omnidist/` workspace directories
+- `.omnidist/.gitignore` for generated artifacts
 
 2. Build binaries for configured targets:
 
@@ -277,7 +277,8 @@ cmd/omnidist/               CLI entrypoint and commands
 internal/config/            Config model and YAML load/save
 internal/workflow/          build/init/npm/uv workflows
 .omnidist/omnidist.yaml     Project configuration
-omnidist/dist/              Built binaries by os/arch
-omnidist/npm/               Staged npm packages
-omnidist/uv/dist/           Staged wheel artifacts
+.omnidist/.gitignore        Ignore rules for generated artifacts
+.omnidist/dist/             Built binaries by os/arch
+.omnidist/npm/              Staged npm packages
+.omnidist/uv/dist/          Staged wheel artifacts
 ```

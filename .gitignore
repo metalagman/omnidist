@@ -1,12 +1,3 @@
-# omnidist generated
-/.omnidist/
-/omnidist
-/omnidist/
-dist/
-/npm/
-/uv/
-omnidist.yaml
-
 # Go
 *.exe
 *.dll

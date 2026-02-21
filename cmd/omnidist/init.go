@@ -19,7 +19,7 @@ var initCmd = &cobra.Command{
 		}
 
 		fmt.Printf("Created %s\n", paths.ConfigPath)
-		fmt.Printf("Created %s workspace and updated .gitignore\n", paths.WorkspaceDir)
+		fmt.Printf("Created %s workspace and %s/.gitignore\n", paths.WorkspaceDir, paths.WorkspaceDir)
 	},
 }
 
