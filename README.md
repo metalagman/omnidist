@@ -76,7 +76,13 @@ go run ./cmd/omnidist --help
 
 ## Quick Start
 
-1. Initialize config and distribution folder structure:
+1. Print repo-tailored onboarding/release commands:
+
+```bash
+omnidist quickstart
+```
+
+2. Initialize config and distribution folder structure:
 
 ```bash
 omnidist init
@@ -87,7 +93,7 @@ This creates:
 - `.omnidist/` workspace directories
 - `.omnidist/.gitignore` for generated artifacts
 
-2. Build binaries for configured targets:
+3. Build binaries for configured targets:
 
 ```bash
 omnidist build
@@ -95,7 +101,7 @@ omnidist build
 
 This also writes the resolved build version to `.omnidist/dist/VERSION`.
 
-3. Stage and verify artifacts:
+4. Stage and verify artifacts:
 
 ```bash
 omnidist stage
@@ -106,10 +112,16 @@ omnidist verify
 `.omnidist/uv/pyproject.toml` with that version.
 It also recreates `.omnidist/uv/dist` to prevent stale wheel artifacts from previous runs.
 
-4. Publish when verification passes:
+5. Publish when verification passes:
 
 ```bash
 omnidist publish
+```
+
+6. Generate tag-triggered release workflow:
+
+```bash
+omnidist ci
 ```
 
 ## Common Commands
@@ -117,6 +129,9 @@ omnidist publish
 ```bash
 # Build binaries for configured targets and persist build version
 omnidist build
+
+# Print a quickstart command sequence for this repo
+omnidist quickstart
 
 # Show runtime version/build metadata
 omnidist version
@@ -130,6 +145,9 @@ omnidist stage --dev
 
 # Publish both distributions (fail-fast, npm -> uv)
 omnidist publish
+
+# Generate GitHub Actions workflow for tagged releases
+omnidist ci
 
 # Limit orchestration to one distribution
 omnidist stage --only npm
@@ -217,7 +235,9 @@ Top-level:
 
 - `omnidist init`
 - `omnidist build`
+- `omnidist quickstart`
 - `omnidist version`
+- `omnidist ci [--force]`
 - `omnidist stage [--dev] [--only npm|uv|npm,uv]`
 - `omnidist verify [--only npm|uv|npm,uv]`
 - `omnidist publish [--dry-run] [--only npm|uv|npm,uv]`
@@ -267,6 +287,23 @@ Select a subset with `--only`:
 omnidist stage --only uv
 omnidist verify --only npm
 omnidist publish --dry-run --only npm,uv
+```
+
+### CI bootstrap for tag releases
+
+Generate `.github/workflows/omnidist-release.yml`:
+
+```bash
+omnidist ci
+```
+
+The generated workflow triggers on `v*` tag pushes and runs:
+`build -> stage -> verify -> publish`.
+
+If workflow already exists:
+
+```bash
+omnidist ci --force
 ```
 
 ### npm publishing flow with custom options

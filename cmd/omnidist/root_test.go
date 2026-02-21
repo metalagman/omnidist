@@ -47,7 +47,7 @@ func TestRootHelpContainsTopLevelDistributionCommands(t *testing.T) {
 		t.Fatalf("executeCommand(--help) error = %v", err)
 	}
 
-	for _, cmd := range []string{"stage", "verify", "publish"} {
+	for _, cmd := range []string{"stage", "verify", "publish", "quickstart", "ci"} {
 		if !strings.Contains(output, cmd) {
 			t.Fatalf("root help output missing %q: %s", cmd, output)
 		}
@@ -87,6 +87,16 @@ func TestPublishHelpFlags(t *testing.T) {
 		if !strings.Contains(output, flag) {
 			t.Fatalf("publish help missing %q: %s", flag, output)
 		}
+	}
+}
+
+func TestCIHelpFlags(t *testing.T) {
+	output, err := executeCommand("ci", "--help")
+	if err != nil {
+		t.Fatalf("executeCommand(ci --help) error = %v", err)
+	}
+	if !strings.Contains(output, "--force") {
+		t.Fatalf("ci help missing --force: %s", output)
 	}
 }
 
