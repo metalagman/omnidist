@@ -35,16 +35,12 @@ func TestCICommandCreatesWorkflow(t *testing.T) {
 	for _, want := range []string{
 		`tags:`,
 		`- "v*"`,
-		`prepare:`,
-		`publish_npm:`,
-		`publish_uv:`,
-		`needs: prepare`,
+		`release:`,
 		`run: npm install -g @omnidist/omnidist@`,
 		`run: omnidist build`,
 		`run: omnidist stage`,
 		`run: omnidist verify`,
-		`run: omnidist npm publish`,
-		`run: omnidist uv publish`,
+		`run: omnidist publish`,
 	} {
 		if !strings.Contains(content, want) {
 			t.Fatalf("workflow missing %q: %s", want, content)

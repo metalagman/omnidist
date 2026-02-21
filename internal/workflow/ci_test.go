@@ -24,18 +24,14 @@ func TestGenerateGitHubReleaseWorkflow(t *testing.T) {
 		`name: omnidist-release`,
 		`tags:`,
 		`- "v*"`,
-		`prepare:`,
-		`publish_npm:`,
-		`publish_uv:`,
-		`needs: prepare`,
+		`release:`,
 		`NPM_PUBLISH_TOKEN: ${{ secrets.NPM_PUBLISH_TOKEN }}`,
 		`UV_PUBLISH_TOKEN: ${{ secrets.UV_PUBLISH_TOKEN }}`,
 		`run: npm install -g @omnidist/omnidist@0.1.9`,
 		`run: omnidist build`,
 		`run: omnidist stage`,
 		`run: omnidist verify`,
-		`run: omnidist npm publish`,
-		`run: omnidist uv publish`,
+		`run: omnidist publish`,
 	} {
 		if !strings.Contains(content, want) {
 			t.Fatalf("workflow content missing %q\n---\n%s", want, content)
