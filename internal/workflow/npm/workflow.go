@@ -42,9 +42,13 @@ func CheckAuth(cfg *config.Config, registryOverride string) error {
 	if err != nil {
 		return fmt.Errorf("prepare npmrc: %w", err)
 	}
+	workspaceDir, err := ensureWorkingDir(paths.WorkspaceDir)
+	if err != nil {
+		return fmt.Errorf("resolve npm auth working directory: %w", err)
+	}
 
 	cmd := exec.Command("npm", "whoami")
-	cmd.Dir = paths.WorkspaceDir
+	cmd.Dir = workspaceDir
 	cmd.Env = append(os.Environ(), "NPM_CONFIG_USERCONFIG="+npmrcPath)
 
 	var stderr bytes.Buffer
@@ -491,6 +495,28 @@ func ensureWorkspaceNPMRC(registry string) (string, error) {
 	return npmrcPath, nil
 }
 
+func ensureWorkingDir(dir string) (string, error) {
+	cleaned := strings.TrimSpace(dir)
+	if cleaned == "" {
+		return "", fmt.Errorf("working directory is empty")
+	}
+
+	abs, err := filepath.Abs(cleaned)
+	if err != nil {
+		return "", err
+	}
+
+	info, err := os.Stat(abs)
+	if err != nil {
+		return "", err
+	}
+	if !info.IsDir() {
+		return "", fmt.Errorf("path is not a directory")
+	}
+
+	return abs, nil
+}
+
 func npmTokenConfigKey(registry string) (string, error) {
 	raw := strings.TrimSpace(registry)
 	if raw == "" {
@@ -551,9 +577,13 @@ func buildPublishArgs(defaultRegistry, defaultAccess string, opts PublishOptions
 
 func publishPackage(dir, defaultRegistry, defaultAccess string, opts PublishOptions, npmrcPath string) error {
 	args := buildPublishArgs(defaultRegistry, defaultAccess, opts)
+	packageDir, err := ensureWorkingDir(dir)
+	if err != nil {
+		return fmt.Errorf("resolve package working directory %q: %w", dir, err)
+	}
 
 	execCmd := exec.Command("npm", args...)
-	execCmd.Dir = dir
+	execCmd.Dir = packageDir
 	execCmd.Env = append(os.Environ(), "NPM_CONFIG_USERCONFIG="+npmrcPath)
 	execCmd.Stdout = os.Stdout
 	execCmd.Stderr = os.Stderr

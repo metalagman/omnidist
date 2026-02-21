@@ -309,6 +309,66 @@ func TestEnsureWorkspaceNPMRC(t *testing.T) {
 	}
 }
 
+func TestEnsureWorkingDir(t *testing.T) {
+	tests := []struct {
+		name    string
+		setup   func(t *testing.T) string
+		wantErr string
+	}{
+		{
+			name: "valid_directory",
+			setup: func(t *testing.T) string {
+				return t.TempDir()
+			},
+		},
+		{
+			name: "empty_directory",
+			setup: func(t *testing.T) string {
+				return "  "
+			},
+			wantErr: "working directory is empty",
+		},
+		{
+			name: "path_is_file",
+			setup: func(t *testing.T) string {
+				file := filepath.Join(t.TempDir(), "not-a-dir")
+				if err := os.WriteFile(file, []byte("x"), 0644); err != nil {
+					t.Fatalf("os.WriteFile() error = %v", err)
+				}
+				return file
+			},
+			wantErr: "not a directory",
+		},
+		{
+			name: "missing_directory",
+			setup: func(t *testing.T) string {
+				return filepath.Join(t.TempDir(), "missing")
+			},
+			wantErr: "no such file or directory",
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			dir := tc.setup(t)
+			got, err := ensureWorkingDir(dir)
+			if tc.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+					t.Fatalf("ensureWorkingDir(%q) error = %v, want substring %q", dir, err, tc.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("ensureWorkingDir(%q) error = %v", dir, err)
+			}
+			if got == "" {
+				t.Fatalf("ensureWorkingDir(%q) returned empty path", dir)
+			}
+		})
+	}
+}
+
 func TestStageAndVerifyPasses(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)
