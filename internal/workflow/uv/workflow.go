@@ -23,9 +23,9 @@ type StageOptions struct {
 }
 
 type PublishOptions struct {
-	DryRun        bool
-	RepositoryURL string
-	Token         string
+	DryRun     bool
+	PublishURL string
+	Token      string
 }
 
 type VerificationResult struct {
@@ -149,12 +149,12 @@ func buildPublishArgs(defaultIndexURL string, opts PublishOptions, artifacts []s
 		args = append(args, "--dry-run")
 	}
 
-	repositoryURL := strings.TrimSpace(defaultIndexURL)
-	if v := strings.TrimSpace(opts.RepositoryURL); v != "" {
-		repositoryURL = v
+	publishURL := strings.TrimSpace(defaultIndexURL)
+	if v := strings.TrimSpace(opts.PublishURL); v != "" {
+		publishURL = v
 	}
-	if repositoryURL != "" {
-		args = append(args, "--repository-url", repositoryURL)
+	if publishURL != "" {
+		args = append(args, "--publish-url", publishURL)
 	}
 
 	args = append(args, artifacts...)

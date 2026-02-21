@@ -34,7 +34,7 @@ func TestUVPublishHelpFlags(t *testing.T) {
 		t.Fatalf("executeCommand(uv publish --help) error = %v", err)
 	}
 
-	for _, flag := range []string{"--dry-run", "--repository-url", "--token"} {
+	for _, flag := range []string{"--dry-run", "--publish-url", "--token"} {
 		if !strings.Contains(output, flag) {
 			t.Fatalf("publish help missing %q: %s", flag, output)
 		}

@@ -97,14 +97,14 @@ func TestBuildPublishArgs(t *testing.T) {
 	sort.Strings(artifacts)
 
 	got := buildPublishArgs("https://upload.pypi.org/legacy/", PublishOptions{
-		DryRun:        true,
-		RepositoryURL: "https://pypi.internal/legacy/",
+		DryRun:     true,
+		PublishURL: "https://pypi.internal/legacy/",
 	}, artifacts)
 
 	want := []string{
 		"publish",
 		"--dry-run",
-		"--repository-url", "https://pypi.internal/legacy/",
+		"--publish-url", "https://pypi.internal/legacy/",
 		filepath.Join(paths.UVDistDir, "a.whl"),
 		filepath.Join(paths.UVDistDir, "b.whl"),
 	}

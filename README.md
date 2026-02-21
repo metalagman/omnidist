@@ -153,7 +153,7 @@ UV subcommands:
 
 - `omnidist uv stage [--dev]`
 - `omnidist uv verify`
-- `omnidist uv publish [--dry-run] [--repository-url <url>] [--token <pypi-token>]`
+- `omnidist uv publish [--dry-run] [--publish-url <url>] [--token <pypi-token>]`
 
 ## Usage Patterns
 
@@ -196,13 +196,13 @@ omnidist npm publish --otp <6-digit-code>
 ### uv publishing flow with custom index/auth
 
 ```bash
-omnidist uv publish --repository-url https://upload.pypi.org/legacy/ --token <pypi-token>
+omnidist uv publish --publish-url https://upload.pypi.org/legacy/ --token <pypi-token>
 ```
 
 TestPyPI dry-run style validation:
 
 ```bash
-omnidist uv publish --dry-run --repository-url https://test.pypi.org/legacy/
+omnidist uv publish --dry-run --publish-url https://test.pypi.org/legacy/
 ```
 
 ## Usage Examples
@@ -224,13 +224,13 @@ git tag v1.2.0
 omnidist build
 omnidist uv stage
 omnidist uv verify
-omnidist uv publish --repository-url https://upload.pypi.org/legacy/
+omnidist uv publish --publish-url https://upload.pypi.org/legacy/
 ```
 
 ### uv dry-run publish
 
 ```bash
-omnidist uv publish --dry-run --repository-url https://test.pypi.org/legacy/
+omnidist uv publish --dry-run --publish-url https://test.pypi.org/legacy/
 ```
 
 ### version from environment
