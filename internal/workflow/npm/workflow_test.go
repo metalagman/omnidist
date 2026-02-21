@@ -440,6 +440,55 @@ func TestStagedPackageVersion(t *testing.T) {
 	}
 }
 
+func TestResolveNPMVersion(t *testing.T) {
+	t.Run("prefers_staged_package_version", func(t *testing.T) {
+		dir := t.TempDir()
+		t.Chdir(dir)
+		t.Setenv("VERSION", "9.9.9")
+
+		cfg := testConfig()
+		if err := shared.WriteBuildVersion("2.2.2"); err != nil {
+			t.Fatalf("shared.WriteBuildVersion() error = %v", err)
+		}
+
+		metaDir := filepath.Join(paths.NPMDir, cfg.Distributions["npm"].Package)
+		if err := os.MkdirAll(metaDir, 0755); err != nil {
+			t.Fatalf("os.MkdirAll(%q) error = %v", metaDir, err)
+		}
+		if err := os.WriteFile(filepath.Join(metaDir, "package.json"), []byte(`{"name":"@omnidist/omnidist","version":"1.2.3-dev.4.abcd123"}`), 0644); err != nil {
+			t.Fatalf("os.WriteFile(package.json) error = %v", err)
+		}
+
+		got, err := resolveNPMVersion(cfg, metaDir)
+		if err != nil {
+			t.Fatalf("resolveNPMVersion() error = %v", err)
+		}
+		if got != "1.2.3-dev.4.abcd123" {
+			t.Fatalf("resolveNPMVersion() = %q, want %q", got, "1.2.3-dev.4.abcd123")
+		}
+	})
+
+	t.Run("falls_back_to_build_version", func(t *testing.T) {
+		dir := t.TempDir()
+		t.Chdir(dir)
+		t.Setenv("VERSION", "9.9.9")
+
+		cfg := testConfig()
+		if err := shared.WriteBuildVersion("2.3.4"); err != nil {
+			t.Fatalf("shared.WriteBuildVersion() error = %v", err)
+		}
+
+		metaDir := filepath.Join(paths.NPMDir, cfg.Distributions["npm"].Package)
+		got, err := resolveNPMVersion(cfg, metaDir)
+		if err != nil {
+			t.Fatalf("resolveNPMVersion() error = %v", err)
+		}
+		if got != "2.3.4" {
+			t.Fatalf("resolveNPMVersion() = %q, want %q", got, "2.3.4")
+		}
+	})
+}
+
 func TestEnsureWorkingDir(t *testing.T) {
 	tests := []struct {
 		name    string

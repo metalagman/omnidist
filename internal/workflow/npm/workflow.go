@@ -3,6 +3,7 @@ package npm
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -106,7 +107,8 @@ func Verify(cfg *config.Config) *VerificationResult {
 		return result
 	}
 
-	version, err := shared.ResolveVersion(cfg, false)
+	metaDir := filepath.Join(paths.NPMDir, npmDist.Package)
+	version, err := resolveNPMVersion(cfg, metaDir)
 	if err != nil {
 		result.Errors = append(result.Errors, err.Error())
 		result.Valid = false
@@ -142,9 +144,9 @@ func Publish(cfg *config.Config, opts PublishOptions) error {
 	}
 
 	metaDir := filepath.Join(paths.NPMDir, npmDist.Package)
-	version, err := stagedPackageVersion(metaDir)
+	version, err := resolveNPMVersion(cfg, metaDir)
 	if err != nil {
-		return fmt.Errorf("resolve staged npm version: %w", err)
+		return fmt.Errorf("resolve npm version: %w", err)
 	}
 
 	publishOpts, autoDevTag := withAutoDevTag(opts, version)
@@ -632,6 +634,22 @@ func stagedPackageVersion(dir string) (string, error) {
 		return "", fmt.Errorf("empty version in package.json")
 	}
 
+	return version, nil
+}
+
+func resolveNPMVersion(cfg *config.Config, metaDir string) (string, error) {
+	version, err := stagedPackageVersion(metaDir)
+	if err == nil {
+		return version, nil
+	}
+	if !errors.Is(err, os.ErrNotExist) {
+		return "", fmt.Errorf("read staged npm package version: %w", err)
+	}
+
+	version, err = shared.ResolveStageVersion(cfg, false)
+	if err != nil {
+		return "", fmt.Errorf("resolve build/source version: %w", err)
+	}
 	return version, nil
 }
 
