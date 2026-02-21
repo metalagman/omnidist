@@ -146,7 +146,8 @@ omnidist uv publish --publish-url https://test.pypi.org/legacy/ --token <pypi-to
 
 Supported variables:
 
-- `OMNIDIST_VERSION`: used when `version.source: env`; also expanded in `build.ldflags` templates (for example `${OMNIDIST_VERSION}`)
+- `OMNIDIST_VERSION`: used when `version.source: env`; also expanded in `build.ldflags` templates (for example `${OMNIDIST_VERSION}`).
+  `VERSION` is not used.
 - `NPM_PUBLISH_TOKEN`: required for npm publish commands when not using `--dry-run`
 - `UV_PUBLISH_TOKEN`: used by uv publish when `--token` is not provided
 

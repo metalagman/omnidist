@@ -1,0 +1,30 @@
+tool:
+    name: omnidist
+    main: ./cmd/omnidist
+version:
+    source: git-tag
+targets:
+    - os: darwin
+      arch: amd64
+    - os: darwin
+      arch: arm64
+    - os: linux
+      arch: amd64
+    - os: linux
+      arch: arm64
+    - os: win32
+      arch: amd64
+build:
+    ldflags: -s -w -X github.com/metalagman/appkit/version.version=${OMNIDIST_VERSION}
+    tags: []
+    cgo: false
+distributions:
+    npm:
+        package: '@omnidist/omnidist'
+        registry: https://registry.npmjs.org
+        access: public
+    uv:
+        package: omnidist
+        # Used as default publish endpoint for `omnidist uv publish`.
+        index-url: https://upload.pypi.org/legacy/
+        linux-tag: manylinux2014
