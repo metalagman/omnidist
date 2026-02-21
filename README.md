@@ -205,6 +205,7 @@ omnidist uv publish --publish-url https://upload.pypi.org/legacy/ --token <pypi-
 
 `omnidist uv publish` always uses token auth mode (`__token__` username).  
 Provide token via `--token` or `UV_PUBLISH_TOKEN` (required for non-dry-run).
+If `.omnidist/dist/VERSION` exists, publish uses that staged build version; otherwise it falls back to exact release version resolution.
 
 TestPyPI dry-run style validation:
 

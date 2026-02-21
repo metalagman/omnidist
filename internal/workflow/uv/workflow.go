@@ -3,6 +3,7 @@ package uv
 import (
 	"archive/zip"
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -115,7 +116,7 @@ func Publish(cfg *config.Config, opts PublishOptions) error {
 		return err
 	}
 
-	version, err := resolveUVReleaseVersion(cfg)
+	version, err := resolveUVPublishVersion(cfg)
 	if err != nil {
 		return err
 	}
@@ -243,6 +244,23 @@ func resolveUVReleaseVersion(cfg *config.Config) (string, error) {
 	pep440, err := shared.ToPEP440(version)
 	if err != nil {
 		return "", err
+	}
+
+	return pep440, nil
+}
+
+func resolveUVPublishVersion(cfg *config.Config) (string, error) {
+	version, err := shared.ReadBuildVersion()
+	if err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
+			return "", fmt.Errorf("read build version: %w", err)
+		}
+		return resolveUVReleaseVersion(cfg)
+	}
+
+	pep440, err := shared.ToPEP440(version)
+	if err != nil {
+		return "", fmt.Errorf("convert build version to PEP 440: %w", err)
 	}
 
 	return pep440, nil

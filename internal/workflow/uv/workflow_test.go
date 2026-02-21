@@ -248,6 +248,68 @@ func TestResolveUVReleaseVersion(t *testing.T) {
 	}
 }
 
+func TestResolveUVPublishVersion(t *testing.T) {
+	tests := []struct {
+		name         string
+		writeVersion string
+		cfg          *config.Config
+		envVer       string
+		want         string
+		wantErr      bool
+	}{
+		{
+			name:         "uses_build_version",
+			writeVersion: "1.2.3-4-gabc123",
+			cfg:          &config.Config{Version: config.VersionConfig{Source: "env"}},
+			envVer:       "9.9.9",
+			want:         "1.2.3.dev4+abc123",
+		},
+		{
+			name:    "fallback_to_release_version",
+			cfg:     &config.Config{Version: config.VersionConfig{Source: "env"}},
+			envVer:  "1.2.3",
+			want:    "1.2.3",
+			wantErr: false,
+		},
+		{
+			name:    "fallback_release_must_be_semver",
+			cfg:     &config.Config{Version: config.VersionConfig{Source: "env"}},
+			envVer:  "1.2.3-dev.1.gabc123",
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			t.Setenv("VERSION", tc.envVer)
+			if tc.writeVersion != "" {
+				if err := os.MkdirAll(paths.DistDir, 0755); err != nil {
+					t.Fatalf("os.MkdirAll(%q) error = %v", paths.DistDir, err)
+				}
+				if err := os.WriteFile(paths.DistVersionPath, []byte(tc.writeVersion+"\n"), 0644); err != nil {
+					t.Fatalf("os.WriteFile(%q) error = %v", paths.DistVersionPath, err)
+				}
+			}
+
+			got, err := resolveUVPublishVersion(tc.cfg)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("resolveUVPublishVersion() error = nil, want error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("resolveUVPublishVersion() error = %v", err)
+			}
+			if got != tc.want {
+				t.Fatalf("resolveUVPublishVersion() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
 func testConfig() *config.Config {
 	return &config.Config{
 		Tool: config.ToolConfig{Name: "omnidist"},
