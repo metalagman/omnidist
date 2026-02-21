@@ -6,6 +6,7 @@ const (
 	WorkspaceDir = ".omnidist"
 	DistDir      = WorkspaceDir + "/dist"
 	NPMDir       = WorkspaceDir + "/npm"
+	NPMRCPath    = WorkspaceDir + "/.npmrc"
 	UVDir        = WorkspaceDir + "/uv"
 	UVDistDir    = UVDir + "/dist"
 )

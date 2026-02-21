@@ -27,12 +27,6 @@ var publishCmd = &cobra.Command{
 	Use:   "publish",
 	Short: "Publish to npm registry",
 	Run: func(cmd *cobra.Command, args []string) {
-		if err := npmworkflow.CheckAuth(); err != nil {
-			fmt.Fprintln(os.Stderr, "NPM authentication failed:", err)
-			fmt.Fprintln(os.Stderr, "Run 'npm login' to authenticate")
-			os.Exit(1)
-		}
-
 		cfg, err := loadConfig()
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "Error loading config:", err)
@@ -44,6 +38,12 @@ var publishCmd = &cobra.Command{
 			Tag:      flagTag,
 			Registry: flagRegistry,
 			OTP:      flagOTP,
+		}
+
+		if err := npmworkflow.CheckAuth(cfg, opts.Registry); err != nil {
+			fmt.Fprintln(os.Stderr, "NPM authentication failed:", err)
+			fmt.Fprintln(os.Stderr, "Set NPM_TOKEN in environment for .npmrc substitution, or run 'npm login'")
+			os.Exit(1)
 		}
 
 		if err := npmworkflow.Publish(cfg, opts); err != nil {

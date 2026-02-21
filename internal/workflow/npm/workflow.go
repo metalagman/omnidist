@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -31,13 +32,26 @@ type VerificationResult struct {
 	Warnings []string `json:"warnings"`
 }
 
-func CheckAuth() error {
+func CheckAuth(cfg *config.Config, registryOverride string) error {
+	npmDist, err := npmDistribution(cfg)
+	if err != nil {
+		return err
+	}
+
+	npmrcPath, err := ensureWorkspaceNPMRC(resolveRegistry(npmDist.Registry, registryOverride))
+	if err != nil {
+		return fmt.Errorf("prepare npmrc: %w", err)
+	}
+
 	cmd := exec.Command("npm", "whoami")
+	cmd.Dir = paths.WorkspaceDir
+	cmd.Env = append(os.Environ(), "NPM_CONFIG_USERCONFIG="+npmrcPath)
+
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("%s", stderr.String())
+		return fmt.Errorf("%s", strings.TrimSpace(stderr.String()))
 	}
 	return nil
 }
@@ -106,6 +120,11 @@ func Publish(cfg *config.Config, opts PublishOptions) error {
 		return err
 	}
 
+	npmrcPath, err := ensureWorkspaceNPMRC(resolveRegistry(npmDist.Registry, opts.Registry))
+	if err != nil {
+		return fmt.Errorf("prepare npmrc: %w", err)
+	}
+
 	platformPackages := []string{}
 	for _, target := range cfg.Targets {
 		pkgName := platformPackageName(npmDist.Package, target)
@@ -120,7 +139,7 @@ func Publish(cfg *config.Config, opts PublishOptions) error {
 	fmt.Println("Publishing platform packages first...")
 	for _, pkgName := range platformPackages {
 		pkgDir := filepath.Join(paths.NPMDir, pkgName)
-		if err := publishPackage(pkgDir, npmDist.Registry, access, opts); err != nil {
+		if err := publishPackage(pkgDir, npmDist.Registry, access, opts, npmrcPath); err != nil {
 			return fmt.Errorf("failed to publish %s: %w", pkgName, err)
 		}
 		fmt.Printf("Published: %s\n", pkgName)
@@ -128,7 +147,7 @@ func Publish(cfg *config.Config, opts PublishOptions) error {
 
 	fmt.Println("Publishing meta package...")
 	metaDir := filepath.Join(paths.NPMDir, npmDist.Package)
-	if err := publishPackage(metaDir, npmDist.Registry, access, opts); err != nil {
+	if err := publishPackage(metaDir, npmDist.Registry, access, opts, npmrcPath); err != nil {
 		return fmt.Errorf("failed to publish meta package: %w", err)
 	}
 	fmt.Printf("Published: %s\n", npmDist.Package)
@@ -434,6 +453,72 @@ func verifyMetaPackage(cfg *config.Config, npmDist config.DistributionConfig, ve
 	return nil
 }
 
+func resolveRegistry(defaultRegistry, overrideRegistry string) string {
+	registry := strings.TrimSpace(overrideRegistry)
+	if registry != "" {
+		return registry
+	}
+	registry = strings.TrimSpace(defaultRegistry)
+	if registry != "" {
+		return registry
+	}
+	return "https://registry.npmjs.org"
+}
+
+func ensureWorkspaceNPMRC(registry string) (string, error) {
+	tokenKey, err := npmTokenConfigKey(registry)
+	if err != nil {
+		return "", err
+	}
+
+	if err := os.MkdirAll(paths.WorkspaceDir, 0755); err != nil {
+		return "", err
+	}
+
+	content := fmt.Sprintf(
+		"# omnidist npm auth (uses npm env substitution)\nregistry=%s\n%s=${NPM_TOKEN}\n",
+		registry,
+		tokenKey,
+	)
+	if err := os.WriteFile(paths.NPMRCPath, []byte(content), 0644); err != nil {
+		return "", err
+	}
+
+	npmrcPath, err := filepath.Abs(paths.NPMRCPath)
+	if err != nil {
+		return "", err
+	}
+	return npmrcPath, nil
+}
+
+func npmTokenConfigKey(registry string) (string, error) {
+	raw := strings.TrimSpace(registry)
+	if raw == "" {
+		return "", fmt.Errorf("npm registry is empty")
+	}
+
+	if strings.HasPrefix(raw, "//") {
+		raw = "https:" + raw
+	} else if !strings.Contains(raw, "://") {
+		raw = "https://" + raw
+	}
+
+	u, err := url.Parse(raw)
+	if err != nil {
+		return "", fmt.Errorf("parse npm registry %q: %w", registry, err)
+	}
+	if u.Host == "" {
+		return "", fmt.Errorf("parse npm registry %q: missing host", registry)
+	}
+
+	pathPart := strings.Trim(strings.TrimSpace(u.Path), "/")
+	if pathPart == "" {
+		return fmt.Sprintf("//%s/:_authToken", u.Host), nil
+	}
+
+	return fmt.Sprintf("//%s/%s/:_authToken", u.Host, pathPart), nil
+}
+
 func buildPublishArgs(defaultRegistry, defaultAccess string, opts PublishOptions) []string {
 	args := []string{"publish"}
 
@@ -464,11 +549,12 @@ func buildPublishArgs(defaultRegistry, defaultAccess string, opts PublishOptions
 	return args
 }
 
-func publishPackage(dir, defaultRegistry, defaultAccess string, opts PublishOptions) error {
+func publishPackage(dir, defaultRegistry, defaultAccess string, opts PublishOptions, npmrcPath string) error {
 	args := buildPublishArgs(defaultRegistry, defaultAccess, opts)
 
 	execCmd := exec.Command("npm", args...)
 	execCmd.Dir = dir
+	execCmd.Env = append(os.Environ(), "NPM_CONFIG_USERCONFIG="+npmrcPath)
 	execCmd.Stdout = os.Stdout
 	execCmd.Stderr = os.Stderr
 

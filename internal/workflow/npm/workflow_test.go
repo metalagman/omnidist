@@ -223,6 +223,92 @@ func TestBuildPublishArgsFlagOverrides(t *testing.T) {
 	}
 }
 
+func TestNPMTokenConfigKey(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		registry string
+		want     string
+		wantErr  string
+	}{
+		{
+			name:     "npmjs",
+			registry: "https://registry.npmjs.org",
+			want:     "//registry.npmjs.org/:_authToken",
+		},
+		{
+			name:     "host_without_scheme",
+			registry: "registry.npmjs.org",
+			want:     "//registry.npmjs.org/:_authToken",
+		},
+		{
+			name:     "protocol_relative",
+			registry: "//registry.npmjs.org",
+			want:     "//registry.npmjs.org/:_authToken",
+		},
+		{
+			name:     "registry_with_path",
+			registry: "https://npm.example.internal/repository/npm-private",
+			want:     "//npm.example.internal/repository/npm-private/:_authToken",
+		},
+		{
+			name:     "missing_host",
+			registry: "https://",
+			wantErr:  "missing host",
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := npmTokenConfigKey(tc.registry)
+			if tc.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+					t.Fatalf("npmTokenConfigKey(%q) error = %v, want substring %q", tc.registry, err, tc.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("npmTokenConfigKey(%q) error = %v", tc.registry, err)
+			}
+			if got != tc.want {
+				t.Fatalf("npmTokenConfigKey(%q) = %q, want %q", tc.registry, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestEnsureWorkspaceNPMRC(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+
+	npmrcPath, err := ensureWorkspaceNPMRC("https://registry.npmjs.org")
+	if err != nil {
+		t.Fatalf("ensureWorkspaceNPMRC() error = %v", err)
+	}
+
+	wantPath := filepath.Join(dir, paths.NPMRCPath)
+	if npmrcPath != wantPath {
+		t.Fatalf("ensureWorkspaceNPMRC() path = %q, want %q", npmrcPath, wantPath)
+	}
+
+	data, err := os.ReadFile(npmrcPath)
+	if err != nil {
+		t.Fatalf("os.ReadFile(%q) error = %v", npmrcPath, err)
+	}
+	content := string(data)
+	for _, want := range []string{
+		"registry=https://registry.npmjs.org",
+		"//registry.npmjs.org/:_authToken=${NPM_TOKEN}",
+	} {
+		if !strings.Contains(content, want) {
+			t.Fatalf(".npmrc missing %q, got:\n%s", want, content)
+		}
+	}
+}
+
 func TestStageAndVerifyPasses(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)
