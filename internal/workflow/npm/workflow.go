@@ -75,7 +75,7 @@ func Stage(cfg *config.Config, opts StageOptions) error {
 		return err
 	}
 
-	version, err := shared.ResolveStageVersion(cfg, opts.Dev)
+	version, err := resolveNPMStageVersion(cfg, opts.Dev)
 	if err != nil {
 		return err
 	}
@@ -91,6 +91,22 @@ func Stage(cfg *config.Config, opts StageOptions) error {
 	}
 
 	return nil
+}
+
+func resolveNPMStageVersion(cfg *config.Config, dev bool) (string, error) {
+	if dev {
+		return shared.ResolveVersion(cfg, true)
+	}
+
+	version, err := shared.ReadBuildVersion()
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return "", fmt.Errorf("missing build version file %s; run `omnidist build` before `omnidist npm stage`", paths.DistVersionPath)
+		}
+		return "", fmt.Errorf("read build version: %w", err)
+	}
+
+	return version, nil
 }
 
 func Verify(cfg *config.Config) *VerificationResult {

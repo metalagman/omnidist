@@ -558,6 +558,9 @@ func TestStageAndVerifyPasses(t *testing.T) {
 	if err := createDistArtifacts(cfg); err != nil {
 		t.Fatalf("createDistArtifacts() error = %v", err)
 	}
+	if err := shared.WriteBuildVersion("1.2.3"); err != nil {
+		t.Fatalf("shared.WriteBuildVersion() error = %v", err)
+	}
 
 	if err := Stage(cfg, StageOptions{}); err != nil {
 		t.Fatalf("Stage() error = %v", err)
@@ -577,6 +580,9 @@ func TestVerifyDetectsPlatformVersionMismatch(t *testing.T) {
 	cfg := testConfig()
 	if err := createDistArtifacts(cfg); err != nil {
 		t.Fatalf("createDistArtifacts() error = %v", err)
+	}
+	if err := shared.WriteBuildVersion("2.0.0"); err != nil {
+		t.Fatalf("shared.WriteBuildVersion() error = %v", err)
 	}
 	if err := Stage(cfg, StageOptions{}); err != nil {
 		t.Fatalf("Stage() error = %v", err)
@@ -608,6 +614,22 @@ func TestVerifyDetectsPlatformVersionMismatch(t *testing.T) {
 	}
 	if !foundMismatch {
 		t.Fatalf("Verify() errors = %v, want version mismatch for %s", result.Errors, pkgName)
+	}
+}
+
+func TestStageRequiresBuildVersionFile(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	t.Setenv("VERSION", "1.2.3")
+
+	cfg := testConfig()
+	if err := createDistArtifacts(cfg); err != nil {
+		t.Fatalf("createDistArtifacts() error = %v", err)
+	}
+
+	err := Stage(cfg, StageOptions{})
+	if err == nil || !strings.Contains(err.Error(), "missing build version file") {
+		t.Fatalf("Stage() error = %v, want missing build version file", err)
 	}
 }
 
