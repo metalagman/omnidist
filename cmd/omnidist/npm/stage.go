@@ -27,7 +27,7 @@ var stageCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		version, err := shared.ResolveVersion(cfg, flagDev)
+		version, err := shared.ResolveStageVersion(cfg, flagDev)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "Error resolving version:", err)
 			os.Exit(1)

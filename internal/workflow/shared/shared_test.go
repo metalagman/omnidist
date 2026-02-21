@@ -146,3 +146,52 @@ func TestResolveReleaseVersion(t *testing.T) {
 		})
 	}
 }
+
+func TestBuildVersionRoundTrip(t *testing.T) {
+	t.Chdir(t.TempDir())
+
+	want := "1.2.3-1-gabc123"
+	if err := WriteBuildVersion(want); err != nil {
+		t.Fatalf("WriteBuildVersion() error = %v", err)
+	}
+
+	got, err := ReadBuildVersion()
+	if err != nil {
+		t.Fatalf("ReadBuildVersion() error = %v", err)
+	}
+	if got != want {
+		t.Fatalf("ReadBuildVersion() = %q, want %q", got, want)
+	}
+}
+
+func TestResolveStageVersionUsesBuildVersion(t *testing.T) {
+	t.Chdir(t.TempDir())
+	t.Setenv("VERSION", "9.9.9")
+
+	if err := WriteBuildVersion("1.2.3-2-gabc123"); err != nil {
+		t.Fatalf("WriteBuildVersion() error = %v", err)
+	}
+
+	cfg := &config.Config{Version: config.VersionConfig{Source: "env"}}
+	got, err := ResolveStageVersion(cfg, false)
+	if err != nil {
+		t.Fatalf("ResolveStageVersion() error = %v", err)
+	}
+	if got != "1.2.3-2-gabc123" {
+		t.Fatalf("ResolveStageVersion() = %q, want %q", got, "1.2.3-2-gabc123")
+	}
+}
+
+func TestResolveStageVersionFallsBackToSource(t *testing.T) {
+	t.Chdir(t.TempDir())
+	t.Setenv("VERSION", "2.4.6")
+
+	cfg := &config.Config{Version: config.VersionConfig{Source: "env"}}
+	got, err := ResolveStageVersion(cfg, false)
+	if err != nil {
+		t.Fatalf("ResolveStageVersion() error = %v", err)
+	}
+	if got != "2.4.6" {
+		t.Fatalf("ResolveStageVersion() = %q, want %q", got, "2.4.6")
+	}
+}

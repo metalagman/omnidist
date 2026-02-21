@@ -22,7 +22,9 @@ var buildCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
+		var buildVersion string
 		if version, err := shared.ResolveVersion(cfg, false); err == nil {
+			buildVersion = version
 			fmt.Println("Version:", version)
 		} else {
 			fmt.Fprintln(os.Stderr, "Warning: unable to resolve version:", err)
@@ -31,6 +33,13 @@ var buildCmd = &cobra.Command{
 		if err := workflow.Build(cfg); err != nil {
 			fmt.Fprintln(os.Stderr, "Error building:", err)
 			os.Exit(1)
+		}
+		if buildVersion != "" {
+			if err := shared.WriteBuildVersion(buildVersion); err != nil {
+				fmt.Fprintln(os.Stderr, "Error writing build version:", err)
+				os.Exit(1)
+			}
+			fmt.Println("Build version saved:", buildVersion)
 		}
 
 		fmt.Println("Build completed successfully")

@@ -2,6 +2,7 @@ package shared
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -11,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/metalagman/omnidist/internal/config"
+	"github.com/metalagman/omnidist/internal/paths"
 )
 
 const (
@@ -86,6 +88,50 @@ func ResolveReleaseVersion(cfg *config.Config) (string, error) {
 	}
 
 	return version, nil
+}
+
+func WriteBuildVersion(version string) error {
+	v := strings.TrimSpace(version)
+	if v == "" {
+		return fmt.Errorf("version is empty")
+	}
+
+	if err := os.MkdirAll(paths.DistDir, 0755); err != nil {
+		return fmt.Errorf("create dist directory: %w", err)
+	}
+
+	if err := os.WriteFile(paths.DistVersionPath, []byte(v+"\n"), 0644); err != nil {
+		return fmt.Errorf("write build version file %s: %w", paths.DistVersionPath, err)
+	}
+	return nil
+}
+
+func ReadBuildVersion() (string, error) {
+	data, err := os.ReadFile(paths.DistVersionPath)
+	if err != nil {
+		return "", err
+	}
+	version := strings.TrimSpace(string(data))
+	if version == "" {
+		return "", fmt.Errorf("empty build version in %s", paths.DistVersionPath)
+	}
+	return version, nil
+}
+
+func ResolveStageVersion(cfg *config.Config, dev bool) (string, error) {
+	if dev {
+		return ResolveVersion(cfg, true)
+	}
+
+	version, err := ReadBuildVersion()
+	if err == nil {
+		return version, nil
+	}
+	if !errors.Is(err, os.ErrNotExist) {
+		return "", fmt.Errorf("read build version: %w", err)
+	}
+
+	return ResolveVersion(cfg, false)
 }
 
 func resolveGitTagVersion(dev bool) (string, error) {

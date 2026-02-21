@@ -221,7 +221,7 @@ func isSupportedLinuxTag(v string) bool {
 }
 
 func resolveUVVersion(cfg *config.Config, dev bool) (string, error) {
-	version, err := shared.ResolveVersion(cfg, dev)
+	version, err := shared.ResolveStageVersion(cfg, dev)
 	if err != nil {
 		return "", err
 	}

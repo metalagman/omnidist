@@ -66,7 +66,7 @@ func Stage(cfg *config.Config, opts StageOptions) error {
 		return err
 	}
 
-	version, err := shared.ResolveVersion(cfg, opts.Dev)
+	version, err := shared.ResolveStageVersion(cfg, opts.Dev)
 	if err != nil {
 		return err
 	}

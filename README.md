@@ -72,6 +72,8 @@ This creates:
 omnidist build
 ```
 
+This also writes the resolved build version to `.omnidist/dist/VERSION`.
+
 3. Stage and verify npm artifacts:
 
 ```bash
@@ -287,6 +289,7 @@ internal/workflow/          build/init/npm/uv workflows
 .omnidist/omnidist.yaml     Project configuration
 .omnidist/.gitignore        Ignore rules for generated artifacts
 .omnidist/dist/             Built binaries by os/arch
+.omnidist/dist/VERSION      Version captured at build time
 .omnidist/npm/              Staged npm packages
 .omnidist/uv/dist/          Staged wheel artifacts
 ```
