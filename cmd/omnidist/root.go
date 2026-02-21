@@ -7,8 +7,8 @@ import (
 
 	"github.com/metalagman/omnidist/cmd/omnidist/npm"
 	"github.com/metalagman/omnidist/cmd/omnidist/uv"
+	godotenv "github.com/joho/godotenv"
 	"github.com/spf13/cobra"
-	godotenv "github.com/subosito/gotenv"
 )
 
 var rootCmd = &cobra.Command{
