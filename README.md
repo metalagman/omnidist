@@ -210,6 +210,7 @@ omnidist uv publish --publish-url https://upload.pypi.org/legacy/ --token <pypi-
 Provide token via `--token` or `UV_PUBLISH_TOKEN` (required for non-dry-run).
 `omnidist uv verify` and `omnidist uv publish` use the staged version from
 `.omnidist/uv/pyproject.toml` when present.
+For PyPI/TestPyPI, `omnidist uv verify` fails if the staged version contains local metadata (`+...`), since those indexes reject local versions.
 
 TestPyPI dry-run style validation:
 

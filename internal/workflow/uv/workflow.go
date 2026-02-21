@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"os/exec"
 	"path"
@@ -93,6 +94,11 @@ func Verify(cfg *config.Config) *VerificationResult {
 		result.Errors = append(result.Errors, err.Error())
 		return result
 	}
+	if err := validatePublishVersionPolicy(uvDist.IndexURL, version); err != nil {
+		result.Valid = false
+		result.Errors = append(result.Errors, err.Error())
+		return result
+	}
 
 	for _, target := range cfg.Targets {
 		wheelPath, err := wheelPathForTarget(uvDist, target, version)
@@ -125,6 +131,9 @@ func Publish(cfg *config.Config, opts PublishOptions) error {
 
 	version, err := resolveUVPublishVersion(cfg)
 	if err != nil {
+		return err
+	}
+	if err := validatePublishVersionPolicy(uvDist.IndexURL, version); err != nil {
 		return err
 	}
 
@@ -182,6 +191,25 @@ func resolvePublishToken(opts PublishOptions) (string, error) {
 		return "", fmt.Errorf("uv publish requires token auth: pass --token or set UV_PUBLISH_TOKEN")
 	}
 	return token, nil
+}
+
+func validatePublishVersionPolicy(indexURL string, version string) error {
+	if !isPyPIIndexURL(indexURL) {
+		return nil
+	}
+	if strings.Contains(version, "+") {
+		return fmt.Errorf("version %q contains local version metadata (+...), which PyPI/TestPyPI rejects; restage with a publishable version (e.g. exact semver tag or env VERSION without +)", version)
+	}
+	return nil
+}
+
+func isPyPIIndexURL(indexURL string) bool {
+	u, err := url.Parse(strings.TrimSpace(indexURL))
+	if err != nil {
+		return false
+	}
+	host := strings.ToLower(u.Hostname())
+	return host == "upload.pypi.org" || host == "test.pypi.org"
 }
 
 func uvDistribution(cfg *config.Config) (config.DistributionConfig, error) {

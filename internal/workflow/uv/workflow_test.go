@@ -349,6 +349,56 @@ func TestStagingPyprojectRoundTrip(t *testing.T) {
 	}
 }
 
+func TestValidatePublishVersionPolicy(t *testing.T) {
+	tests := []struct {
+		name     string
+		indexURL string
+		version  string
+		wantErr  bool
+	}{
+		{
+			name:     "pypi_rejects_local_version",
+			indexURL: "https://upload.pypi.org/legacy/",
+			version:  "1.2.3.dev4+abc123",
+			wantErr:  true,
+		},
+		{
+			name:     "testpypi_rejects_local_version",
+			indexURL: "https://test.pypi.org/legacy/",
+			version:  "1.2.3+meta",
+			wantErr:  true,
+		},
+		{
+			name:     "pypi_accepts_non_local",
+			indexURL: "https://upload.pypi.org/legacy/",
+			version:  "1.2.3.dev4",
+			wantErr:  false,
+		},
+		{
+			name:     "custom_index_allows_local",
+			indexURL: "https://packages.example.com/legacy/",
+			version:  "1.2.3.dev4+abc123",
+			wantErr:  false,
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			err := validatePublishVersionPolicy(tc.indexURL, tc.version)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("validatePublishVersionPolicy() error = nil, want error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("validatePublishVersionPolicy() error = %v", err)
+			}
+		})
+	}
+}
+
 func testConfig() *config.Config {
 	return &config.Config{
 		Tool: config.ToolConfig{Name: "omnidist"},
