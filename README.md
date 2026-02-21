@@ -28,8 +28,8 @@ It builds binaries for multiple targets, stages distribution artifacts, verifies
 - Node.js + npm (for npm distribution commands)
 - `uv` (for uv distribution commands)
 - `git` (when `version.source: git-tag`)
-- npm auth (`npm login`) before `omnidist npm publish`
-- PyPI token auth before `omnidist uv publish` (or `--dry-run`)
+- `NPM_PUBLISH_TOKEN` for npm publish (unless `--dry-run`)
+- `UV_PUBLISH_TOKEN` (or `--token`) for uv publish (unless `--dry-run`)
 
 ## Installation
 
@@ -74,29 +74,64 @@ omnidist build
 
 This also writes the resolved build version to `.omnidist/dist/VERSION`.
 
-3. Stage and verify npm artifacts:
+3. Stage and verify artifacts:
 
 ```bash
-omnidist npm stage
-omnidist npm verify
-```
-
-4. Stage and verify uv wheel artifacts:
-
-```bash
-omnidist uv stage
-omnidist uv verify
+omnidist stage
+omnidist verify
 ```
 
 `omnidist uv stage` converts the resolved version to PEP 440 and writes
 `.omnidist/uv/pyproject.toml` with that version.
 It also recreates `.omnidist/uv/dist` to prevent stale wheel artifacts from previous runs.
 
-5. Publish when verification passes:
+4. Publish when verification passes:
 
 ```bash
-omnidist npm publish
-omnidist uv publish
+omnidist publish
+```
+
+## Common Commands
+
+```bash
+# Build binaries for configured targets and persist build version
+omnidist build
+
+# Stage and verify both distributions (npm -> uv)
+omnidist stage
+omnidist verify
+
+# Stage dev/pre-release artifacts
+omnidist stage --dev
+
+# Publish both distributions (fail-fast, npm -> uv)
+omnidist publish
+
+# Limit orchestration to one distribution
+omnidist stage --only npm
+omnidist verify --only uv
+
+# Distribution-specific publishing options
+omnidist npm publish --tag next --otp <6-digit-code>
+omnidist uv publish --publish-url https://test.pypi.org/legacy/ --token <pypi-token>
+```
+
+## Environment Variables and .env
+
+`omnidist` loads `.env` automatically at startup (via `godotenv`) if present.
+
+Supported variables:
+
+- `VERSION`: used when `version.source: env`
+- `NPM_PUBLISH_TOKEN`: required for npm publish commands when not using `--dry-run`
+- `UV_PUBLISH_TOKEN`: used by uv publish when `--token` is not provided
+
+Example `.env`:
+
+```dotenv
+VERSION=1.2.3
+NPM_PUBLISH_TOKEN=npm_xxx
+UV_PUBLISH_TOKEN=pypi-xxx
 ```
 
 ## Configuration
