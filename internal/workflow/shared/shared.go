@@ -194,8 +194,7 @@ func ToPEP440(version string) (string, error) {
 	if len(parts) == 2 {
 		devParts := strings.Split(parts[1], ".")
 		if len(devParts) >= 2 {
-			commit := strings.TrimPrefix(devParts[1], "g")
-			return fmt.Sprintf("%s.dev%s+%s", parts[0], devParts[0], commit), nil
+			return fmt.Sprintf("%s.dev%s", parts[0], devParts[0]), nil
 		}
 		return fmt.Sprintf("%s.dev%s", parts[0], strings.ReplaceAll(parts[1], ".", "")), nil
 	}
@@ -203,11 +202,10 @@ func ToPEP440(version string) (string, error) {
 	if matches := gitDescribePattern.FindStringSubmatch(v); len(matches) == 4 {
 		base := matches[1]
 		devCount := matches[2]
-		commit := matches[3]
 		if _, err := strconv.Atoi(devCount); err != nil {
 			return "", fmt.Errorf("invalid git describe dev count %q", devCount)
 		}
-		return fmt.Sprintf("%s.dev%s+%s", base, devCount, commit), nil
+		return fmt.Sprintf("%s.dev%s", base, devCount), nil
 	}
 
 	if strings.Contains(v, "-") {

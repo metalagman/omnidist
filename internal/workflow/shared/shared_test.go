@@ -14,8 +14,8 @@ func TestToPEP440(t *testing.T) {
 		wantErr bool
 	}{
 		{name: "release", input: "1.2.3", want: "1.2.3"},
-		{name: "dev", input: "1.2.3-dev.5.gabc123", want: "1.2.3.dev5+abc123"},
-		{name: "git_describe", input: "1.2.3-5-gabc123", want: "1.2.3.dev5+abc123"},
+		{name: "dev", input: "1.2.3-dev.5.gabc123", want: "1.2.3.dev5"},
+		{name: "git_describe", input: "1.2.3-5-gabc123", want: "1.2.3.dev5"},
 		{name: "invalid", input: "1.2.3-rc1", wantErr: true},
 	}
 

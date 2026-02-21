@@ -270,17 +270,17 @@ func TestResolveUVPublishVersion(t *testing.T) {
 	}{
 		{
 			name:        "uses_staging_pyproject_version",
-			writePyproj: "2.0.0.dev7+abc123",
+			writePyproj: "2.0.0.dev7",
 			cfg:         &config.Config{Version: config.VersionConfig{Source: "env"}},
 			envVer:      "9.9.9",
-			want:        "2.0.0.dev7+abc123",
+			want:        "2.0.0.dev7",
 		},
 		{
 			name:         "uses_build_version",
 			writeVersion: "1.2.3-4-gabc123",
 			cfg:          &config.Config{Version: config.VersionConfig{Source: "env"}},
 			envVer:       "9.9.9",
-			want:         "1.2.3.dev4+abc123",
+			want:         "1.2.3.dev4",
 		},
 		{
 			name:    "fallback_to_release_version",
@@ -336,7 +336,7 @@ func TestResolveUVPublishVersion(t *testing.T) {
 func TestStagingPyprojectRoundTrip(t *testing.T) {
 	t.Chdir(t.TempDir())
 
-	if err := writeStagingPyproject("omnidist", "1.2.3.dev4+abc123"); err != nil {
+	if err := writeStagingPyproject("omnidist", "1.2.3.dev4"); err != nil {
 		t.Fatalf("writeStagingPyproject() error = %v", err)
 	}
 
@@ -344,8 +344,8 @@ func TestStagingPyprojectRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("readStagingPyprojectVersion() error = %v", err)
 	}
-	if got != "1.2.3.dev4+abc123" {
-		t.Fatalf("readStagingPyprojectVersion() = %q, want %q", got, "1.2.3.dev4+abc123")
+	if got != "1.2.3.dev4" {
+		t.Fatalf("readStagingPyprojectVersion() = %q, want %q", got, "1.2.3.dev4")
 	}
 }
 
