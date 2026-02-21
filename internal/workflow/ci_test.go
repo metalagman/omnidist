@@ -30,7 +30,8 @@ func TestGenerateGitHubReleaseWorkflow(t *testing.T) {
 		`run: omnidist build`,
 		`run: omnidist stage`,
 		`run: omnidist verify`,
-		`run: omnidist publish`,
+		`run: omnidist npm publish`,
+		`run: omnidist uv publish`,
 	} {
 		if !strings.Contains(content, want) {
 			t.Fatalf("workflow content missing %q\n---\n%s", want, content)

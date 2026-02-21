@@ -66,8 +66,10 @@ jobs:
         run: omnidist stage
       - name: Verify artifacts
         run: omnidist verify
-      - name: Publish artifacts
-        run: omnidist publish
+      - name: Publish npm artifacts
+        run: omnidist npm publish
+      - name: Publish uv artifacts
+        run: omnidist uv publish
 `, installCmd)
 
 	return content, nil

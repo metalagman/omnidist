@@ -37,10 +37,10 @@ func TestCICommandCreatesWorkflow(t *testing.T) {
 		`- "v*"`,
 		`run: npm install -g @omnidist/omnidist@`,
 		`run: omnidist build`,
-		`build`,
-		`stage`,
-		`verify`,
-		`publish`,
+		`run: omnidist stage`,
+		`run: omnidist verify`,
+		`run: omnidist npm publish`,
+		`run: omnidist uv publish`,
 	} {
 		if !strings.Contains(content, want) {
 			t.Fatalf("workflow missing %q: %s", want, content)
