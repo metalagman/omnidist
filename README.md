@@ -1,5 +1,10 @@
 # omnidist
 
+[![Go Report Card](https://goreportcard.com/badge/github.com/metalagman/omnidist)](https://goreportcard.com/report/github.com/metalagman/omnidist)
+[![go](https://img.shields.io/github/go-mod/go-version/metalagman/omnidist)](https://github.com/metalagman/omnidist/blob/master/go.mod)
+[![version](https://img.shields.io/github/v/release/metalagman/omnidist?sort=semver)](https://github.com/metalagman/omnidist/releases)
+[![license](https://img.shields.io/github/license/metalagman/omnidist)](LICENSE)
+
 `omnidist` is a Go toolkit for distributing a Go CLI through npm and uv as prebuilt platform artifacts.
 
 It builds binaries for multiple targets, stages distribution artifacts, verifies integrity, and publishes to registries.
