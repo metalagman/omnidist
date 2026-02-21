@@ -143,8 +143,6 @@ func Publish(cfg *config.Config, opts PublishOptions) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Env = append([]string{}, os.Environ()...)
-	// Always use token auth mode for uv publish.
-	cmd.Env = append(cmd.Env, "UV_PUBLISH_USERNAME=__token__")
 	if token != "" {
 		cmd.Env = append(cmd.Env, "UV_PUBLISH_TOKEN="+token)
 	}

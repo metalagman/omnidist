@@ -206,7 +206,7 @@ omnidist npm publish --otp <6-digit-code>
 omnidist uv publish --publish-url https://upload.pypi.org/legacy/ --token <pypi-token>
 ```
 
-`omnidist uv publish` always uses token auth mode (`__token__` username).  
+`omnidist uv publish` uses token authentication.  
 Provide token via `--token` or `UV_PUBLISH_TOKEN` (required for non-dry-run).
 `omnidist uv verify` and `omnidist uv publish` use the staged version from
 `.omnidist/uv/pyproject.toml` when present.
