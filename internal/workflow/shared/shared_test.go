@@ -72,3 +72,28 @@ func TestWheelPlatformTag(t *testing.T) {
 		})
 	}
 }
+
+func TestIsExactSemver(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  bool
+	}{
+		{name: "plain_semver", input: "1.2.3", want: true},
+		{name: "with_prefix_v", input: "v1.2.3", want: false},
+		{name: "prerelease", input: "1.2.3-rc.1", want: false},
+		{name: "build_meta", input: "1.2.3+build.7", want: false},
+		{name: "missing_patch", input: "1.2", want: false},
+		{name: "empty", input: "", want: false},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			got := isExactSemver(tc.input)
+			if got != tc.want {
+				t.Fatalf("isExactSemver(%q) = %v, want %v", tc.input, got, tc.want)
+			}
+		})
+	}
+}

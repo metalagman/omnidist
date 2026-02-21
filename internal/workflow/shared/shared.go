@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"regexp"
 	"strings"
 
 	"github.com/metalagman/omnidist/internal/config"
@@ -14,6 +15,8 @@ import (
 const (
 	DefaultUVLinuxTag = "manylinux2014"
 )
+
+var exactSemverPattern = regexp.MustCompile(`^\d+\.\d+\.\d+$`)
 
 func ResolveVersion(cfg *config.Config, dev bool) (string, error) {
 	if cfg == nil {
@@ -49,6 +52,10 @@ func ResolveVersion(cfg *config.Config, dev bool) (string, error) {
 }
 
 func resolveGitTagVersion(dev bool) (string, error) {
+	if !dev {
+		return resolveExactSemverTag()
+	}
+
 	args := []string{"describe", "--tags", "--always"}
 	if dev {
 		args = append(args, "--long")
@@ -68,11 +75,34 @@ func resolveGitTagVersion(dev bool) (string, error) {
 	if dev {
 		parts := strings.Split(version, "-")
 		if len(parts) >= 3 {
+			if !isExactSemver(parts[0]) {
+				return "", fmt.Errorf("tag %q is not exact semver (expected vX.Y.Z or X.Y.Z)", parts[0])
+			}
 			version = fmt.Sprintf("%s-dev.%s.%s", parts[0], parts[1], parts[2])
 		}
 	}
 
 	return version, nil
+}
+
+func resolveExactSemverTag() (string, error) {
+	cmd := exec.Command("git", "describe", "--tags", "--exact-match")
+	out, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("HEAD is not at an exact semver tag; create tag vX.Y.Z before publishing")
+	}
+
+	tag := strings.TrimSpace(string(out))
+	version := strings.TrimPrefix(tag, "v")
+	if !isExactSemver(version) {
+		return "", fmt.Errorf("tag %q is not exact semver (expected vX.Y.Z or X.Y.Z)", tag)
+	}
+
+	return version, nil
+}
+
+func isExactSemver(v string) bool {
+	return exactSemverPattern.MatchString(strings.TrimSpace(v))
 }
 
 func ToPEP440(version string) (string, error) {

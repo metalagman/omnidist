@@ -134,6 +134,8 @@ distributions:
     linux-tag: manylinux2014 # manylinux2014 | musllinux_1_2
 ```
 
+With `version.source: git-tag`, release workflows require `HEAD` to be on an exact SemVer tag (`vX.Y.Z` or `X.Y.Z`).
+
 ## Command Reference
 
 Top-level:
