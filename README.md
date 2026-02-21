@@ -1,6 +1,8 @@
 # omnidist
 
 [![Go Report Card](https://goreportcard.com/badge/github.com/metalagman/omnidist)](https://goreportcard.com/report/github.com/metalagman/omnidist)
+[![lint](https://github.com/metalagman/omnidist/actions/workflows/lint.yml/badge.svg)](https://github.com/metalagman/omnidist/actions/workflows/lint.yml)
+[![test](https://github.com/metalagman/omnidist/actions/workflows/test.yml/badge.svg)](https://github.com/metalagman/omnidist/actions/workflows/test.yml)
 [![go](https://img.shields.io/github/go-mod/go-version/metalagman/omnidist)](https://github.com/metalagman/omnidist/blob/master/go.mod)
 [![version](https://img.shields.io/github/v/release/metalagman/omnidist?sort=semver)](https://github.com/metalagman/omnidist/releases)
 [![license](https://img.shields.io/github/license/metalagman/omnidist)](LICENSE)
