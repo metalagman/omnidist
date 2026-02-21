@@ -12,6 +12,7 @@ import (
 
 	"github.com/metalagman/omnidist/internal/config"
 	"github.com/metalagman/omnidist/internal/paths"
+	"github.com/metalagman/omnidist/internal/workflow/shared"
 )
 
 func TestStageAndVerifyPasses(t *testing.T) {
@@ -138,6 +139,55 @@ func TestStageWheelsHaveNoDataDescriptors(t *testing.T) {
 				reader.Close()
 				t.Fatalf("wheel %s file %s uses data descriptor flag", wheelPath, f.Name)
 			}
+		}
+		reader.Close()
+	}
+}
+
+func TestStageWheelsRecordMatchesContents(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	t.Setenv("VERSION", "1.2.3")
+
+	cfg := testConfig()
+	if err := createDistArtifacts(cfg); err != nil {
+		t.Fatalf("createDistArtifacts() error = %v", err)
+	}
+	if err := Stage(cfg, StageOptions{}); err != nil {
+		t.Fatalf("Stage() error = %v", err)
+	}
+
+	uvDist := cfg.Distributions["uv"]
+	for _, target := range cfg.Targets {
+		wheelPath, err := wheelPathForTarget(uvDist, target, "1.2.3")
+		if err != nil {
+			t.Fatalf("wheelPathForTarget() error = %v", err)
+		}
+		reader, err := zip.OpenReader(wheelPath)
+		if err != nil {
+			t.Fatalf("zip.OpenReader(%q) error = %v", wheelPath, err)
+		}
+
+		fileMap := make(map[string][]byte)
+		for _, file := range reader.File {
+			data, err := readZipFile(file)
+			if err != nil {
+				reader.Close()
+				t.Fatalf("readZipFile(%q) error = %v", file.Name, err)
+			}
+			fileMap[file.Name] = data
+		}
+
+		distName := shared.NormalizePythonDistributionName(uvDist.Package)
+		recordPath := distName + "-1.2.3.dist-info/RECORD"
+		recordBytes, ok := fileMap[recordPath]
+		if !ok {
+			reader.Close()
+			t.Fatalf("missing RECORD file in wheel %s", wheelPath)
+		}
+		if err := verifyRecordEntries(recordPath, recordBytes, fileMap); err != nil {
+			reader.Close()
+			t.Fatalf("verifyRecordEntries() error = %v", err)
 		}
 		reader.Close()
 	}
