@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/metalagman/omnidist/internal/workflow/shared"
 	uvworkflow "github.com/metalagman/omnidist/internal/workflow/uv"
 	"github.com/spf13/cobra"
 )
@@ -29,6 +30,18 @@ var stageCmd = &cobra.Command{
 			fmt.Fprintln(os.Stderr, "Error loading config:", err)
 			os.Exit(1)
 		}
+
+		version, err := shared.ResolveVersion(cfg, stageDev)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "Error resolving version:", err)
+			os.Exit(1)
+		}
+		pep440Version, err := shared.ToPEP440(version)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "Error resolving uv version:", err)
+			os.Exit(1)
+		}
+		fmt.Println("Version:", pep440Version)
 
 		if err := uvworkflow.Stage(cfg, uvworkflow.StageOptions{Dev: stageDev}); err != nil {
 			fmt.Fprintln(os.Stderr, "Error staging uv artifacts:", err)

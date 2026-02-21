@@ -7,6 +7,7 @@ import (
 	"github.com/metalagman/omnidist/internal/config"
 	"github.com/metalagman/omnidist/internal/paths"
 	"github.com/metalagman/omnidist/internal/workflow"
+	"github.com/metalagman/omnidist/internal/workflow/shared"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -19,6 +20,12 @@ var buildCmd = &cobra.Command{
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "Error loading config:", err)
 			os.Exit(1)
+		}
+
+		if version, err := shared.ResolveVersion(cfg, false); err == nil {
+			fmt.Println("Version:", version)
+		} else {
+			fmt.Fprintln(os.Stderr, "Warning: unable to resolve version:", err)
 		}
 
 		if err := workflow.Build(cfg); err != nil {

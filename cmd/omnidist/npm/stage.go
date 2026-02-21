@@ -6,6 +6,7 @@ import (
 
 	"github.com/metalagman/omnidist/internal/config"
 	npmworkflow "github.com/metalagman/omnidist/internal/workflow/npm"
+	"github.com/metalagman/omnidist/internal/workflow/shared"
 	"github.com/spf13/cobra"
 )
 
@@ -25,6 +26,13 @@ var stageCmd = &cobra.Command{
 			fmt.Fprintln(os.Stderr, "Error loading config:", err)
 			os.Exit(1)
 		}
+
+		version, err := shared.ResolveVersion(cfg, flagDev)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "Error resolving version:", err)
+			os.Exit(1)
+		}
+		fmt.Println("Version:", version)
 
 		if err := runStage(cfg); err != nil {
 			fmt.Fprintln(os.Stderr, "Error staging:", err)
