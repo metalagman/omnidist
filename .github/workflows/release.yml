@@ -39,12 +39,16 @@ jobs:
         include:
           - os: linux
             arch: amd64
+            arch_dir: x64
           - os: linux
             arch: arm64
+            arch_dir: arm64
           - os: darwin
             arch: amd64
+            arch_dir: x64
           - os: darwin
             arch: arm64
+            arch_dir: arm64
     env:
       CGO_ENABLED: 0
     steps:
@@ -57,13 +61,13 @@ jobs:
           go-version-file: 'go.mod'
           cache: true
 
-      - name: Build binary
+      - name: Build artifacts with omnidist
+        run: go run ./cmd/omnidist build
+
+      - name: Select matrix artifact
         run: |
           mkdir -p dist
-          go build -ldflags "-s -w" -o "dist/omnidist-${{ matrix.os }}-${{ matrix.arch }}" ./cmd/omnidist
-        env:
-          GOOS: ${{ matrix.os }}
-          GOARCH: ${{ matrix.arch }}
+          cp ".omnidist/dist/${{ matrix.os }}/${{ matrix.arch_dir }}/omnidist" "dist/omnidist-${{ matrix.os }}-${{ matrix.arch }}"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
