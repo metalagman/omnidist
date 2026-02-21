@@ -26,10 +26,11 @@ func TestGenerateGitHubReleaseWorkflow(t *testing.T) {
 		`- "v*"`,
 		`NPM_PUBLISH_TOKEN: ${{ secrets.NPM_PUBLISH_TOKEN }}`,
 		`UV_PUBLISH_TOKEN: ${{ secrets.UV_PUBLISH_TOKEN }}`,
-		`run: npx @omnidist/omnidist@0.1.9 build`,
-		`run: npx @omnidist/omnidist@0.1.9 stage`,
-		`run: npx @omnidist/omnidist@0.1.9 verify`,
-		`run: npx @omnidist/omnidist@0.1.9 publish`,
+		`run: npm install -g @omnidist/omnidist@0.1.9`,
+		`run: omnidist build`,
+		`run: omnidist stage`,
+		`run: omnidist verify`,
+		`run: omnidist publish`,
 	} {
 		if !strings.Contains(content, want) {
 			t.Fatalf("workflow content missing %q\n---\n%s", want, content)
@@ -46,8 +47,8 @@ func TestGenerateGitHubReleaseWorkflowDefaultsToLatest(t *testing.T) {
 		t.Fatalf("GenerateGitHubReleaseWorkflow() error = %v", err)
 	}
 
-	if !strings.Contains(content, "npx @omnidist/omnidist@latest build") {
-		t.Fatalf("workflow content = %q, want latest npx version", content)
+	if !strings.Contains(content, "npm install -g @omnidist/omnidist@latest") {
+		t.Fatalf("workflow content = %q, want latest install version", content)
 	}
 }
 
