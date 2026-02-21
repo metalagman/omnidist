@@ -35,6 +35,10 @@ func TestCICommandCreatesWorkflow(t *testing.T) {
 	for _, want := range []string{
 		`tags:`,
 		`- "v*"`,
+		`prepare:`,
+		`publish_npm:`,
+		`publish_uv:`,
+		`needs: prepare`,
 		`run: npm install -g @omnidist/omnidist@`,
 		`run: omnidist build`,
 		`run: omnidist stage`,
