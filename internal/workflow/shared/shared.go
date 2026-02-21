@@ -226,8 +226,8 @@ func NormalizePythonDistributionName(pkg string) string {
 }
 
 func NormalizeGoTarget(target config.Target) (goOS string, goArch string) {
-	goOS = config.MapOSToGo(target.OS)
-	goArch = config.MapArchFromNPM(target.Arch)
+	goOS = strings.TrimSpace(target.OS)
+	goArch = strings.TrimSpace(target.Arch)
 	return goOS, goArch
 }
 

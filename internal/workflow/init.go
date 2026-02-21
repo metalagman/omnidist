@@ -50,7 +50,7 @@ func CreateNPMStructure(cfg *config.Config) error {
 	}
 
 	for _, target := range cfg.Targets {
-		pkgDir := fmt.Sprintf("%s-%s-%s", dist.Package, target.OS, config.MapArchToNPM(target.Arch))
+		pkgDir := fmt.Sprintf("%s-%s-%s", dist.Package, config.MapGoOSToNPM(target.OS), config.MapGoArchToNPM(target.Arch))
 		if target.Variant != "" {
 			pkgDir = fmt.Sprintf("%s-%s", pkgDir, target.Variant)
 		}

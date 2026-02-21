@@ -26,13 +26,13 @@ func Build(cfg *config.Config) error {
 }
 
 func buildTarget(cfg *config.Config, target config.Target) error {
-	outputDir := filepath.Join(paths.DistDir, target.OS, config.MapArchToNPM(target.Arch))
+	outputDir := filepath.Join(paths.DistDir, target.OS, target.Arch)
 	if err := os.MkdirAll(outputDir, 0755); err != nil {
 		return err
 	}
 
 	outputName := cfg.Tool.Name
-	if target.OS == "win32" {
+	if target.OS == "windows" {
 		outputName += ".exe"
 	}
 	outputPath := filepath.Join(outputDir, outputName)
@@ -48,7 +48,7 @@ func buildTarget(cfg *config.Config, target config.Target) error {
 	args = append(args, "-o", outputPath, cfg.Tool.Main)
 
 	buildCmd := exec.Command("go", args...)
-	buildCmd.Env = append(os.Environ(), "GOOS="+config.MapOSToGo(target.OS), "GOARCH="+config.MapArchFromNPM(target.Arch))
+	buildCmd.Env = append(os.Environ(), "GOOS="+target.OS, "GOARCH="+target.Arch)
 	if cfg.Build.CGO {
 		buildCmd.Env = append(buildCmd.Env, "CGO_ENABLED=1")
 	} else {
@@ -61,7 +61,7 @@ func buildTarget(cfg *config.Config, target config.Target) error {
 		return err
 	}
 
-	if target.OS != "win32" {
+	if target.OS != "windows" {
 		if err := os.Chmod(outputPath, 0755); err != nil {
 			return err
 		}

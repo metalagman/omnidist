@@ -221,7 +221,7 @@ func npmDistribution(cfg *config.Config) (config.DistributionConfig, error) {
 }
 
 func platformPackageName(meta string, target config.Target) string {
-	name := meta + "-" + target.OS + "-" + config.MapArchToNPM(target.Arch)
+	name := meta + "-" + config.MapGoOSToNPM(target.OS) + "-" + config.MapGoArchToNPM(target.Arch)
 	if target.Variant != "" {
 		name += "-" + target.Variant
 	}
@@ -326,18 +326,18 @@ func stagePlatformPackage(cfg *config.Config, npmDist config.DistributionConfig,
 	}
 
 	binaryName := cfg.Tool.Name
-	if target.OS == "win32" {
+	if target.OS == "windows" {
 		binaryName += ".exe"
 	}
 
-	srcPath := filepath.Join(paths.DistDir, target.OS, config.MapArchToNPM(target.Arch), binaryName)
+	srcPath := filepath.Join(paths.DistDir, target.OS, target.Arch, binaryName)
 	dstPath := filepath.Join(pkgDir, "bin", binaryName)
 
 	if err := copyFile(srcPath, dstPath); err != nil {
 		return err
 	}
 
-	if target.OS != "win32" {
+	if target.OS != "windows" {
 		if err := os.Chmod(dstPath, 0755); err != nil {
 			return err
 		}
@@ -347,8 +347,8 @@ func stagePlatformPackage(cfg *config.Config, npmDist config.DistributionConfig,
 		"name":        pkgName,
 		"version":     version,
 		"description": npmDist.Package + " binary for " + target.OS + "/" + target.Arch,
-		"os":          []string{target.OS},
-		"cpu":         []string{config.MapArchToNPM(target.Arch)},
+		"os":          []string{config.MapGoOSToNPM(target.OS)},
+		"cpu":         []string{config.MapGoArchToNPM(target.Arch)},
 		"bin": map[string]string{
 			cfg.Tool.Name: "bin/" + binaryName,
 		},
@@ -414,8 +414,8 @@ func verifyPlatformPackages(cfg *config.Config, npmDist config.DistributionConfi
 		if !ok || len(osList) == 0 {
 			result.Errors = append(result.Errors, fmt.Sprintf("Missing os field in %s", pkgName))
 			result.Valid = false
-		} else if osList[0] != target.OS {
-			result.Errors = append(result.Errors, fmt.Sprintf("os mismatch in %s: got %v, expected %s", pkgName, osList, target.OS))
+		} else if osList[0] != config.MapGoOSToNPM(target.OS) {
+			result.Errors = append(result.Errors, fmt.Sprintf("os mismatch in %s: got %v, expected %s", pkgName, osList, config.MapGoOSToNPM(target.OS)))
 			result.Valid = false
 		}
 
@@ -423,13 +423,13 @@ func verifyPlatformPackages(cfg *config.Config, npmDist config.DistributionConfi
 		if !ok || len(cpuList) == 0 {
 			result.Errors = append(result.Errors, fmt.Sprintf("Missing cpu field in %s", pkgName))
 			result.Valid = false
-		} else if cpuList[0] != config.MapArchToNPM(target.Arch) {
-			result.Errors = append(result.Errors, fmt.Sprintf("cpu mismatch in %s: got %v, expected %s", pkgName, cpuList, config.MapArchToNPM(target.Arch)))
+		} else if cpuList[0] != config.MapGoArchToNPM(target.Arch) {
+			result.Errors = append(result.Errors, fmt.Sprintf("cpu mismatch in %s: got %v, expected %s", pkgName, cpuList, config.MapGoArchToNPM(target.Arch)))
 			result.Valid = false
 		}
 
 		binaryName := cfg.Tool.Name
-		if target.OS == "win32" {
+		if target.OS == "windows" {
 			binaryName += ".exe"
 		}
 		binaryPath := filepath.Join(pkgDir, "bin", binaryName)

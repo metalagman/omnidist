@@ -643,7 +643,7 @@ func testConfig() *config.Config {
 		},
 		Targets: []config.Target{
 			{OS: "linux", Arch: "amd64"},
-			{OS: "win32", Arch: "amd64"},
+			{OS: "windows", Arch: "amd64"},
 		},
 		Distributions: map[string]config.DistributionConfig{
 			"npm": {
@@ -658,11 +658,11 @@ func testConfig() *config.Config {
 func createDistArtifacts(cfg *config.Config) error {
 	for _, target := range cfg.Targets {
 		binaryName := cfg.Tool.Name
-		if target.OS == "win32" {
+		if target.OS == "windows" {
 			binaryName += ".exe"
 		}
 
-		outPath := filepath.Join(paths.DistDir, target.OS, config.MapArchToNPM(target.Arch), binaryName)
+		outPath := filepath.Join(paths.DistDir, target.OS, target.Arch, binaryName)
 		if err := os.MkdirAll(filepath.Dir(outPath), 0755); err != nil {
 			return err
 		}

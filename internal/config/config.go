@@ -40,11 +40,7 @@ type DistributionConfig struct {
 	LinuxTag string `yaml:"linux-tag,omitempty"`
 }
 
-func (t *Target) NPMName() string {
-	return MapArchToNPM(t.Arch)
-}
-
-func MapArchToNPM(arch string) string {
+func MapGoArchToNPM(arch string) string {
 	switch arch {
 	case "amd64":
 		return "x64"
@@ -57,23 +53,12 @@ func MapArchToNPM(arch string) string {
 	}
 }
 
-func MapArchFromNPM(arch string) string {
-	switch arch {
-	case "x64":
-		return "amd64"
-	case "x86":
-		return "386"
+func MapGoOSToNPM(goOS string) string {
+	switch goOS {
+	case "windows":
+		return "win32"
 	default:
-		return arch
-	}
-}
-
-func MapOSToGo(os string) string {
-	switch os {
-	case "win32":
-		return "windows"
-	default:
-		return os
+		return goOS
 	}
 }
 
@@ -97,7 +82,7 @@ func DefaultConfig() *Config {
 			{OS: "darwin", Arch: "arm64"},
 			{OS: "linux", Arch: "amd64"},
 			{OS: "linux", Arch: "arm64"},
-			{OS: "win32", Arch: "amd64"},
+			{OS: "windows", Arch: "amd64"},
 		},
 		Build: BuildConfig{
 			Ldflags: "-s -w",
@@ -177,6 +162,21 @@ func applyDistributionDefaults(cfg *Config) {
 func validate(cfg *Config) error {
 	if cfg == nil {
 		return fmt.Errorf("config is nil")
+	}
+
+	for i, target := range cfg.Targets {
+		if strings.TrimSpace(target.OS) == "" {
+			return fmt.Errorf("targets[%d].os is required", i)
+		}
+		if strings.TrimSpace(target.Arch) == "" {
+			return fmt.Errorf("targets[%d].arch is required", i)
+		}
+		if target.OS == "win32" {
+			return fmt.Errorf("invalid targets[%d].os %q: use Go GOOS value %q", i, target.OS, "windows")
+		}
+		if target.Arch == "x64" {
+			return fmt.Errorf("invalid targets[%d].arch %q: use Go GOARCH value %q", i, target.Arch, "amd64")
+		}
 	}
 
 	if npmDist, ok := cfg.Distributions["npm"]; ok {

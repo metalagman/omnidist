@@ -200,7 +200,7 @@ targets:
     arch: amd64
   - os: linux
     arch: arm64
-  - os: win32
+  - os: windows
     arch: amd64
 
 build:
@@ -219,6 +219,8 @@ distributions:
     index-url: https://upload.pypi.org/legacy/
     linux-tag: manylinux2014 # manylinux2014 | musllinux_1_2
 ```
+
+`targets` use Go values (`GOOS`/`GOARCH`). Distribution workflows map them as needed (for example `windows/amd64` -> npm `win32/x64`).
 
 For appkit version injection, configure `build.ldflags` in your project config:
 

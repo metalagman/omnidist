@@ -375,7 +375,7 @@ func readStagingPyprojectVersion() (string, error) {
 func stageWheel(cfg *config.Config, uvDist config.DistributionConfig, target config.Target, version string) error {
 	goOS, _ := shared.NormalizeGoTarget(target)
 	binaryName := shared.BinaryName(cfg.Tool.Name, goOS)
-	sourceBinary := filepath.Join(paths.DistDir, target.OS, config.MapArchToNPM(target.Arch), binaryName)
+	sourceBinary := filepath.Join(paths.DistDir, target.OS, target.Arch, binaryName)
 
 	binaryData, err := os.ReadFile(sourceBinary)
 	if err != nil {
