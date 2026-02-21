@@ -15,6 +15,7 @@ func TestToPEP440(t *testing.T) {
 	}{
 		{name: "release", input: "1.2.3", want: "1.2.3"},
 		{name: "dev", input: "1.2.3-dev.5.gabc123", want: "1.2.3.dev5+abc123"},
+		{name: "git_describe", input: "1.2.3-5-gabc123", want: "1.2.3.dev5+abc123"},
 		{name: "invalid", input: "1.2.3-rc1", wantErr: true},
 	}
 
@@ -93,6 +94,54 @@ func TestIsExactSemver(t *testing.T) {
 			got := isExactSemver(tc.input)
 			if got != tc.want {
 				t.Fatalf("isExactSemver(%q) = %v, want %v", tc.input, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestResolveReleaseVersion(t *testing.T) {
+	tests := []struct {
+		name    string
+		cfg     *config.Config
+		envVer  string
+		want    string
+		wantErr bool
+	}{
+		{
+			name:   "env_exact_semver",
+			cfg:    &config.Config{Version: config.VersionConfig{Source: "env"}},
+			envVer: "1.2.3",
+			want:   "1.2.3",
+		},
+		{
+			name:    "env_non_semver",
+			cfg:     &config.Config{Version: config.VersionConfig{Source: "env"}},
+			envVer:  "1.2.3-dev.1.gabc",
+			wantErr: true,
+		},
+		{
+			name:    "nil_config",
+			cfg:     nil,
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("VERSION", tc.envVer)
+			got, err := ResolveReleaseVersion(tc.cfg)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("ResolveReleaseVersion() error = nil, want error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("ResolveReleaseVersion() error = %v", err)
+			}
+			if got != tc.want {
+				t.Fatalf("ResolveReleaseVersion() = %q, want %q", got, tc.want)
 			}
 		})
 	}

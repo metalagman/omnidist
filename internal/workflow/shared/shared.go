@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/metalagman/omnidist/internal/config"
@@ -17,6 +18,7 @@ const (
 )
 
 var exactSemverPattern = regexp.MustCompile(`^\d+\.\d+\.\d+$`)
+var gitDescribePattern = regexp.MustCompile(`^(\d+\.\d+\.\d+)-(\d+)-g([0-9a-fA-F]+)$`)
 
 func ResolveVersion(cfg *config.Config, dev bool) (string, error) {
 	if cfg == nil {
@@ -51,11 +53,42 @@ func ResolveVersion(cfg *config.Config, dev bool) (string, error) {
 	return version, nil
 }
 
-func resolveGitTagVersion(dev bool) (string, error) {
-	if !dev {
-		return resolveExactSemverTag()
+func ResolveReleaseVersion(cfg *config.Config) (string, error) {
+	if cfg == nil {
+		return "", fmt.Errorf("config is nil")
 	}
 
+	var version string
+	switch strings.TrimSpace(cfg.Version.Source) {
+	case "git-tag":
+		v, err := resolveExactSemverTag()
+		if err != nil {
+			return "", fmt.Errorf("resolve git tag version: %w", err)
+		}
+		version = v
+	case "file":
+		data, err := os.ReadFile("VERSION")
+		if err != nil {
+			return "", fmt.Errorf("read VERSION file: %w", err)
+		}
+		version = strings.TrimSpace(string(data))
+	case "env":
+		version = strings.TrimSpace(os.Getenv("VERSION"))
+	default:
+		return "", fmt.Errorf("unknown version source %q", cfg.Version.Source)
+	}
+
+	if version == "" {
+		return "", fmt.Errorf("empty version from source %q", cfg.Version.Source)
+	}
+	if !isExactSemver(version) {
+		return "", fmt.Errorf("release version %q is not exact semver (expected X.Y.Z)", version)
+	}
+
+	return version, nil
+}
+
+func resolveGitTagVersion(dev bool) (string, error) {
 	args := []string{"describe", "--tags", "--always"}
 	if dev {
 		args = append(args, "--long")
@@ -119,6 +152,16 @@ func ToPEP440(version string) (string, error) {
 			return fmt.Sprintf("%s.dev%s+%s", parts[0], devParts[0], commit), nil
 		}
 		return fmt.Sprintf("%s.dev%s", parts[0], strings.ReplaceAll(parts[1], ".", "")), nil
+	}
+
+	if matches := gitDescribePattern.FindStringSubmatch(v); len(matches) == 4 {
+		base := matches[1]
+		devCount := matches[2]
+		commit := matches[3]
+		if _, err := strconv.Atoi(devCount); err != nil {
+			return "", fmt.Errorf("invalid git describe dev count %q", devCount)
+		}
+		return fmt.Sprintf("%s.dev%s+%s", base, devCount, commit), nil
 	}
 
 	if strings.Contains(v, "-") {

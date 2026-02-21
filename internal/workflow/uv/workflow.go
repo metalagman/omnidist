@@ -115,7 +115,7 @@ func Publish(cfg *config.Config, opts PublishOptions) error {
 		return err
 	}
 
-	version, err := resolveUVVersion(cfg, false)
+	version, err := resolveUVReleaseVersion(cfg)
 	if err != nil {
 		return err
 	}
@@ -222,6 +222,20 @@ func isSupportedLinuxTag(v string) bool {
 
 func resolveUVVersion(cfg *config.Config, dev bool) (string, error) {
 	version, err := shared.ResolveVersion(cfg, dev)
+	if err != nil {
+		return "", err
+	}
+
+	pep440, err := shared.ToPEP440(version)
+	if err != nil {
+		return "", err
+	}
+
+	return pep440, nil
+}
+
+func resolveUVReleaseVersion(cfg *config.Config) (string, error) {
+	version, err := shared.ResolveReleaseVersion(cfg)
 	if err != nil {
 		return "", err
 	}

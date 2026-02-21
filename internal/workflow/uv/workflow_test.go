@@ -205,6 +205,49 @@ func TestResolvePublishToken(t *testing.T) {
 	}
 }
 
+func TestResolveUVReleaseVersion(t *testing.T) {
+	tests := []struct {
+		name    string
+		cfg     *config.Config
+		envVer  string
+		want    string
+		wantErr bool
+	}{
+		{
+			name:   "exact_semver",
+			cfg:    &config.Config{Version: config.VersionConfig{Source: "env"}},
+			envVer: "1.2.3",
+			want:   "1.2.3",
+		},
+		{
+			name:    "non_semver_fails",
+			cfg:     &config.Config{Version: config.VersionConfig{Source: "env"}},
+			envVer:  "1.2.3-dev.1.gabc123",
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("VERSION", tc.envVer)
+			got, err := resolveUVReleaseVersion(tc.cfg)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("resolveUVReleaseVersion() error = nil, want error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("resolveUVReleaseVersion() error = %v", err)
+			}
+			if got != tc.want {
+				t.Fatalf("resolveUVReleaseVersion() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
 func testConfig() *config.Config {
 	return &config.Config{
 		Tool: config.ToolConfig{Name: "omnidist"},
