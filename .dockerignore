@@ -1,0 +1,21 @@
+.git
+.github
+.idea
+.vscode
+.beads
+
+# Build/test artifacts
+bin/
+dist/
+coverage.out
+omnidist
+
+# Workspace-generated outputs
+.omnidist/dist/
+.omnidist/npm/
+.omnidist/uv/
+
+# Environment files
+.env
+.env.*
+!.env.example

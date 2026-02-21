@@ -1,0 +1,22 @@
+# Build artifacts
+bin/
+dist/
+coverage.out
+omnidist
+
+# Workspace-generated outputs
+.omnidist/dist/
+.omnidist/npm/
+.omnidist/uv/dist/
+.omnidist/.npmrc
+
+# IDE and temp files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Environment files
+.env
+.env.*
+!.env.example
