@@ -7,10 +7,11 @@ import (
 	"path/filepath"
 
 	"github.com/metalagman/omnidist/internal/config"
+	"github.com/metalagman/omnidist/internal/paths"
 )
 
 func Build(cfg *config.Config) error {
-	if err := os.MkdirAll("dist", 0755); err != nil {
+	if err := os.MkdirAll(paths.DistDir, 0755); err != nil {
 		return err
 	}
 
@@ -24,7 +25,7 @@ func Build(cfg *config.Config) error {
 }
 
 func buildTarget(cfg *config.Config, target config.Target) error {
-	outputDir := filepath.Join("dist", target.OS, config.MapArchToNPM(target.Arch))
+	outputDir := filepath.Join(paths.DistDir, target.OS, config.MapArchToNPM(target.Arch))
 	if err := os.MkdirAll(outputDir, 0755); err != nil {
 		return err
 	}

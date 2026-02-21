@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/metalagman/omnidist/internal/config"
+	"github.com/metalagman/omnidist/internal/paths"
 	"github.com/metalagman/omnidist/internal/workflow/shared"
 )
 
@@ -51,7 +52,7 @@ func Stage(cfg *config.Config, opts StageOptions) error {
 		return err
 	}
 
-	if err := os.MkdirAll(filepath.Join("uv", "dist"), 0755); err != nil {
+	if err := os.MkdirAll(paths.UVDistDir, 0755); err != nil {
 		return fmt.Errorf("create uv staging directory: %w", err)
 	}
 
@@ -219,7 +220,7 @@ func resolveUVVersion(cfg *config.Config, dev bool) (string, error) {
 func stageWheel(cfg *config.Config, uvDist config.DistributionConfig, target config.Target, version string) error {
 	goOS, _ := shared.NormalizeGoTarget(target)
 	binaryName := shared.BinaryName(cfg.Tool.Name, goOS)
-	sourceBinary := filepath.Join("dist", target.OS, config.MapArchToNPM(target.Arch), binaryName)
+	sourceBinary := filepath.Join(paths.DistDir, target.OS, config.MapArchToNPM(target.Arch), binaryName)
 
 	binaryData, err := os.ReadFile(sourceBinary)
 	if err != nil {
@@ -243,7 +244,7 @@ func wheelPathForTarget(uvDist config.DistributionConfig, target config.Target, 
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join("uv", "dist", filename), nil
+	return filepath.Join(paths.UVDistDir, filename), nil
 }
 
 func writeWheel(wheelPath string, cfg *config.Config, uvDist config.DistributionConfig, target config.Target, version string, binaryData []byte) error {

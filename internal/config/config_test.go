@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/metalagman/omnidist/internal/paths"
 )
 
 func TestDefaultConfigIncludesUV(t *testing.T) {
@@ -23,7 +25,10 @@ func TestDefaultConfigIncludesUV(t *testing.T) {
 
 func TestLoadAppliesUVMissingDefaults(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "omnidist.yaml")
+	path := filepath.Join(dir, paths.ConfigPath)
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		t.Fatalf("os.MkdirAll() error = %v", err)
+	}
 
 	yaml := `tool:
   name: omnidist
@@ -64,7 +69,10 @@ distributions:
 
 func TestLoadRejectsInvalidUVLinuxTag(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "omnidist.yaml")
+	path := filepath.Join(dir, paths.ConfigPath)
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		t.Fatalf("os.MkdirAll() error = %v", err)
+	}
 
 	yaml := `tool:
   name: omnidist

@@ -1,11 +1,10 @@
-# Binaries
+# omnidist generated
+/.omnidist/
 /omnidist
+/omnidist/
 dist/
-
-# npm packages
 /npm/
-
-# Config (can be customized per repo)
+/uv/
 omnidist.yaml
 
 # Go

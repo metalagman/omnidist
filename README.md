@@ -19,7 +19,7 @@ It builds binaries for multiple targets, stages distribution artifacts, verifies
   - meta package (for example `@scope/tool`) with shim and `optionalDependencies`
   - platform packages (for example `@scope/tool-linux-x64`) with prebuilt binaries
 - `uv`:
-  - per-target platform wheel artifacts in `uv/dist/`
+  - per-target platform wheel artifacts in `omnidist/uv/dist/`
   - one wheel per configured target with embedded binary in `<pkg>/bin/`
 
 ## Requirements
@@ -43,8 +43,8 @@ omnidist --help
 Build locally from source:
 
 ```bash
-go build -o omnidist ./cmd/omnidist
-./omnidist --help
+go build -o ./bin/omnidist ./cmd/omnidist
+./bin/omnidist --help
 ```
 
 Or run directly:
@@ -60,6 +60,11 @@ go run ./cmd/omnidist --help
 ```bash
 omnidist init
 ```
+
+This creates:
+- `.omnidist/omnidist.yaml`
+- `omnidist/` workspace directories
+- `.gitignore` entries for generated paths
 
 2. Build binaries for configured targets:
 
@@ -90,7 +95,7 @@ omnidist uv publish
 
 ## Configuration
 
-`omnidist.yaml`:
+`.omnidist/omnidist.yaml`:
 
 ```yaml
 tool:
@@ -271,8 +276,8 @@ For CI verification-only jobs, run steps 1-5.
 cmd/omnidist/               CLI entrypoint and commands
 internal/config/            Config model and YAML load/save
 internal/workflow/          build/init/npm/uv workflows
-dist/                       Built binaries by os/arch
-npm/                        Staged npm packages
-uv/dist/                    Staged wheel artifacts
-omnidist.yaml               Project configuration
+.omnidist/omnidist.yaml     Project configuration
+omnidist/dist/              Built binaries by os/arch
+omnidist/npm/               Staged npm packages
+omnidist/uv/dist/           Staged wheel artifacts
 ```

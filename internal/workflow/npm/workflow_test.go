@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/metalagman/omnidist/internal/config"
+	"github.com/metalagman/omnidist/internal/paths"
 	"github.com/metalagman/omnidist/internal/workflow/shared"
 )
 
@@ -257,7 +258,7 @@ func TestVerifyDetectsPlatformVersionMismatch(t *testing.T) {
 
 	target := cfg.Targets[0]
 	pkgName := platformPackageName(cfg.Distributions["npm"].Package, target)
-	pkgDir := filepath.Join("npm", pkgName)
+	pkgDir := filepath.Join(paths.NPMDir, pkgName)
 	pkgJSON, err := readPackageJSON(pkgDir)
 	if err != nil {
 		t.Fatalf("readPackageJSON(%q) error = %v", pkgDir, err)
@@ -313,7 +314,7 @@ func createDistArtifacts(cfg *config.Config) error {
 			binaryName += ".exe"
 		}
 
-		outPath := filepath.Join("dist", target.OS, config.MapArchToNPM(target.Arch), binaryName)
+		outPath := filepath.Join(paths.DistDir, target.OS, config.MapArchToNPM(target.Arch), binaryName)
 		if err := os.MkdirAll(filepath.Dir(outPath), 0755); err != nil {
 			return err
 		}

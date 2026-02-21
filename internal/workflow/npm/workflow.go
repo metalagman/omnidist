@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/metalagman/omnidist/internal/config"
+	"github.com/metalagman/omnidist/internal/paths"
 	"github.com/metalagman/omnidist/internal/workflow/shared"
 )
 
@@ -118,7 +119,7 @@ func Publish(cfg *config.Config, opts PublishOptions) error {
 
 	fmt.Println("Publishing platform packages first...")
 	for _, pkgName := range platformPackages {
-		pkgDir := filepath.Join("npm", pkgName)
+		pkgDir := filepath.Join(paths.NPMDir, pkgName)
 		if err := publishPackage(pkgDir, npmDist.Registry, access, opts); err != nil {
 			return fmt.Errorf("failed to publish %s: %w", pkgName, err)
 		}
@@ -126,7 +127,7 @@ func Publish(cfg *config.Config, opts PublishOptions) error {
 	}
 
 	fmt.Println("Publishing meta package...")
-	metaDir := filepath.Join("npm", npmDist.Package)
+	metaDir := filepath.Join(paths.NPMDir, npmDist.Package)
 	if err := publishPackage(metaDir, npmDist.Registry, access, opts); err != nil {
 		return fmt.Errorf("failed to publish meta package: %w", err)
 	}
@@ -255,7 +256,7 @@ func readPackageJSON(dir string) (map[string]interface{}, error) {
 
 func stagePlatformPackage(cfg *config.Config, npmDist config.DistributionConfig, target config.Target, version string) error {
 	pkgName := platformPackageName(npmDist.Package, target)
-	pkgDir := filepath.Join("npm", pkgName)
+	pkgDir := filepath.Join(paths.NPMDir, pkgName)
 
 	if err := os.MkdirAll(filepath.Join(pkgDir, "bin"), 0755); err != nil {
 		return err
@@ -266,7 +267,7 @@ func stagePlatformPackage(cfg *config.Config, npmDist config.DistributionConfig,
 		binaryName += ".exe"
 	}
 
-	srcPath := filepath.Join("dist", target.OS, config.MapArchToNPM(target.Arch), binaryName)
+	srcPath := filepath.Join(paths.DistDir, target.OS, config.MapArchToNPM(target.Arch), binaryName)
 	dstPath := filepath.Join(pkgDir, "bin", binaryName)
 
 	if err := copyFile(srcPath, dstPath); err != nil {
@@ -295,7 +296,7 @@ func stagePlatformPackage(cfg *config.Config, npmDist config.DistributionConfig,
 }
 
 func stageMetaPackage(cfg *config.Config, npmDist config.DistributionConfig, version string) error {
-	metaDir := filepath.Join("npm", npmDist.Package)
+	metaDir := filepath.Join(paths.NPMDir, npmDist.Package)
 
 	if err := os.MkdirAll(metaDir, 0755); err != nil {
 		return err
@@ -332,7 +333,7 @@ func stageMetaPackage(cfg *config.Config, npmDist config.DistributionConfig, ver
 func verifyPlatformPackages(cfg *config.Config, npmDist config.DistributionConfig, version string, result *VerificationResult) error {
 	for _, target := range cfg.Targets {
 		pkgName := platformPackageName(npmDist.Package, target)
-		pkgDir := filepath.Join("npm", pkgName)
+		pkgDir := filepath.Join(paths.NPMDir, pkgName)
 
 		pkgJSON, err := readPackageJSON(pkgDir)
 		if err != nil {
@@ -386,7 +387,7 @@ func verifyPlatformPackages(cfg *config.Config, npmDist config.DistributionConfi
 }
 
 func verifyMetaPackage(cfg *config.Config, npmDist config.DistributionConfig, version string, result *VerificationResult) error {
-	metaDir := filepath.Join("npm", npmDist.Package)
+	metaDir := filepath.Join(paths.NPMDir, npmDist.Package)
 
 	pkgJSON, err := readPackageJSON(metaDir)
 	if err != nil {

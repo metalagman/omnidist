@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/metalagman/omnidist/internal/config"
+	"github.com/metalagman/omnidist/internal/paths"
 )
 
 func Init(configPath string) error {
@@ -24,6 +25,10 @@ func Init(configPath string) error {
 		return err
 	}
 
+	if err := EnsureGitignore(".gitignore"); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -33,7 +38,7 @@ func CreateNPMStructure(cfg *config.Config) error {
 		return nil
 	}
 
-	baseDir := "npm"
+	baseDir := paths.NPMDir
 
 	if err := os.MkdirAll(baseDir, 0755); err != nil {
 		return err
@@ -63,9 +68,49 @@ func CreateUVStructure(cfg *config.Config) error {
 		return nil
 	}
 
-	if err := os.MkdirAll(filepath.Join("uv", "dist"), 0755); err != nil {
+	if err := os.MkdirAll(paths.UVDistDir, 0755); err != nil {
 		return err
 	}
 
 	return nil
+}
+
+func EnsureGitignore(path string) error {
+	required := []string{
+		"/.omnidist/",
+		"/omnidist/",
+	}
+
+	existing := ""
+	if data, err := os.ReadFile(path); err == nil {
+		existing = string(data)
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+
+	var missing []string
+	for _, line := range required {
+		if !strings.Contains(existing, line) {
+			missing = append(missing, line)
+		}
+	}
+	if len(missing) == 0 {
+		return nil
+	}
+
+	var builder strings.Builder
+	builder.WriteString(existing)
+	if existing != "" && !strings.HasSuffix(existing, "\n") {
+		builder.WriteString("\n")
+	}
+	if existing != "" {
+		builder.WriteString("\n")
+	}
+	builder.WriteString("# omnidist generated\n")
+	for _, line := range missing {
+		builder.WriteString(line)
+		builder.WriteString("\n")
+	}
+
+	return os.WriteFile(path, []byte(builder.String()), 0644)
 }

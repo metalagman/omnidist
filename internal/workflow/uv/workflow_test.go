@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/metalagman/omnidist/internal/config"
+	"github.com/metalagman/omnidist/internal/paths"
 )
 
 func TestStageAndVerifyPasses(t *testing.T) {
@@ -89,7 +90,10 @@ func TestCheckDependencyMissing(t *testing.T) {
 }
 
 func TestBuildPublishArgs(t *testing.T) {
-	artifacts := []string{"uv/dist/b.whl", "uv/dist/a.whl"}
+	artifacts := []string{
+		filepath.Join(paths.UVDistDir, "b.whl"),
+		filepath.Join(paths.UVDistDir, "a.whl"),
+	}
 	sort.Strings(artifacts)
 
 	got := buildPublishArgs("https://upload.pypi.org/legacy/", PublishOptions{
@@ -101,8 +105,8 @@ func TestBuildPublishArgs(t *testing.T) {
 		"publish",
 		"--dry-run",
 		"--repository-url", "https://pypi.internal/legacy/",
-		"uv/dist/a.whl",
-		"uv/dist/b.whl",
+		filepath.Join(paths.UVDistDir, "a.whl"),
+		filepath.Join(paths.UVDistDir, "b.whl"),
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("buildPublishArgs() = %#v, want %#v", got, want)
@@ -173,7 +177,7 @@ func createDistArtifacts(cfg *config.Config) error {
 		if target.OS == "win32" {
 			binaryName += ".exe"
 		}
-		outPath := filepath.Join("dist", target.OS, config.MapArchToNPM(target.Arch), binaryName)
+		outPath := filepath.Join(paths.DistDir, target.OS, config.MapArchToNPM(target.Arch), binaryName)
 		if err := os.MkdirAll(filepath.Dir(outPath), 0755); err != nil {
 			return err
 		}

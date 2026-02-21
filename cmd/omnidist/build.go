@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/metalagman/omnidist/internal/config"
+	"github.com/metalagman/omnidist/internal/paths"
 	"github.com/metalagman/omnidist/internal/workflow"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -32,7 +33,7 @@ var buildCmd = &cobra.Command{
 func loadConfig() (*config.Config, error) {
 	configFile := viper.ConfigFileUsed()
 	if configFile == "" {
-		configFile = "omnidist.yaml"
+		configFile = paths.ConfigPath
 	}
 	return config.Load(configFile)
 }
