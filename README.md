@@ -194,6 +194,7 @@ omnidist npm publish --dry-run --tag next --registry https://registry.npmjs.org
 
 Before npm commands run, omnidist writes `.omnidist/.npmrc` from `distributions.npm.registry` using:
 `//<registry>/:_authToken=${NPM_PUBLISH_TOKEN}`.
+If staged package version contains a `-dev` prerelease and `--tag` is not provided, omnidist auto-publishes with `--tag dev`.
 
 If your npm account requires 2FA for publish operations:
 

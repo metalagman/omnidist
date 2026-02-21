@@ -223,6 +223,57 @@ func TestBuildPublishArgsFlagOverrides(t *testing.T) {
 	}
 }
 
+func TestWithAutoDevTag(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		opts     PublishOptions
+		version  string
+		wantTag  string
+		wantAuto bool
+	}{
+		{
+			name:     "dev_version_auto_tagged",
+			opts:     PublishOptions{},
+			version:  "1.2.3-dev.4.abcd123",
+			wantTag:  "dev",
+			wantAuto: true,
+		},
+		{
+			name: "explicit_tag_not_overridden",
+			opts: PublishOptions{
+				Tag: "next",
+			},
+			version:  "1.2.3-dev.4.abcd123",
+			wantTag:  "next",
+			wantAuto: false,
+		},
+		{
+			name:     "release_version_not_tagged",
+			opts:     PublishOptions{},
+			version:  "1.2.3",
+			wantTag:  "",
+			wantAuto: false,
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, auto := withAutoDevTag(tc.opts, tc.version)
+			if got.Tag != tc.wantTag {
+				t.Fatalf("withAutoDevTag().Tag = %q, want %q", got.Tag, tc.wantTag)
+			}
+			if auto != tc.wantAuto {
+				t.Fatalf("withAutoDevTag() auto = %v, want %v", auto, tc.wantAuto)
+			}
+		})
+	}
+}
+
 func TestNPMTokenConfigKey(t *testing.T) {
 	t.Parallel()
 
@@ -352,6 +403,40 @@ func TestResolvePublishToken(t *testing.T) {
 				t.Fatalf("resolvePublishToken() = %q, want %q", got, tc.want)
 			}
 		})
+	}
+}
+
+func TestStagedPackageVersion(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+
+	validDir := filepath.Join(dir, "valid")
+	if err := os.MkdirAll(validDir, 0755); err != nil {
+		t.Fatalf("os.MkdirAll(%q) error = %v", validDir, err)
+	}
+	if err := os.WriteFile(filepath.Join(validDir, "package.json"), []byte(`{"name":"pkg","version":" 1.2.3-dev.7 "}`), 0644); err != nil {
+		t.Fatalf("os.WriteFile(package.json) error = %v", err)
+	}
+
+	got, err := stagedPackageVersion(validDir)
+	if err != nil {
+		t.Fatalf("stagedPackageVersion(validDir) error = %v", err)
+	}
+	if got != "1.2.3-dev.7" {
+		t.Fatalf("stagedPackageVersion(validDir) = %q, want %q", got, "1.2.3-dev.7")
+	}
+
+	missingVersionDir := filepath.Join(dir, "missing-version")
+	if err := os.MkdirAll(missingVersionDir, 0755); err != nil {
+		t.Fatalf("os.MkdirAll(%q) error = %v", missingVersionDir, err)
+	}
+	if err := os.WriteFile(filepath.Join(missingVersionDir, "package.json"), []byte(`{"name":"pkg"}`), 0644); err != nil {
+		t.Fatalf("os.WriteFile(package.json) error = %v", err)
+	}
+
+	if _, err := stagedPackageVersion(missingVersionDir); err == nil || !strings.Contains(err.Error(), "missing version") {
+		t.Fatalf("stagedPackageVersion(missingVersionDir) error = %v, want missing version", err)
 	}
 }
 

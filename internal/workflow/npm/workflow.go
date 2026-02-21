@@ -141,6 +141,17 @@ func Publish(cfg *config.Config, opts PublishOptions) error {
 		return fmt.Errorf("prepare npmrc: %w", err)
 	}
 
+	metaDir := filepath.Join(paths.NPMDir, npmDist.Package)
+	version, err := stagedPackageVersion(metaDir)
+	if err != nil {
+		return fmt.Errorf("resolve staged npm version: %w", err)
+	}
+
+	publishOpts, autoDevTag := withAutoDevTag(opts, version)
+	if autoDevTag {
+		fmt.Printf("Detected dev npm version %s, publishing with --tag %q\n", version, publishOpts.Tag)
+	}
+
 	platformPackages := []string{}
 	for _, target := range cfg.Targets {
 		pkgName := platformPackageName(npmDist.Package, target)
@@ -155,15 +166,14 @@ func Publish(cfg *config.Config, opts PublishOptions) error {
 	fmt.Println("Publishing platform packages first...")
 	for _, pkgName := range platformPackages {
 		pkgDir := filepath.Join(paths.NPMDir, pkgName)
-		if err := publishPackage(pkgDir, npmDist.Registry, access, opts, npmrcPath, token); err != nil {
+		if err := publishPackage(pkgDir, npmDist.Registry, access, publishOpts, npmrcPath, token, version); err != nil {
 			return fmt.Errorf("failed to publish %s: %w", pkgName, err)
 		}
 		fmt.Printf("Published: %s\n", pkgName)
 	}
 
 	fmt.Println("Publishing meta package...")
-	metaDir := filepath.Join(paths.NPMDir, npmDist.Package)
-	if err := publishPackage(metaDir, npmDist.Registry, access, opts, npmrcPath, token); err != nil {
+	if err := publishPackage(metaDir, npmDist.Registry, access, publishOpts, npmrcPath, token, version); err != nil {
 		return fmt.Errorf("failed to publish meta package: %w", err)
 	}
 	fmt.Printf("Published: %s\n", npmDist.Package)
@@ -587,6 +597,44 @@ func buildPublishArgs(defaultRegistry, defaultAccess string, opts PublishOptions
 	return args
 }
 
+func isDevVersion(version string) bool {
+	v := strings.ToLower(strings.TrimSpace(version))
+	return strings.Contains(v, "-dev.") || strings.HasSuffix(v, "-dev")
+}
+
+func withAutoDevTag(opts PublishOptions, version string) (PublishOptions, bool) {
+	publishOpts := opts
+	if publishOpts.Tag == "" && isDevVersion(version) {
+		publishOpts.Tag = "dev"
+		return publishOpts, true
+	}
+	return publishOpts, false
+}
+
+func stagedPackageVersion(dir string) (string, error) {
+	pkgJSON, err := readPackageJSON(dir)
+	if err != nil {
+		return "", err
+	}
+
+	value, ok := pkgJSON["version"]
+	if !ok {
+		return "", fmt.Errorf("missing version in package.json")
+	}
+
+	version, ok := value.(string)
+	if !ok {
+		return "", fmt.Errorf("invalid version in package.json: expected string")
+	}
+
+	version = strings.TrimSpace(version)
+	if version == "" {
+		return "", fmt.Errorf("empty version in package.json")
+	}
+
+	return version, nil
+}
+
 func resolvePublishToken(dryRun bool) (string, error) {
 	token := strings.TrimSpace(os.Getenv(npmPublishTokenEnv))
 	if token == "" && !dryRun {
@@ -603,8 +651,9 @@ func npmCommandEnv(npmrcPath string, token string) []string {
 	return env
 }
 
-func publishPackage(dir, defaultRegistry, defaultAccess string, opts PublishOptions, npmrcPath string, token string) error {
-	args := buildPublishArgs(defaultRegistry, defaultAccess, opts)
+func publishPackage(dir, defaultRegistry, defaultAccess string, opts PublishOptions, npmrcPath string, token string, version string) error {
+	publishOpts, _ := withAutoDevTag(opts, version)
+	args := buildPublishArgs(defaultRegistry, defaultAccess, publishOpts)
 	packageDir, err := ensureWorkingDir(dir)
 	if err != nil {
 		return fmt.Errorf("resolve package working directory %q: %w", dir, err)
