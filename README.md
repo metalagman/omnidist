@@ -40,7 +40,21 @@ It builds binaries for multiple targets, stages distribution artifacts, verifies
 
 ## Installation
 
-Install with Go toolchain (global binary):
+Run without installation first:
+
+```bash
+npx @omnidist/omnidist --help
+uvx omnidist --help
+```
+
+Install globally with npm:
+
+```bash
+npm i -g @omnidist/omnidist
+omnidist --help
+```
+
+Install with Go toolchain:
 
 ```bash
 go install github.com/metalagman/omnidist/cmd/omnidist@latest
@@ -103,6 +117,9 @@ omnidist publish
 ```bash
 # Build binaries for configured targets and persist build version
 omnidist build
+
+# Show runtime version/build metadata
+omnidist version
 
 # Stage and verify both distributions (npm -> uv)
 omnidist stage
@@ -190,6 +207,7 @@ Top-level:
 
 - `omnidist init`
 - `omnidist build`
+- `omnidist version`
 - `omnidist stage [--dev] [--only npm|uv|npm,uv]`
 - `omnidist verify [--only npm|uv|npm,uv]`
 - `omnidist publish [--dry-run] [--only npm|uv|npm,uv]`
