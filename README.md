@@ -88,6 +88,9 @@ omnidist uv stage
 omnidist uv verify
 ```
 
+`omnidist uv stage` converts the resolved version to PEP 440 and writes
+`.omnidist/uv/pyproject.toml` with that version.
+
 5. Publish when verification passes:
 
 ```bash
@@ -205,7 +208,8 @@ omnidist uv publish --publish-url https://upload.pypi.org/legacy/ --token <pypi-
 
 `omnidist uv publish` always uses token auth mode (`__token__` username).  
 Provide token via `--token` or `UV_PUBLISH_TOKEN` (required for non-dry-run).
-If `.omnidist/dist/VERSION` exists, publish uses that staged build version; otherwise it falls back to exact release version resolution.
+`omnidist uv verify` and `omnidist uv publish` use the staged version from
+`.omnidist/uv/pyproject.toml` when present.
 
 TestPyPI dry-run style validation:
 
@@ -292,5 +296,6 @@ internal/workflow/          build/init/npm/uv workflows
 .omnidist/dist/             Built binaries by os/arch
 .omnidist/dist/VERSION      Version captured at build time
 .omnidist/npm/              Staged npm packages
+.omnidist/uv/pyproject.toml UV staging project with PEP 440 version
 .omnidist/uv/dist/          Staged wheel artifacts
 ```

@@ -10,7 +10,9 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -18,6 +20,8 @@ import (
 	"github.com/metalagman/omnidist/internal/paths"
 	"github.com/metalagman/omnidist/internal/workflow/shared"
 )
+
+var pyprojectVersionPattern = regexp.MustCompile(`(?m)^version\s*=\s*"([^"]+)"\s*$`)
 
 type StageOptions struct {
 	Dev bool
@@ -56,6 +60,9 @@ func Stage(cfg *config.Config, opts StageOptions) error {
 	if err := os.MkdirAll(paths.UVDistDir, 0755); err != nil {
 		return fmt.Errorf("create uv staging directory: %w", err)
 	}
+	if err := writeStagingPyproject(uvDist.Package, version); err != nil {
+		return fmt.Errorf("write uv staging pyproject: %w", err)
+	}
 
 	for _, target := range cfg.Targets {
 		if err := stageWheel(cfg, uvDist, target, version); err != nil {
@@ -80,7 +87,7 @@ func Verify(cfg *config.Config) *VerificationResult {
 		return result
 	}
 
-	version, err := resolveUVVersion(cfg, false)
+	version, err := resolveUVStagingVersion(cfg, false)
 	if err != nil {
 		result.Valid = false
 		result.Errors = append(result.Errors, err.Error())
@@ -250,7 +257,15 @@ func resolveUVReleaseVersion(cfg *config.Config) (string, error) {
 }
 
 func resolveUVPublishVersion(cfg *config.Config) (string, error) {
-	version, err := shared.ReadBuildVersion()
+	version, err := readStagingPyprojectVersion()
+	if err == nil {
+		return version, nil
+	}
+	if !errors.Is(err, os.ErrNotExist) {
+		return "", fmt.Errorf("read uv staging pyproject version: %w", err)
+	}
+
+	version, err = shared.ReadBuildVersion()
 	if err != nil {
 		if !errors.Is(err, os.ErrNotExist) {
 			return "", fmt.Errorf("read build version: %w", err)
@@ -264,6 +279,58 @@ func resolveUVPublishVersion(cfg *config.Config) (string, error) {
 	}
 
 	return pep440, nil
+}
+
+func resolveUVStagingVersion(cfg *config.Config, dev bool) (string, error) {
+	version, err := readStagingPyprojectVersion()
+	if err == nil {
+		return version, nil
+	}
+	if !errors.Is(err, os.ErrNotExist) {
+		return "", fmt.Errorf("read uv staging pyproject version: %w", err)
+	}
+	return resolveUVVersion(cfg, dev)
+}
+
+func writeStagingPyproject(pkg string, version string) error {
+	name := strings.TrimSpace(pkg)
+	v := strings.TrimSpace(version)
+	if name == "" {
+		return fmt.Errorf("package name is empty")
+	}
+	if v == "" {
+		return fmt.Errorf("version is empty")
+	}
+
+	if err := os.MkdirAll(paths.UVDir, 0755); err != nil {
+		return err
+	}
+
+	content := fmt.Sprintf(`[project]
+name = %s
+version = %s
+
+[tool.omnidist]
+generated = true
+`, strconv.Quote(name), strconv.Quote(v))
+
+	return os.WriteFile(paths.UVPyprojectPath, []byte(content), 0644)
+}
+
+func readStagingPyprojectVersion() (string, error) {
+	data, err := os.ReadFile(paths.UVPyprojectPath)
+	if err != nil {
+		return "", err
+	}
+	match := pyprojectVersionPattern.FindStringSubmatch(string(data))
+	if len(match) < 2 {
+		return "", fmt.Errorf("missing project.version in %s", paths.UVPyprojectPath)
+	}
+	version := strings.TrimSpace(match[1])
+	if version == "" {
+		return "", fmt.Errorf("empty project.version in %s", paths.UVPyprojectPath)
+	}
+	return version, nil
 }
 
 func stageWheel(cfg *config.Config, uvDist config.DistributionConfig, target config.Target, version string) error {

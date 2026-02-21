@@ -9,5 +9,6 @@ const (
 	NPMDir          = WorkspaceDir + "/npm"
 	NPMRCPath       = WorkspaceDir + "/.npmrc"
 	UVDir           = WorkspaceDir + "/uv"
+	UVPyprojectPath = UVDir + "/pyproject.toml"
 	UVDistDir       = UVDir + "/dist"
 )

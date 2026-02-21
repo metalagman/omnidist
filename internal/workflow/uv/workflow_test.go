@@ -27,6 +27,16 @@ func TestStageAndVerifyPasses(t *testing.T) {
 	if err := Stage(cfg, StageOptions{}); err != nil {
 		t.Fatalf("Stage() error = %v", err)
 	}
+	if _, err := os.Stat(paths.UVPyprojectPath); err != nil {
+		t.Fatalf("staging pyproject missing: %v", err)
+	}
+	version, err := readStagingPyprojectVersion()
+	if err != nil {
+		t.Fatalf("readStagingPyprojectVersion() error = %v", err)
+	}
+	if version != "1.2.3" {
+		t.Fatalf("readStagingPyprojectVersion() = %q, want %q", version, "1.2.3")
+	}
 
 	result := Verify(cfg)
 	if !result.Valid {
@@ -251,12 +261,20 @@ func TestResolveUVReleaseVersion(t *testing.T) {
 func TestResolveUVPublishVersion(t *testing.T) {
 	tests := []struct {
 		name         string
+		writePyproj  string
 		writeVersion string
 		cfg          *config.Config
 		envVer       string
 		want         string
 		wantErr      bool
 	}{
+		{
+			name:        "uses_staging_pyproject_version",
+			writePyproj: "2.0.0.dev7+abc123",
+			cfg:         &config.Config{Version: config.VersionConfig{Source: "env"}},
+			envVer:      "9.9.9",
+			want:        "2.0.0.dev7+abc123",
+		},
 		{
 			name:         "uses_build_version",
 			writeVersion: "1.2.3-4-gabc123",
@@ -284,6 +302,11 @@ func TestResolveUVPublishVersion(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Chdir(t.TempDir())
 			t.Setenv("VERSION", tc.envVer)
+			if tc.writePyproj != "" {
+				if err := writeStagingPyproject("omnidist", tc.writePyproj); err != nil {
+					t.Fatalf("writeStagingPyproject() error = %v", err)
+				}
+			}
 			if tc.writeVersion != "" {
 				if err := os.MkdirAll(paths.DistDir, 0755); err != nil {
 					t.Fatalf("os.MkdirAll(%q) error = %v", paths.DistDir, err)
@@ -307,6 +330,22 @@ func TestResolveUVPublishVersion(t *testing.T) {
 				t.Fatalf("resolveUVPublishVersion() = %q, want %q", got, tc.want)
 			}
 		})
+	}
+}
+
+func TestStagingPyprojectRoundTrip(t *testing.T) {
+	t.Chdir(t.TempDir())
+
+	if err := writeStagingPyproject("omnidist", "1.2.3.dev4+abc123"); err != nil {
+		t.Fatalf("writeStagingPyproject() error = %v", err)
+	}
+
+	got, err := readStagingPyprojectVersion()
+	if err != nil {
+		t.Fatalf("readStagingPyprojectVersion() error = %v", err)
+	}
+	if got != "1.2.3.dev4+abc123" {
+		t.Fatalf("readStagingPyprojectVersion() = %q, want %q", got, "1.2.3.dev4+abc123")
 	}
 }
 
