@@ -150,6 +150,53 @@ UV subcommands:
 - `omnidist uv verify`
 - `omnidist uv publish [--dry-run] [--repository-url <url>] [--token <pypi-token>]`
 
+## Usage Patterns
+
+### Local development loop
+
+Use this when iterating on the CLI binary and validating artifact generation locally:
+
+```bash
+omnidist build
+omnidist npm stage
+omnidist npm verify
+omnidist uv stage
+omnidist uv verify
+```
+
+### Dev pre-release artifacts
+
+Generate prerelease versions from git describe data:
+
+```bash
+omnidist npm stage --dev
+omnidist uv stage --dev
+```
+
+### npm publishing flow with custom options
+
+```bash
+omnidist npm publish --dry-run --tag next --registry https://registry.npmjs.org
+```
+
+If your npm account requires 2FA for publish operations:
+
+```bash
+omnidist npm publish --otp <6-digit-code>
+```
+
+### uv publishing flow with custom index/auth
+
+```bash
+omnidist uv publish --repository-url https://upload.pypi.org/legacy/ --token <pypi-token>
+```
+
+TestPyPI dry-run style validation:
+
+```bash
+omnidist uv publish --dry-run --repository-url https://test.pypi.org/legacy/
+```
+
 ## Usage Examples
 
 ### npm release path
