@@ -90,6 +90,7 @@ omnidist uv verify
 
 `omnidist uv stage` converts the resolved version to PEP 440 and writes
 `.omnidist/uv/pyproject.toml` with that version.
+It also recreates `.omnidist/uv/dist` to prevent stale wheel artifacts from previous runs.
 
 5. Publish when verification passes:
 

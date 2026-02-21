@@ -58,8 +58,8 @@ func Stage(cfg *config.Config, opts StageOptions) error {
 		return err
 	}
 
-	if err := os.MkdirAll(paths.UVDistDir, 0755); err != nil {
-		return fmt.Errorf("create uv staging directory: %w", err)
+	if err := resetUVStagingDir(); err != nil {
+		return err
 	}
 	if err := writeStagingPyproject(uvDist.Package, version); err != nil {
 		return fmt.Errorf("write uv staging pyproject: %w", err)
@@ -71,6 +71,16 @@ func Stage(cfg *config.Config, opts StageOptions) error {
 		}
 	}
 
+	return nil
+}
+
+func resetUVStagingDir() error {
+	if err := os.RemoveAll(paths.UVDistDir); err != nil {
+		return fmt.Errorf("clean uv staging directory: %w", err)
+	}
+	if err := os.MkdirAll(paths.UVDistDir, 0755); err != nil {
+		return fmt.Errorf("create uv staging directory: %w", err)
+	}
 	return nil
 }
 

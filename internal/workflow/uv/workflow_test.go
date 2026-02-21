@@ -84,6 +84,32 @@ func TestVerifyDetectsMissingBinary(t *testing.T) {
 	}
 }
 
+func TestStageCleansOldArtifacts(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	t.Setenv("VERSION", "1.2.3")
+
+	cfg := testConfig()
+	if err := createDistArtifacts(cfg); err != nil {
+		t.Fatalf("createDistArtifacts() error = %v", err)
+	}
+
+	if err := os.MkdirAll(paths.UVDistDir, 0755); err != nil {
+		t.Fatalf("os.MkdirAll(%q) error = %v", paths.UVDistDir, err)
+	}
+	stale := filepath.Join(paths.UVDistDir, "stale-file.whl")
+	if err := os.WriteFile(stale, []byte("stale"), 0644); err != nil {
+		t.Fatalf("os.WriteFile(%q) error = %v", stale, err)
+	}
+
+	if err := Stage(cfg, StageOptions{}); err != nil {
+		t.Fatalf("Stage() error = %v", err)
+	}
+	if _, err := os.Stat(stale); !os.IsNotExist(err) {
+		t.Fatalf("stale artifact still exists after Stage(): stat err = %v", err)
+	}
+}
+
 func TestCheckDependencyMissing(t *testing.T) {
 	originalPath := os.Getenv("PATH")
 	t.Setenv("PATH", t.TempDir())
