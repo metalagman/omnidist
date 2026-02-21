@@ -7,16 +7,20 @@
 [![version](https://img.shields.io/github/v/release/metalagman/omnidist?sort=semver)](https://github.com/metalagman/omnidist/releases)
 [![license](https://img.shields.io/github/license/metalagman/omnidist)](LICENSE)
 
-`omnidist` is a Go toolkit for distributing a Go CLI through npm and uv as prebuilt platform artifacts.
+Run your Go CLI everywhere with `npx` and `uvx`, without requiring Go on end-user machines.
 
-It builds binaries for multiple targets, stages distribution artifacts, verifies integrity, and publishes to registries.
+`omnidist` turns one Go project into cross-platform npm and uv distributions with prebuilt binaries, then stages, verifies, and publishes them in a deterministic release flow.
+
+Release flow: `build -> stage -> verify -> publish` so users can run your tool from JavaScript and Python ecosystems out of the box.
 
 ## Why
 
+- One release system for JavaScript and Python package ecosystems
+- Run Go binaries via `npx`/`uvx` on machines without a Go runtime
 - Install once with npm: `npm i -g <package>`
-- Publish Python wheel artifacts to PyPI-compatible indexes with uv
+- Publish wheel artifacts to PyPI-compatible indexes with uv
 - No install-time download scripts for npm
-- Reproducible release flow from a single config file
+- Reproducible, CI-friendly flow from a single config file
 
 ## How It Works
 
