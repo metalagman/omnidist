@@ -129,7 +129,7 @@ func TestResolveReleaseVersion(t *testing.T) {
 	for _, tc := range tests {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			t.Setenv("VERSION", tc.envVer)
+			t.Setenv(EnvVersionName, tc.envVer)
 			got, err := ResolveReleaseVersion(tc.cfg)
 			if tc.wantErr {
 				if err == nil {
@@ -166,7 +166,7 @@ func TestBuildVersionRoundTrip(t *testing.T) {
 
 func TestResolveStageVersionUsesBuildVersion(t *testing.T) {
 	t.Chdir(t.TempDir())
-	t.Setenv("VERSION", "9.9.9")
+	t.Setenv(EnvVersionName, "9.9.9")
 
 	if err := WriteBuildVersion("1.2.3-2-gabc123"); err != nil {
 		t.Fatalf("WriteBuildVersion() error = %v", err)
@@ -184,7 +184,7 @@ func TestResolveStageVersionUsesBuildVersion(t *testing.T) {
 
 func TestResolveStageVersionFallsBackToSource(t *testing.T) {
 	t.Chdir(t.TempDir())
-	t.Setenv("VERSION", "2.4.6")
+	t.Setenv(EnvVersionName, "2.4.6")
 
 	cfg := &config.Config{Version: config.VersionConfig{Source: "env"}}
 	got, err := ResolveStageVersion(cfg, false)

@@ -18,7 +18,7 @@ import (
 func TestStageAndVerifyPasses(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)
-	t.Setenv("VERSION", "1.2.3")
+	t.Setenv(shared.EnvVersionName, "1.2.3")
 
 	cfg := testConfig()
 	if err := createDistArtifacts(cfg); err != nil {
@@ -48,7 +48,7 @@ func TestStageAndVerifyPasses(t *testing.T) {
 func TestVerifyDetectsMissingBinary(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)
-	t.Setenv("VERSION", "1.2.3")
+	t.Setenv(shared.EnvVersionName, "1.2.3")
 
 	cfg := testConfig()
 	if err := createDistArtifacts(cfg); err != nil {
@@ -88,7 +88,7 @@ func TestVerifyDetectsMissingBinary(t *testing.T) {
 func TestStageCleansOldArtifacts(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)
-	t.Setenv("VERSION", "1.2.3")
+	t.Setenv(shared.EnvVersionName, "1.2.3")
 
 	cfg := testConfig()
 	if err := createDistArtifacts(cfg); err != nil {
@@ -114,7 +114,7 @@ func TestStageCleansOldArtifacts(t *testing.T) {
 func TestStageWheelsHaveNoDataDescriptors(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)
-	t.Setenv("VERSION", "1.2.3")
+	t.Setenv(shared.EnvVersionName, "1.2.3")
 
 	cfg := testConfig()
 	if err := createDistArtifacts(cfg); err != nil {
@@ -147,7 +147,7 @@ func TestStageWheelsHaveNoDataDescriptors(t *testing.T) {
 func TestStageWheelsRecordMatchesContents(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)
-	t.Setenv("VERSION", "1.2.3")
+	t.Setenv(shared.EnvVersionName, "1.2.3")
 
 	cfg := testConfig()
 	if err := createDistArtifacts(cfg); err != nil {
@@ -349,7 +349,7 @@ func TestResolveUVReleaseVersion(t *testing.T) {
 	for _, tc := range tests {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			t.Setenv("VERSION", tc.envVer)
+			t.Setenv(shared.EnvVersionName, tc.envVer)
 			got, err := resolveUVReleaseVersion(tc.cfg)
 			if tc.wantErr {
 				if err == nil {
@@ -410,7 +410,7 @@ func TestResolveUVPublishVersion(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Chdir(t.TempDir())
-			t.Setenv("VERSION", tc.envVer)
+			t.Setenv(shared.EnvVersionName, tc.envVer)
 			if tc.writePyproj != "" {
 				if err := writeStagingPyproject("omnidist", tc.writePyproj); err != nil {
 					t.Fatalf("writeStagingPyproject() error = %v", err)

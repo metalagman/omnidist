@@ -121,7 +121,7 @@ func TestNPMDistributionTrimsFields(t *testing.T) {
 }
 
 func TestGetVersionFromEnvTrimsWhitespace(t *testing.T) {
-	t.Setenv("VERSION", " 1.2.3 \n")
+	t.Setenv(shared.EnvVersionName, " 1.2.3 \n")
 	cfg := &config.Config{Version: config.VersionConfig{Source: "env"}}
 
 	got, err := shared.ResolveVersion(cfg, false)
@@ -167,7 +167,7 @@ func TestGetVersionErrors(t *testing.T) {
 			name: "missing_env",
 			cfg:  &config.Config{Version: config.VersionConfig{Source: "env"}},
 			setup: func(t *testing.T) {
-				t.Setenv("VERSION", "")
+				t.Setenv(shared.EnvVersionName, "")
 			},
 			wantErr: "empty version from source",
 		},
@@ -444,7 +444,7 @@ func TestResolveNPMVersion(t *testing.T) {
 	t.Run("prefers_staged_package_version", func(t *testing.T) {
 		dir := t.TempDir()
 		t.Chdir(dir)
-		t.Setenv("VERSION", "9.9.9")
+		t.Setenv(shared.EnvVersionName, "9.9.9")
 
 		cfg := testConfig()
 		if err := shared.WriteBuildVersion("2.2.2"); err != nil {
@@ -471,7 +471,7 @@ func TestResolveNPMVersion(t *testing.T) {
 	t.Run("falls_back_to_build_version", func(t *testing.T) {
 		dir := t.TempDir()
 		t.Chdir(dir)
-		t.Setenv("VERSION", "9.9.9")
+		t.Setenv(shared.EnvVersionName, "9.9.9")
 
 		cfg := testConfig()
 		if err := shared.WriteBuildVersion("2.3.4"); err != nil {
@@ -552,7 +552,7 @@ func TestEnsureWorkingDir(t *testing.T) {
 func TestStageAndVerifyPasses(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)
-	t.Setenv("VERSION", "1.2.3")
+	t.Setenv(shared.EnvVersionName, "1.2.3")
 
 	cfg := testConfig()
 	if err := createDistArtifacts(cfg); err != nil {
@@ -575,7 +575,7 @@ func TestStageAndVerifyPasses(t *testing.T) {
 func TestVerifyDetectsPlatformVersionMismatch(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)
-	t.Setenv("VERSION", "2.0.0")
+	t.Setenv(shared.EnvVersionName, "2.0.0")
 
 	cfg := testConfig()
 	if err := createDistArtifacts(cfg); err != nil {
@@ -620,7 +620,7 @@ func TestVerifyDetectsPlatformVersionMismatch(t *testing.T) {
 func TestStageRequiresBuildVersionFile(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)
-	t.Setenv("VERSION", "1.2.3")
+	t.Setenv(shared.EnvVersionName, "1.2.3")
 
 	cfg := testConfig()
 	if err := createDistArtifacts(cfg); err != nil {

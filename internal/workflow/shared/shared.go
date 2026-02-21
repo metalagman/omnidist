@@ -17,6 +17,7 @@ import (
 
 const (
 	DefaultUVLinuxTag = "manylinux2014"
+	EnvVersionName    = "OMNIDIST_VERSION"
 )
 
 var exactSemverPattern = regexp.MustCompile(`^\d+\.\d+\.\d+$`)
@@ -42,7 +43,7 @@ func ResolveVersion(cfg *config.Config, dev bool) (string, error) {
 		}
 		version = string(data)
 	case "env":
-		version = os.Getenv("VERSION")
+		version = os.Getenv(EnvVersionName)
 	default:
 		return "", fmt.Errorf("unknown version source %q", cfg.Version.Source)
 	}
@@ -75,7 +76,7 @@ func ResolveReleaseVersion(cfg *config.Config) (string, error) {
 		}
 		version = strings.TrimSpace(string(data))
 	case "env":
-		version = strings.TrimSpace(os.Getenv("VERSION"))
+		version = strings.TrimSpace(os.Getenv(EnvVersionName))
 	default:
 		return "", fmt.Errorf("unknown version source %q", cfg.Version.Source)
 	}

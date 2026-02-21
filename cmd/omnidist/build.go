@@ -29,6 +29,20 @@ var buildCmd = &cobra.Command{
 		} else {
 			fmt.Fprintln(os.Stderr, "Warning: unable to resolve version:", err)
 		}
+		if buildVersion != "" {
+			prevVersion, hadPrevVersion := os.LookupEnv(shared.EnvVersionName)
+			if err := os.Setenv(shared.EnvVersionName, buildVersion); err != nil {
+				fmt.Fprintln(os.Stderr, "Error exporting build version:", err)
+				os.Exit(1)
+			}
+			defer func() {
+				if hadPrevVersion {
+					_ = os.Setenv(shared.EnvVersionName, prevVersion)
+					return
+				}
+				_ = os.Unsetenv(shared.EnvVersionName)
+			}()
+		}
 
 		if err := workflow.Build(cfg); err != nil {
 			fmt.Fprintln(os.Stderr, "Error building:", err)

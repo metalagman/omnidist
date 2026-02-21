@@ -211,7 +211,7 @@ func validatePublishVersionPolicy(indexURL string, version string) error {
 		return nil
 	}
 	if strings.Contains(version, "+") {
-		return fmt.Errorf("version %q contains local version metadata (+...), which PyPI/TestPyPI rejects; restage with a publishable version (e.g. exact semver tag or env VERSION without +)", version)
+		return fmt.Errorf("version %q contains local version metadata (+...), which PyPI/TestPyPI rejects; restage with a publishable version (e.g. exact semver tag or env OMNIDIST_VERSION without +)", version)
 	}
 	return nil
 }

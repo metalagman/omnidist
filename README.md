@@ -146,14 +146,14 @@ omnidist uv publish --publish-url https://test.pypi.org/legacy/ --token <pypi-to
 
 Supported variables:
 
-- `VERSION`: used when `version.source: env`
+- `OMNIDIST_VERSION`: used when `version.source: env`; also expanded in `build.ldflags` templates (for example `${OMNIDIST_VERSION}`)
 - `NPM_PUBLISH_TOKEN`: required for npm publish commands when not using `--dry-run`
 - `UV_PUBLISH_TOKEN`: used by uv publish when `--token` is not provided
 
 Example `.env`:
 
 ```dotenv
-VERSION=1.2.3
+OMNIDIST_VERSION=1.2.3
 NPM_PUBLISH_TOKEN=npm_xxx
 UV_PUBLISH_TOKEN=pypi-xxx
 ```
@@ -197,6 +197,13 @@ distributions:
     package: omnidist
     index-url: https://upload.pypi.org/legacy/
     linux-tag: manylinux2014 # manylinux2014 | musllinux_1_2
+```
+
+For appkit version injection, configure `build.ldflags` in your project config:
+
+```yaml
+build:
+  ldflags: -s -w -X github.com/metalagman/appkit/version.version=${OMNIDIST_VERSION}
 ```
 
 With `version.source: git-tag`, release workflows require `HEAD` to be on an exact SemVer tag (`vX.Y.Z` or `X.Y.Z`).
@@ -329,7 +336,7 @@ version:
 ```
 
 ```bash
-export VERSION=2.0.0
+export OMNIDIST_VERSION=2.0.0
 omnidist npm stage
 omnidist uv stage
 ```
