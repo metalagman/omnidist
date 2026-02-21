@@ -148,6 +148,9 @@ Top-level:
 
 - `omnidist init`
 - `omnidist build`
+- `omnidist stage [--dev] [--only npm|uv|npm,uv]`
+- `omnidist verify [--only npm|uv|npm,uv]`
+- `omnidist publish [--dry-run] [--only npm|uv|npm,uv]`
 - `omnidist npm`
 - `omnidist uv`
 
@@ -171,10 +174,8 @@ Use this when iterating on the CLI binary and validating artifact generation loc
 
 ```bash
 omnidist build
-omnidist npm stage
-omnidist npm verify
-omnidist uv stage
-omnidist uv verify
+omnidist stage
+omnidist verify
 ```
 
 ### Dev pre-release artifacts
@@ -182,8 +183,20 @@ omnidist uv verify
 Generate prerelease versions from git describe data:
 
 ```bash
-omnidist npm stage --dev
-omnidist uv stage --dev
+omnidist stage --dev
+```
+
+### Unified multi-distribution orchestration
+
+Top-level `stage`, `verify`, and `publish` run distributions in deterministic order:
+`npm` first, then `uv`, and stop on first failure.
+
+Select a subset with `--only`:
+
+```bash
+omnidist stage --only uv
+omnidist verify --only npm
+omnidist publish --dry-run --only npm,uv
 ```
 
 ### npm publishing flow with custom options
@@ -279,14 +292,13 @@ This is additive: npm support remains first-class and is not deprecated.
 Recommended release sequence:
 
 1. `omnidist build`
-2. `omnidist npm stage`
-3. `omnidist npm verify`
-4. `omnidist uv stage`
-5. `omnidist uv verify`
-6. `omnidist npm publish`
-7. `omnidist uv publish`
+2. `omnidist stage`
+3. `omnidist verify`
+4. `omnidist publish`
 
-For CI verification-only jobs, run steps 1-5.
+For CI verification-only jobs, run steps 1-3.
+
+When you need distribution-specific publish options (`npm --tag/--otp/--registry`, `uv --publish-url/--token`), use `omnidist npm ...` and `omnidist uv ...` subcommands directly.
 
 ## Project Layout
 
