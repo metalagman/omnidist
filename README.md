@@ -148,6 +148,8 @@ Supported variables:
 
 - `OMNIDIST_VERSION`: used when `version.source: env`; also expanded in `build.ldflags` templates (for example `${OMNIDIST_VERSION}`).
   `VERSION` is not used.
+- `OMNIDIST_GIT_COMMIT`: optional ldflags template variable for build metadata; populated automatically by `omnidist build` when git metadata is available.
+- `OMNIDIST_BUILD_DATE`: optional ldflags template variable for build metadata; populated automatically by `omnidist build` as UTC RFC3339.
 - `NPM_PUBLISH_TOKEN`: required for npm publish commands when not using `--dry-run`
 - `UV_PUBLISH_TOKEN`: used by uv publish when `--token` is not provided
 
@@ -204,7 +206,7 @@ For appkit version injection, configure `build.ldflags` in your project config:
 
 ```yaml
 build:
-  ldflags: -s -w -X github.com/metalagman/appkit/version.version=${OMNIDIST_VERSION}
+  ldflags: -s -w -X github.com/metalagman/appkit/version.version=${OMNIDIST_VERSION} -X github.com/metalagman/appkit/version.gitCommit=${OMNIDIST_GIT_COMMIT} -X github.com/metalagman/appkit/version.buildDate=${OMNIDIST_BUILD_DATE}
 ```
 
 With `version.source: git-tag`, release workflows require `HEAD` to be on an exact SemVer tag (`vX.Y.Z` or `X.Y.Z`).

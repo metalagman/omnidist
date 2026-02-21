@@ -15,7 +15,7 @@ targets:
     - os: win32
       arch: amd64
 build:
-    ldflags: -s -w -X github.com/metalagman/appkit/version.version=${OMNIDIST_VERSION}
+    ldflags: -s -w -X github.com/metalagman/appkit/version.version=${OMNIDIST_VERSION} -X github.com/metalagman/appkit/version.gitCommit=${OMNIDIST_GIT_COMMIT} -X github.com/metalagman/appkit/version.buildDate=${OMNIDIST_BUILD_DATE}
     tags: []
     cgo: false
 distributions:
