@@ -26,6 +26,9 @@ import (
 )
 
 var pyprojectVersionPattern = regexp.MustCompile(`(?m)^version\s*=\s*"([^"]+)"\s*$`)
+var newWheelZipWriter = func(w io.Writer) rawZipWriter {
+	return zip.NewWriter(w)
+}
 
 type StageOptions struct {
 	Dev bool
@@ -41,6 +44,11 @@ type VerificationResult struct {
 	Valid    bool     `json:"valid"`
 	Errors   []string `json:"errors"`
 	Warnings []string `json:"warnings"`
+}
+
+type rawZipWriter interface {
+	CreateRaw(*zip.FileHeader) (io.Writer, error)
+	Close() error
 }
 
 func CheckDependency() error {
@@ -416,10 +424,59 @@ func writeWheel(wheelPath string, cfg *config.Config, uvDist config.Distribution
 	if err != nil {
 		return fmt.Errorf("create wheel %s: %w", wheelPath, err)
 	}
-	defer f.Close()
+	closeFile := true
+	defer func() {
+		if !closeFile {
+			return
+		}
+		_ = f.Close()
+	}()
 
-	zipWriter := zip.NewWriter(f)
-	defer zipWriter.Close()
+	if err := writeWheelArchive(f, platformTag, cfg, uvDist, target, version, binaryData); err != nil {
+		return err
+	}
+	if err := f.Close(); err != nil {
+		return fmt.Errorf("close wheel %s: %w", wheelPath, err)
+	}
+	closeFile = false
+
+	return nil
+}
+
+type wheelFile struct {
+	name string
+	data []byte
+	mode os.FileMode
+}
+
+func addZipFile(zipWriter rawZipWriter, name string, data []byte, mode os.FileMode) error {
+	header := &zip.FileHeader{
+		Name:   name,
+		Method: zip.Store,
+	}
+	header.UncompressedSize64 = uint64(len(data))
+	header.CompressedSize64 = uint64(len(data))
+	header.CRC32 = crc32.ChecksumIEEE(data)
+	header.SetMode(mode)
+	header.Modified = time.Unix(0, 0)
+
+	writer, err := zipWriter.CreateRaw(header)
+	if err != nil {
+		return fmt.Errorf("create zip entry %s: %w", name, err)
+	}
+	if _, err := io.Copy(writer, bytes.NewReader(data)); err != nil {
+		return fmt.Errorf("write zip entry %s: %w", name, err)
+	}
+	return nil
+}
+
+func writeWheelArchive(w io.Writer, platformTag string, cfg *config.Config, uvDist config.DistributionConfig, target config.Target, version string, binaryData []byte) (retErr error) {
+	zipWriter := newWheelZipWriter(w)
+	defer func() {
+		if err := zipWriter.Close(); err != nil && retErr == nil {
+			retErr = fmt.Errorf("finalize wheel archive: %w", err)
+		}
+	}()
 
 	distName := shared.NormalizePythonDistributionName(uvDist.Package)
 	distInfoDir := fmt.Sprintf("%s-%s.dist-info", distName, version)
@@ -453,33 +510,6 @@ func writeWheel(wheelPath string, cfg *config.Config, uvDist config.Distribution
 		return err
 	}
 
-	return nil
-}
-
-type wheelFile struct {
-	name string
-	data []byte
-	mode os.FileMode
-}
-
-func addZipFile(zipWriter *zip.Writer, name string, data []byte, mode os.FileMode) error {
-	header := &zip.FileHeader{
-		Name:   name,
-		Method: zip.Store,
-	}
-	header.UncompressedSize64 = uint64(len(data))
-	header.CompressedSize64 = uint64(len(data))
-	header.CRC32 = crc32.ChecksumIEEE(data)
-	header.SetMode(mode)
-	header.Modified = time.Unix(0, 0)
-
-	writer, err := zipWriter.CreateRaw(header)
-	if err != nil {
-		return fmt.Errorf("create zip entry %s: %w", name, err)
-	}
-	if _, err := io.Copy(writer, bytes.NewReader(data)); err != nil {
-		return fmt.Errorf("write zip entry %s: %w", name, err)
-	}
 	return nil
 }
 

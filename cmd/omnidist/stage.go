@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 
 	npmworkflow "github.com/metalagman/omnidist/internal/workflow/npm"
 	uvworkflow "github.com/metalagman/omnidist/internal/workflow/uv"
@@ -17,17 +16,15 @@ var (
 var stageCmd = &cobra.Command{
 	Use:   "stage",
 	Short: "Stage artifacts for configured distributions",
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := loadConfig()
 		if err != nil {
-			fmt.Fprintln(os.Stderr, "Error loading config:", err)
-			os.Exit(1)
+			return fmt.Errorf("load config: %w", err)
 		}
 
 		distributions, err := resolveDistributions(stageOnlyFlag)
 		if err != nil {
-			fmt.Fprintln(os.Stderr, "Error resolving distributions:", err)
-			os.Exit(1)
+			return fmt.Errorf("resolve distributions: %w", err)
 		}
 
 		if err := runDistributionSteps(distributions, func(dist distribution) error {
@@ -50,11 +47,11 @@ var stageCmd = &cobra.Command{
 			}
 			return nil
 		}); err != nil {
-			fmt.Fprintln(os.Stderr, "Error staging:", err)
-			os.Exit(1)
+			return fmt.Errorf("stage: %w", err)
 		}
 
 		fmt.Printf("Staging completed successfully for: %s\n", distributionList(distributions))
+		return nil
 	},
 }
 

@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/metalagman/omnidist/internal/config"
@@ -30,6 +31,8 @@ type PublishOptions struct {
 const (
 	npmPublishTokenEnv = "NPM_PUBLISH_TOKEN"
 )
+
+var npmVersionPattern = regexp.MustCompile(`^\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$`)
 
 type VerificationResult struct {
 	Valid    bool     `json:"valid"`
@@ -95,7 +98,11 @@ func Stage(cfg *config.Config, opts StageOptions) error {
 
 func resolveNPMStageVersion(cfg *config.Config, dev bool) (string, error) {
 	if dev {
-		return shared.ResolveVersion(cfg, true)
+		version, err := shared.ResolveVersion(cfg, true)
+		if err != nil {
+			return "", err
+		}
+		return validateNPMVersion(version, "resolved dev version")
 	}
 
 	version, err := shared.ReadBuildVersion()
@@ -106,7 +113,7 @@ func resolveNPMStageVersion(cfg *config.Config, dev bool) (string, error) {
 		return "", fmt.Errorf("read build version: %w", err)
 	}
 
-	return version, nil
+	return validateNPMVersion(version, "build version")
 }
 
 func Verify(cfg *config.Config) *VerificationResult {
@@ -645,12 +652,7 @@ func stagedPackageVersion(dir string) (string, error) {
 		return "", fmt.Errorf("invalid version in package.json: expected string")
 	}
 
-	version = strings.TrimSpace(version)
-	if version == "" {
-		return "", fmt.Errorf("empty version in package.json")
-	}
-
-	return version, nil
+	return validateNPMVersion(version, "staged package.json version")
 }
 
 func resolveNPMVersion(cfg *config.Config, metaDir string) (string, error) {
@@ -665,6 +667,10 @@ func resolveNPMVersion(cfg *config.Config, metaDir string) (string, error) {
 	version, err = shared.ResolveStageVersion(cfg, false)
 	if err != nil {
 		return "", fmt.Errorf("resolve build/source version: %w", err)
+	}
+	version, err = validateNPMVersion(version, "build/source version")
+	if err != nil {
+		return "", err
 	}
 	return version, nil
 }
@@ -700,4 +706,15 @@ func publishPackage(dir, defaultRegistry, defaultAccess string, opts PublishOpti
 	execCmd.Stderr = os.Stderr
 
 	return execCmd.Run()
+}
+
+func validateNPMVersion(version string, source string) (string, error) {
+	v := strings.TrimSpace(version)
+	if v == "" {
+		return "", fmt.Errorf("empty %s", source)
+	}
+	if !npmVersionPattern.MatchString(v) {
+		return "", fmt.Errorf("invalid npm version %q from %s: expected semver (e.g. 1.2.3 or 1.2.3-dev.4.gabc123)", v, source)
+	}
+	return v, nil
 }

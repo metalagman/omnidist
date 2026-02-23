@@ -5,22 +5,26 @@ import (
 	"fmt"
 	"io/fs"
 
+	godotenv "github.com/joho/godotenv"
 	"github.com/metalagman/omnidist/cmd/omnidist/npm"
 	"github.com/metalagman/omnidist/cmd/omnidist/uv"
-	godotenv "github.com/joho/godotenv"
 	"github.com/spf13/cobra"
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "omnidist",
-	Short: "Omni-platform Binary Distribution Toolkit",
-	Long:  `A repeatable way to build, package, and publish a Go CLI for npm and uv distributions.`,
+	Use:           "omnidist",
+	Short:         "Omni-platform Binary Distribution Toolkit",
+	Long:          `A repeatable way to build, package, and publish a Go CLI for npm and uv distributions.`,
+	SilenceUsage:  true,
+	SilenceErrors: true,
 }
 
+// Execute runs the root omnidist command tree.
 func Execute() error {
 	return rootCmd.Execute()
 }
 
+// AddCommand registers a top-level subcommand on the root command.
 func AddCommand(cmd *cobra.Command) {
 	rootCmd.AddCommand(cmd)
 }

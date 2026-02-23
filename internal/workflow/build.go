@@ -42,8 +42,8 @@ func buildTarget(cfg *config.Config, target config.Target) error {
 	if ldflags != "" {
 		args = append(args, "-ldflags", ldflags)
 	}
-	for _, tag := range cfg.Build.Tags {
-		args = append(args, "-tags", tag)
+	if tags := buildTagsFlagValue(cfg.Build.Tags); tags != "" {
+		args = append(args, "-tags", tags)
 	}
 	args = append(args, "-o", outputPath, cfg.Tool.Main)
 
@@ -73,4 +73,16 @@ func buildTarget(cfg *config.Config, target config.Target) error {
 
 func renderBuildLDFlags(template string) string {
 	return strings.TrimSpace(os.ExpandEnv(template))
+}
+
+func buildTagsFlagValue(tags []string) string {
+	filtered := make([]string, 0, len(tags))
+	for _, tag := range tags {
+		tag = strings.TrimSpace(tag)
+		if tag == "" {
+			continue
+		}
+		filtered = append(filtered, tag)
+	}
+	return strings.Join(filtered, ",")
 }

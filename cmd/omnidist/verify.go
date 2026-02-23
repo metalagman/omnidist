@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 
 	npmworkflow "github.com/metalagman/omnidist/internal/workflow/npm"
 	uvworkflow "github.com/metalagman/omnidist/internal/workflow/uv"
@@ -14,17 +13,15 @@ var verifyOnlyFlag string
 var verifyCmd = &cobra.Command{
 	Use:   "verify",
 	Short: "Verify staged artifacts for configured distributions",
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := loadConfig()
 		if err != nil {
-			fmt.Fprintln(os.Stderr, "Error loading config:", err)
-			os.Exit(1)
+			return fmt.Errorf("load config: %w", err)
 		}
 
 		distributions, err := resolveDistributions(verifyOnlyFlag)
 		if err != nil {
-			fmt.Fprintln(os.Stderr, "Error resolving distributions:", err)
-			os.Exit(1)
+			return fmt.Errorf("resolve distributions: %w", err)
 		}
 
 		if err := runDistributionSteps(distributions, func(dist distribution) error {
@@ -49,11 +46,11 @@ var verifyCmd = &cobra.Command{
 			}
 			return nil
 		}); err != nil {
-			fmt.Fprintln(os.Stderr, "Error verifying:", err)
-			os.Exit(1)
+			return fmt.Errorf("verify: %w", err)
 		}
 
 		fmt.Printf("Verification completed successfully for: %s\n", distributionList(distributions))
+		return nil
 	},
 }
 

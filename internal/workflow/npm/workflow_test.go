@@ -274,6 +274,59 @@ func TestWithAutoDevTag(t *testing.T) {
 	}
 }
 
+func TestValidateNPMVersion(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		version string
+		want    string
+		wantErr bool
+	}{
+		{name: "release", version: "1.2.3", want: "1.2.3"},
+		{name: "dev_prerelease", version: "1.2.3-dev.4.gabc123", want: "1.2.3-dev.4.gabc123"},
+		{name: "with_build_metadata", version: "1.2.3+abc123", want: "1.2.3+abc123"},
+		{name: "git_hash_only_invalid", version: "abc1234", wantErr: true},
+		{name: "empty_invalid", version: " ", wantErr: true},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := validateNPMVersion(tc.version, "test source")
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("validateNPMVersion() error = nil, want error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("validateNPMVersion() error = %v", err)
+			}
+			if got != tc.want {
+				t.Fatalf("validateNPMVersion() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestResolveNPMVersionRejectsInvalidFallbackVersion(t *testing.T) {
+	t.Chdir(t.TempDir())
+	t.Setenv(shared.EnvVersionName, "not-semver")
+
+	cfg := &config.Config{Version: config.VersionConfig{Source: "env"}}
+	metaDir := filepath.Join(paths.NPMDir, "@scope/pkg")
+
+	_, err := resolveNPMVersion(cfg, metaDir)
+	if err == nil {
+		t.Fatalf("resolveNPMVersion() error = nil, want error")
+	}
+	if !strings.Contains(err.Error(), "invalid npm version") {
+		t.Fatalf("resolveNPMVersion() error = %v, want invalid npm version", err)
+	}
+}
+
 func TestNPMTokenConfigKey(t *testing.T) {
 	t.Parallel()
 

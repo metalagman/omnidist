@@ -23,11 +23,10 @@ const (
 var buildCmd = &cobra.Command{
 	Use:   "build",
 	Short: "Compile Go binaries for configured targets",
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := loadConfig()
 		if err != nil {
-			fmt.Fprintln(os.Stderr, "Error loading config:", err)
-			os.Exit(1)
+			return fmt.Errorf("load config: %w", err)
 		}
 
 		var buildVersion string
@@ -35,13 +34,12 @@ var buildCmd = &cobra.Command{
 			buildVersion = version
 			fmt.Println("Version:", version)
 		} else {
-			fmt.Fprintln(os.Stderr, "Warning: unable to resolve version:", err)
+			fmt.Fprintln(cmd.ErrOrStderr(), "Warning: unable to resolve version:", err)
 		}
 		if buildVersion != "" {
 			prevVersion, hadPrevVersion := os.LookupEnv(shared.EnvVersionName)
 			if err := os.Setenv(shared.EnvVersionName, buildVersion); err != nil {
-				fmt.Fprintln(os.Stderr, "Error exporting build version:", err)
-				os.Exit(1)
+				return fmt.Errorf("export build version: %w", err)
 			}
 			defer func() {
 				if hadPrevVersion {
@@ -53,24 +51,22 @@ var buildCmd = &cobra.Command{
 		}
 		restoreBuildMetadataEnv, err := setBuildMetadataEnv()
 		if err != nil {
-			fmt.Fprintln(os.Stderr, "Error exporting build metadata:", err)
-			os.Exit(1)
+			return fmt.Errorf("export build metadata: %w", err)
 		}
 		defer restoreBuildMetadataEnv()
 
 		if err := workflow.Build(cfg); err != nil {
-			fmt.Fprintln(os.Stderr, "Error building:", err)
-			os.Exit(1)
+			return fmt.Errorf("build: %w", err)
 		}
 		if buildVersion != "" {
 			if err := shared.WriteBuildVersion(buildVersion); err != nil {
-				fmt.Fprintln(os.Stderr, "Error writing build version:", err)
-				os.Exit(1)
+				return fmt.Errorf("write build version: %w", err)
 			}
 			fmt.Println("Build version saved:", buildVersion)
 		}
 
 		fmt.Println("Build completed successfully")
+		return nil
 	},
 }
 

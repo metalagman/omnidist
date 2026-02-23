@@ -2,7 +2,6 @@ package uv
 
 import (
 	"fmt"
-	"os"
 
 	uvworkflow "github.com/metalagman/omnidist/internal/workflow/uv"
 	"github.com/spf13/cobra"
@@ -27,16 +26,14 @@ func init() {
 var publishCmd = &cobra.Command{
 	Use:   "publish",
 	Short: "Publish uv wheel artifacts to a PyPI-compatible index",
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		if err := uvworkflow.CheckDependency(); err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
+			return err
 		}
 
 		cfg, err := loadConfig()
 		if err != nil {
-			fmt.Fprintln(os.Stderr, "Error loading config:", err)
-			os.Exit(1)
+			return fmt.Errorf("load config: %w", err)
 		}
 
 		opts := uvworkflow.PublishOptions{
@@ -49,10 +46,10 @@ var publishCmd = &cobra.Command{
 		}
 
 		if err := uvworkflow.Publish(cfg, opts); err != nil {
-			fmt.Fprintln(os.Stderr, "Error publishing uv artifacts:", err)
-			os.Exit(1)
+			return fmt.Errorf("publish uv artifacts: %w", err)
 		}
 
 		fmt.Println("UV publish completed successfully")
+		return nil
 	},
 }

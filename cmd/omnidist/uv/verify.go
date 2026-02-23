@@ -2,7 +2,6 @@ package uv
 
 import (
 	"fmt"
-	"os"
 
 	uvworkflow "github.com/metalagman/omnidist/internal/workflow/uv"
 	"github.com/spf13/cobra"
@@ -15,16 +14,14 @@ func init() {
 var verifyCmd = &cobra.Command{
 	Use:   "verify",
 	Short: "Verify uv wheel artifacts before publishing",
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		if err := uvworkflow.CheckDependency(); err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
+			return err
 		}
 
 		cfg, err := loadConfig()
 		if err != nil {
-			fmt.Fprintln(os.Stderr, "Error loading config:", err)
-			os.Exit(1)
+			return fmt.Errorf("load config: %w", err)
 		}
 
 		result := uvworkflow.Verify(cfg)
@@ -45,8 +42,8 @@ var verifyCmd = &cobra.Command{
 
 		if result.Valid {
 			fmt.Println("Verification PASSED")
-			return
+			return nil
 		}
-		os.Exit(1)
+		return fmt.Errorf("uv verification failed")
 	},
 }

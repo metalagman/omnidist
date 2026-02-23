@@ -2,7 +2,6 @@ package uv
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/metalagman/omnidist/internal/workflow/shared"
 	uvworkflow "github.com/metalagman/omnidist/internal/workflow/uv"
@@ -19,35 +18,31 @@ func init() {
 var stageCmd = &cobra.Command{
 	Use:   "stage",
 	Short: "Assemble uv wheel artifacts from built binaries",
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		if err := uvworkflow.CheckDependency(); err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
+			return err
 		}
 
 		cfg, err := loadConfig()
 		if err != nil {
-			fmt.Fprintln(os.Stderr, "Error loading config:", err)
-			os.Exit(1)
+			return fmt.Errorf("load config: %w", err)
 		}
 
 		version, err := shared.ResolveStageVersion(cfg, stageDev)
 		if err != nil {
-			fmt.Fprintln(os.Stderr, "Error resolving version:", err)
-			os.Exit(1)
+			return fmt.Errorf("resolve version: %w", err)
 		}
 		pep440Version, err := shared.ToPEP440(version)
 		if err != nil {
-			fmt.Fprintln(os.Stderr, "Error resolving uv version:", err)
-			os.Exit(1)
+			return fmt.Errorf("resolve uv version: %w", err)
 		}
 		fmt.Println("Version:", pep440Version)
 
 		if err := uvworkflow.Stage(cfg, uvworkflow.StageOptions{Dev: stageDev}); err != nil {
-			fmt.Fprintln(os.Stderr, "Error staging uv artifacts:", err)
-			os.Exit(1)
+			return fmt.Errorf("stage uv artifacts: %w", err)
 		}
 
 		fmt.Println("UV staging completed successfully")
+		return nil
 	},
 }

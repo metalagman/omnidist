@@ -22,26 +22,24 @@ func init() {
 var stageCmd = &cobra.Command{
 	Use:   "stage",
 	Short: "Assemble npm packages from built artifacts",
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := loadConfig()
 		if err != nil {
-			fmt.Fprintln(os.Stderr, "Error loading config:", err)
-			os.Exit(1)
+			return fmt.Errorf("load config: %w", err)
 		}
 
 		version, err := resolveStageVersionForOutput(cfg, flagDev)
 		if err != nil {
-			fmt.Fprintln(os.Stderr, "Error resolving version:", err)
-			os.Exit(1)
+			return fmt.Errorf("resolve version: %w", err)
 		}
 		fmt.Println("Version:", version)
 
 		if err := runStage(cfg); err != nil {
-			fmt.Fprintln(os.Stderr, "Error staging:", err)
-			os.Exit(1)
+			return fmt.Errorf("stage: %w", err)
 		}
 
 		fmt.Println("Staging completed successfully")
+		return nil
 	},
 }
 

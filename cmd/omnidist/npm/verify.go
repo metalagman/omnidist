@@ -2,7 +2,6 @@ package npm
 
 import (
 	"fmt"
-	"os"
 
 	npmworkflow "github.com/metalagman/omnidist/internal/workflow/npm"
 	"github.com/spf13/cobra"
@@ -15,11 +14,10 @@ func init() {
 var verifyCmd = &cobra.Command{
 	Use:   "verify",
 	Short: "Enforce correctness before publishing",
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := loadConfig()
 		if err != nil {
-			fmt.Fprintln(os.Stderr, "Error loading config:", err)
-			os.Exit(1)
+			return fmt.Errorf("load config: %w", err)
 		}
 
 		result := npmworkflow.Verify(cfg)
@@ -40,8 +38,8 @@ var verifyCmd = &cobra.Command{
 
 		if result.Valid {
 			fmt.Println("Verification PASSED")
-		} else {
-			os.Exit(1)
+			return nil
 		}
+		return fmt.Errorf("npm verification failed")
 	},
 }

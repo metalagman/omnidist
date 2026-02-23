@@ -9,6 +9,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// Config is the root omnidist configuration loaded from omnidist.yaml.
 type Config struct {
 	Tool          ToolConfig                    `yaml:"tool"`
 	Version       VersionConfig                 `yaml:"version"`
@@ -17,21 +18,25 @@ type Config struct {
 	Distributions map[string]DistributionConfig `yaml:"distributions"`
 }
 
+// ToolConfig configures the Go CLI binary to build and package.
 type ToolConfig struct {
 	Name string `yaml:"name"`
 	Main string `yaml:"main"`
 }
 
+// VersionConfig defines where omnidist resolves the release version from.
 type VersionConfig struct {
 	Source string `yaml:"source"`
 }
 
+// Target describes a Go build target and optional packaging variant.
 type Target struct {
 	OS      string `yaml:"os"`
 	Arch    string `yaml:"arch"`
 	Variant string `yaml:"variant,omitempty"`
 }
 
+// DistributionConfig stores distribution-specific packaging settings.
 type DistributionConfig struct {
 	Package  string `yaml:"package"`
 	Registry string `yaml:"registry,omitempty"`
@@ -40,6 +45,7 @@ type DistributionConfig struct {
 	LinuxTag string `yaml:"linux-tag,omitempty"`
 }
 
+// MapGoArchToNPM converts a Go GOARCH value to the corresponding npm cpu value.
 func MapGoArchToNPM(arch string) string {
 	switch arch {
 	case "amd64":
@@ -53,6 +59,7 @@ func MapGoArchToNPM(arch string) string {
 	}
 }
 
+// MapGoOSToNPM converts a Go GOOS value to the corresponding npm os value.
 func MapGoOSToNPM(goOS string) string {
 	switch goOS {
 	case "windows":
@@ -62,12 +69,14 @@ func MapGoOSToNPM(goOS string) string {
 	}
 }
 
+// BuildConfig configures go build flags shared across targets.
 type BuildConfig struct {
 	Ldflags string   `yaml:"ldflags"`
 	Tags    []string `yaml:"tags"`
 	CGO     bool     `yaml:"cgo"`
 }
 
+// DefaultConfig returns the default omnidist configuration for a new project.
 func DefaultConfig() *Config {
 	return &Config{
 		Tool: ToolConfig{
@@ -104,6 +113,7 @@ func DefaultConfig() *Config {
 	}
 }
 
+// Load reads and validates an omnidist configuration file from path.
 func Load(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -201,6 +211,7 @@ func validate(cfg *Config) error {
 	return nil
 }
 
+// Save writes cfg to path in YAML format, creating parent directories as needed.
 func Save(cfg *Config, path string) error {
 	data, err := yaml.Marshal(cfg)
 	if err != nil {

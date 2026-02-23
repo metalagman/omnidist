@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 
 	npmworkflow "github.com/metalagman/omnidist/internal/workflow/npm"
 	uvworkflow "github.com/metalagman/omnidist/internal/workflow/uv"
@@ -17,17 +16,15 @@ var (
 var publishCmd = &cobra.Command{
 	Use:   "publish",
 	Short: "Publish staged artifacts for configured distributions",
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := loadConfig()
 		if err != nil {
-			fmt.Fprintln(os.Stderr, "Error loading config:", err)
-			os.Exit(1)
+			return fmt.Errorf("load config: %w", err)
 		}
 
 		distributions, err := resolveDistributions(publishOnlyFlag)
 		if err != nil {
-			fmt.Fprintln(os.Stderr, "Error resolving distributions:", err)
-			os.Exit(1)
+			return fmt.Errorf("resolve distributions: %w", err)
 		}
 
 		if err := runDistributionSteps(distributions, func(dist distribution) error {
@@ -53,11 +50,11 @@ var publishCmd = &cobra.Command{
 			}
 			return nil
 		}); err != nil {
-			fmt.Fprintln(os.Stderr, "Error publishing:", err)
-			os.Exit(1)
+			return fmt.Errorf("publish: %w", err)
 		}
 
 		fmt.Printf("Publish completed successfully for: %s\n", distributionList(distributions))
+		return nil
 	},
 }
 

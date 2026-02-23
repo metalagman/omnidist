@@ -2,6 +2,8 @@ package uv
 
 import (
 	"archive/zip"
+	"bytes"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -14,6 +16,22 @@ import (
 	"github.com/metalagman/omnidist/internal/paths"
 	"github.com/metalagman/omnidist/internal/workflow/shared"
 )
+
+type failingCloseZipWriter struct {
+	inner    *zip.Writer
+	closeErr error
+}
+
+func (w *failingCloseZipWriter) CreateRaw(header *zip.FileHeader) (io.Writer, error) {
+	return w.inner.CreateRaw(header)
+}
+
+func (w *failingCloseZipWriter) Close() error {
+	if err := w.inner.Close(); err != nil {
+		return err
+	}
+	return w.closeErr
+}
 
 func TestStageAndVerifyPasses(t *testing.T) {
 	dir := t.TempDir()
@@ -505,6 +523,38 @@ func TestValidatePublishVersionPolicy(t *testing.T) {
 				t.Fatalf("validatePublishVersionPolicy() error = %v", err)
 			}
 		})
+	}
+}
+
+func TestWriteWheelArchivePropagatesZipCloseError(t *testing.T) {
+	orig := newWheelZipWriter
+	t.Cleanup(func() {
+		newWheelZipWriter = orig
+	})
+
+	closeErr := errors.New("zip close failed")
+	newWheelZipWriter = func(w io.Writer) rawZipWriter {
+		return &failingCloseZipWriter{
+			inner:    zip.NewWriter(w),
+			closeErr: closeErr,
+		}
+	}
+
+	cfg := testConfig()
+	target := cfg.Targets[0]
+	uvDist := cfg.Distributions["uv"]
+
+	platformTag, err := shared.WheelPlatformTag(target, uvDist.LinuxTag)
+	if err != nil {
+		t.Fatalf("shared.WheelPlatformTag() error = %v", err)
+	}
+
+	err = writeWheelArchive(&bytes.Buffer{}, platformTag, cfg, uvDist, target, "1.2.3", []byte("binary"))
+	if err == nil {
+		t.Fatalf("writeWheelArchive() error = nil, want error")
+	}
+	if !errors.Is(err, closeErr) {
+		t.Fatalf("writeWheelArchive() error = %v, want wrapped %v", err, closeErr)
 	}
 }
 

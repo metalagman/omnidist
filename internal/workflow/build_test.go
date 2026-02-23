@@ -27,3 +27,39 @@ func TestRenderBuildLDFlagsTrimsWhitespace(t *testing.T) {
 		t.Fatalf("renderBuildLDFlags() = %q, want %q", got, "-s -w")
 	}
 }
+
+func TestBuildTagsFlagValue(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		tags []string
+		want string
+	}{
+		{
+			name: "empty",
+			tags: nil,
+			want: "",
+		},
+		{
+			name: "single",
+			tags: []string{"release"},
+			want: "release",
+		},
+		{
+			name: "multiple_trimmed",
+			tags: []string{"tag1", " tag2 ", ""},
+			want: "tag1,tag2",
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := buildTagsFlagValue(tc.tags); got != tc.want {
+				t.Fatalf("buildTagsFlagValue() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}

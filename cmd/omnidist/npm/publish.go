@@ -2,7 +2,6 @@ package npm
 
 import (
 	"fmt"
-	"os"
 
 	npmworkflow "github.com/metalagman/omnidist/internal/workflow/npm"
 	"github.com/spf13/cobra"
@@ -26,11 +25,10 @@ func init() {
 var publishCmd = &cobra.Command{
 	Use:   "publish",
 	Short: "Publish to npm registry",
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := loadConfig()
 		if err != nil {
-			fmt.Fprintln(os.Stderr, "Error loading config:", err)
-			os.Exit(1)
+			return fmt.Errorf("load config: %w", err)
 		}
 
 		opts := npmworkflow.PublishOptions{
@@ -41,16 +39,14 @@ var publishCmd = &cobra.Command{
 		}
 
 		if err := npmworkflow.CheckAuth(cfg, opts.Registry, opts.DryRun); err != nil {
-			fmt.Fprintln(os.Stderr, "NPM authentication failed:", err)
-			fmt.Fprintln(os.Stderr, "Set NPM_PUBLISH_TOKEN in environment for .npmrc substitution, or run 'npm login'")
-			os.Exit(1)
+			return fmt.Errorf("npm authentication failed: %w\nSet NPM_PUBLISH_TOKEN in environment for .npmrc substitution, or run 'npm login'", err)
 		}
 
 		if err := npmworkflow.Publish(cfg, opts); err != nil {
-			fmt.Fprintln(os.Stderr, "Error publishing:", err)
-			os.Exit(1)
+			return fmt.Errorf("publish: %w", err)
 		}
 
 		fmt.Println("Publish completed successfully")
+		return nil
 	},
 }

@@ -10,8 +10,9 @@ import (
 var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Print omnidist version",
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		fmt.Fprintln(cmd.OutOrStdout(), appversion.String())
+		return nil
 	},
 }
 
