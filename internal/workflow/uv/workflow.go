@@ -47,7 +47,7 @@ type VerificationResult struct {
 }
 
 type rawZipWriter interface {
-	CreateRaw(*zip.FileHeader) (io.Writer, error)
+	CreateRaw(header *zip.FileHeader) (io.Writer, error)
 	Close() error
 }
 
