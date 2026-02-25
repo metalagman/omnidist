@@ -42,7 +42,7 @@ func ResolveVersion(cfg *config.Config, dev bool) (string, error) {
 	case "file":
 		data, err := os.ReadFile("VERSION")
 		if err != nil {
-			return "", fmt.Errorf("read VERSION file: %w", err)
+			return "", fmt.Errorf("read VERSION file %s: %w", "VERSION", err)
 		}
 		version = string(data)
 	case "env":
@@ -76,7 +76,7 @@ func ResolveReleaseVersion(cfg *config.Config) (string, error) {
 	case "file":
 		data, err := os.ReadFile("VERSION")
 		if err != nil {
-			return "", fmt.Errorf("read VERSION file: %w", err)
+			return "", fmt.Errorf("read VERSION file %s: %w", "VERSION", err)
 		}
 		version = strings.TrimSpace(string(data))
 	case "env":
@@ -116,7 +116,7 @@ func WriteBuildVersion(version string) error {
 func ReadBuildVersion() (string, error) {
 	data, err := os.ReadFile(paths.DistVersionPath)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("read build version file %s: %w", paths.DistVersionPath, err)
 	}
 	version := strings.TrimSpace(string(data))
 	if version == "" {
@@ -151,7 +151,7 @@ func resolveGitTagVersion(dev bool) (string, error) {
 	cmd := exec.Command("git", args...)
 	out, err := cmd.Output()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("git describe --tags --always failed: %w", err)
 	}
 
 	version := string(bytes.TrimSpace(out))
@@ -176,7 +176,7 @@ func resolveExactSemverTag() (string, error) {
 	cmd := exec.Command("git", "describe", "--tags", "--exact-match")
 	out, err := cmd.Output()
 	if err != nil {
-		return "", fmt.Errorf("HEAD is not at an exact semver tag; create tag vX.Y.Z before publishing")
+		return "", fmt.Errorf("git describe --tags --exact-match failed: %w; HEAD is not at an exact semver tag; create tag vX.Y.Z before publishing", err)
 	}
 
 	tag := strings.TrimSpace(string(out))

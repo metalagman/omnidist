@@ -1,9 +1,12 @@
 package npm
 
 import (
+	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -117,6 +120,47 @@ func TestNPMDistributionTrimsFields(t *testing.T) {
 	}
 	if dist.Access != "public" {
 		t.Fatalf("dist.Access = %q, want %q", dist.Access, "public")
+	}
+}
+
+func TestCheckAuthPreservesExitErrorAndStderr(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell script test")
+	}
+
+	dir := t.TempDir()
+	t.Chdir(dir)
+
+	binDir := filepath.Join(dir, "bin")
+	if err := os.MkdirAll(binDir, 0755); err != nil {
+		t.Fatalf("os.MkdirAll(%q) error = %v", binDir, err)
+	}
+
+	npmPath := filepath.Join(binDir, "npm")
+	script := "#!/bin/sh\n" +
+		"echo \"whoami denied\" >&2\n" +
+		"exit 17\n"
+	if err := os.WriteFile(npmPath, []byte(script), 0755); err != nil {
+		t.Fatalf("os.WriteFile(%q) error = %v", npmPath, err)
+	}
+
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	cfg := config.DefaultConfig()
+	err := CheckAuth(cfg, "", true)
+	if err == nil {
+		t.Fatalf("CheckAuth() error = nil, want error")
+	}
+	if !strings.Contains(err.Error(), "npm whoami failed") {
+		t.Fatalf("CheckAuth() error = %v, want command context", err)
+	}
+	if !strings.Contains(err.Error(), "whoami denied") {
+		t.Fatalf("CheckAuth() error = %v, want stderr text", err)
+	}
+
+	var exitErr *exec.ExitError
+	if !errors.As(err, &exitErr) {
+		t.Fatalf("CheckAuth() error = %T %v, want wrapped *exec.ExitError", err, err)
 	}
 }
 

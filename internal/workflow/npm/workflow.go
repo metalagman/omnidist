@@ -71,7 +71,11 @@ func CheckAuth(cfg *config.Config, registryOverride string, dryRun bool) error {
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("%s", strings.TrimSpace(stderr.String()))
+		stderrText := strings.TrimSpace(stderr.String())
+		if stderrText != "" {
+			return fmt.Errorf("npm whoami failed: %w: %s", err, stderrText)
+		}
+		return fmt.Errorf("npm whoami failed: %w", err)
 	}
 	return nil
 }

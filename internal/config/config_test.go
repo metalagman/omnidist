@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -102,5 +103,20 @@ distributions:
 	}
 	if !strings.Contains(err.Error(), "invalid distributions.uv.linux-tag") {
 		t.Fatalf("Load() error = %v, want linux-tag validation error", err)
+	}
+}
+
+func TestLoadMissingFileIncludesPathContext(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "missing", "omnidist.yaml")
+
+	_, err := Load(path)
+	if err == nil {
+		t.Fatalf("Load(%q) error = nil, want error", path)
+	}
+	if !strings.Contains(err.Error(), "read config file "+path) {
+		t.Fatalf("Load(%q) error = %v, want read context with path", path, err)
+	}
+	if !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("Load(%q) error = %v, want os.ErrNotExist", path, err)
 	}
 }

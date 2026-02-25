@@ -14,7 +14,7 @@ import (
 // Build compiles the configured Go CLI for all configured targets into `dist/`.
 func Build(cfg *config.Config) error {
 	if err := os.MkdirAll(paths.DistDir, 0755); err != nil {
-		return err
+		return fmt.Errorf("create dist directory %s: %w", paths.DistDir, err)
 	}
 
 	for _, target := range cfg.Targets {
@@ -29,7 +29,7 @@ func Build(cfg *config.Config) error {
 func buildTarget(cfg *config.Config, target config.Target) error {
 	outputDir := filepath.Join(paths.DistDir, target.OS, target.Arch)
 	if err := os.MkdirAll(outputDir, 0755); err != nil {
-		return err
+		return fmt.Errorf("create target output directory %s: %w", outputDir, err)
 	}
 
 	outputName := cfg.Tool.Name
@@ -59,12 +59,12 @@ func buildTarget(cfg *config.Config, target config.Target) error {
 	buildCmd.Stderr = os.Stderr
 
 	if err := buildCmd.Run(); err != nil {
-		return err
+		return fmt.Errorf("run go build for %s: %w", outputPath, err)
 	}
 
 	if target.OS != "windows" {
 		if err := os.Chmod(outputPath, 0755); err != nil {
-			return err
+			return fmt.Errorf("chmod built binary %s: %w", outputPath, err)
 		}
 	}
 

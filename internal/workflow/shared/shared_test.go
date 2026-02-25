@@ -1,9 +1,13 @@
 package shared
 
 import (
+	"errors"
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/metalagman/omnidist/internal/config"
+	"github.com/metalagman/omnidist/internal/paths"
 )
 
 func TestToPEP440(t *testing.T) {
@@ -193,5 +197,20 @@ func TestResolveStageVersionFallsBackToSource(t *testing.T) {
 	}
 	if got != "2.4.6" {
 		t.Fatalf("ResolveStageVersion() = %q, want %q", got, "2.4.6")
+	}
+}
+
+func TestReadBuildVersionMissingFileIncludesPathContext(t *testing.T) {
+	t.Chdir(t.TempDir())
+
+	_, err := ReadBuildVersion()
+	if err == nil {
+		t.Fatalf("ReadBuildVersion() error = nil, want error")
+	}
+	if !strings.Contains(err.Error(), "read build version file "+paths.DistVersionPath) {
+		t.Fatalf("ReadBuildVersion() error = %v, want path context", err)
+	}
+	if !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("ReadBuildVersion() error = %v, want os.ErrNotExist", err)
 	}
 }

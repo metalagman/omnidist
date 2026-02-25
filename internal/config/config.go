@@ -117,12 +117,12 @@ func DefaultConfig() *Config {
 func Load(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read config file %s: %w", path, err)
 	}
 
 	var cfg Config
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("parse config file %s: %w", path, err)
 	}
 
 	applyDistributionDefaults(&cfg)
@@ -215,13 +215,16 @@ func validate(cfg *Config) error {
 func Save(cfg *Config, path string) error {
 	data, err := yaml.Marshal(cfg)
 	if err != nil {
-		return err
+		return fmt.Errorf("marshal config for %s: %w", path, err)
 	}
 
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0755); err != nil {
-		return err
+		return fmt.Errorf("create config directory %s: %w", dir, err)
 	}
 
-	return os.WriteFile(path, data, 0644)
+	if err := os.WriteFile(path, data, 0644); err != nil {
+		return fmt.Errorf("write config file %s: %w", path, err)
+	}
+	return nil
 }
