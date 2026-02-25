@@ -1,10 +1,11 @@
 # Agent Instructions
 
-This project uses **bd** (beads) for issue tracking. Run `bd onboard` to get started.
+This project uses **bd** (beads) for issue tracking. Run `bd onboard` to get started, then `bd prime` for session workflow context.
 
 ## Quick Reference
 
 ```bash
+bd prime              # Load Beads workflow context for this session
 bd ready              # Find available work
 bd show <id>          # View issue details
 bd update <id> --status in_progress  # Claim work
