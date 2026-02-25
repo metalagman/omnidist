@@ -30,16 +30,19 @@ var newWheelZipWriter = func(w io.Writer) rawZipWriter {
 	return zip.NewWriter(w)
 }
 
+// StageOptions controls uv staging behavior.
 type StageOptions struct {
 	Dev bool
 }
 
+// PublishOptions controls uv publish behavior.
 type PublishOptions struct {
 	DryRun     bool
 	PublishURL string
 	Token      string
 }
 
+// VerificationResult summarizes uv staging validation results.
 type VerificationResult struct {
 	Valid    bool     `json:"valid"`
 	Errors   []string `json:"errors"`
@@ -51,6 +54,7 @@ type rawZipWriter interface {
 	Close() error
 }
 
+// CheckDependency verifies the `uv` executable is available in PATH.
 func CheckDependency() error {
 	if _, err := exec.LookPath("uv"); err != nil {
 		return fmt.Errorf("uv executable not found in PATH. Install uv from https://docs.astral.sh/uv/getting-started/installation/ and retry")
@@ -58,6 +62,7 @@ func CheckDependency() error {
 	return nil
 }
 
+// Stage assembles uv wheel artifacts from built binaries.
 func Stage(cfg *config.Config, opts StageOptions) error {
 	uvDist, err := uvDistribution(cfg)
 	if err != nil {
@@ -95,6 +100,7 @@ func resetUVStagingDir() error {
 	return nil
 }
 
+// Verify validates staged uv wheel artifacts and returns accumulated findings.
 func Verify(cfg *config.Config) *VerificationResult {
 	result := &VerificationResult{
 		Valid:    true,
@@ -144,6 +150,7 @@ func Verify(cfg *config.Config) *VerificationResult {
 	return result
 }
 
+// Publish uploads staged uv wheel artifacts.
 func Publish(cfg *config.Config, opts PublishOptions) error {
 	uvDist, err := uvDistribution(cfg)
 	if err != nil {

@@ -16,13 +16,16 @@ import (
 )
 
 const (
+	// DefaultUVLinuxTag is the default wheel compatibility policy for Linux targets.
 	DefaultUVLinuxTag = "manylinux2014"
-	EnvVersionName    = "OMNIDIST_VERSION"
+	// EnvVersionName is the environment variable used when `version.source` is `env`.
+	EnvVersionName = "OMNIDIST_VERSION"
 )
 
 var exactSemverPattern = regexp.MustCompile(`^\d+\.\d+\.\d+$`)
 var gitDescribePattern = regexp.MustCompile(`^(\d+\.\d+\.\d+)-(\d+)-g([0-9a-fA-F]+)$`)
 
+// ResolveVersion resolves a version string from the configured version source.
 func ResolveVersion(cfg *config.Config, dev bool) (string, error) {
 	if cfg == nil {
 		return "", fmt.Errorf("config is nil")
@@ -56,6 +59,7 @@ func ResolveVersion(cfg *config.Config, dev bool) (string, error) {
 	return version, nil
 }
 
+// ResolveReleaseVersion resolves an exact publishable semver version.
 func ResolveReleaseVersion(cfg *config.Config) (string, error) {
 	if cfg == nil {
 		return "", fmt.Errorf("config is nil")
@@ -91,6 +95,7 @@ func ResolveReleaseVersion(cfg *config.Config) (string, error) {
 	return version, nil
 }
 
+// WriteBuildVersion persists the resolved build version to `dist/version`.
 func WriteBuildVersion(version string) error {
 	v := strings.TrimSpace(version)
 	if v == "" {
@@ -107,6 +112,7 @@ func WriteBuildVersion(version string) error {
 	return nil
 }
 
+// ReadBuildVersion reads the persisted build version from `dist/version`.
 func ReadBuildVersion() (string, error) {
 	data, err := os.ReadFile(paths.DistVersionPath)
 	if err != nil {
@@ -119,6 +125,7 @@ func ReadBuildVersion() (string, error) {
 	return version, nil
 }
 
+// ResolveStageVersion resolves the version used for staging artifacts.
 func ResolveStageVersion(cfg *config.Config, dev bool) (string, error) {
 	if dev {
 		return ResolveVersion(cfg, true)
@@ -185,6 +192,7 @@ func isExactSemver(v string) bool {
 	return exactSemverPattern.MatchString(strings.TrimSpace(v))
 }
 
+// ToPEP440 converts an omnidist version to a PEP 440-compatible version when possible.
 func ToPEP440(version string) (string, error) {
 	v := strings.TrimSpace(version)
 	if v == "" {
@@ -216,6 +224,7 @@ func ToPEP440(version string) (string, error) {
 	return v, nil
 }
 
+// NormalizePythonDistributionName converts npm-style names to Python distribution naming.
 func NormalizePythonDistributionName(pkg string) string {
 	name := strings.TrimSpace(pkg)
 	name = strings.TrimPrefix(name, "@")
@@ -225,12 +234,14 @@ func NormalizePythonDistributionName(pkg string) string {
 	return name
 }
 
+// NormalizeGoTarget returns trimmed GOOS/GOARCH values from a target.
 func NormalizeGoTarget(target config.Target) (goOS string, goArch string) {
 	goOS = strings.TrimSpace(target.OS)
 	goArch = strings.TrimSpace(target.Arch)
 	return goOS, goArch
 }
 
+// BinaryName returns the platform-specific binary filename for a tool.
 func BinaryName(toolName string, goOS string) string {
 	if goOS == "windows" {
 		return toolName + ".exe"
@@ -238,6 +249,7 @@ func BinaryName(toolName string, goOS string) string {
 	return toolName
 }
 
+// WheelPlatformTag returns the Python wheel platform tag for a target.
 func WheelPlatformTag(target config.Target, linuxTag string) (string, error) {
 	goOS, goArch := NormalizeGoTarget(target)
 
@@ -278,6 +290,7 @@ func WheelPlatformTag(target config.Target, linuxTag string) (string, error) {
 	}
 }
 
+// WheelFilename returns the wheel filename for a target artifact.
 func WheelFilename(pkg, version string, target config.Target, linuxTag string) (string, error) {
 	platformTag, err := WheelPlatformTag(target, linuxTag)
 	if err != nil {
@@ -287,6 +300,7 @@ func WheelFilename(pkg, version string, target config.Target, linuxTag string) (
 	return fmt.Sprintf("%s-%s-py3-none-%s.whl", distName, version, platformTag), nil
 }
 
+// WheelBinaryPath returns the binary path within an unpacked wheel.
 func WheelBinaryPath(pkg, toolName string, goOS string) string {
 	return path.Join(NormalizePythonDistributionName(pkg), "bin", BinaryName(toolName, goOS))
 }

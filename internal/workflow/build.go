@@ -11,6 +11,7 @@ import (
 	"github.com/metalagman/omnidist/internal/paths"
 )
 
+// Build compiles the configured Go CLI for all configured targets into `dist/`.
 func Build(cfg *config.Config) error {
 	if err := os.MkdirAll(paths.DistDir, 0755); err != nil {
 		return err

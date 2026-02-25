@@ -10,6 +10,7 @@ import (
 	"github.com/metalagman/omnidist/internal/paths"
 )
 
+// Init writes a default config and creates initial staging directories.
 func Init(configPath string) error {
 	cfg := config.DefaultConfig()
 
@@ -32,6 +33,7 @@ func Init(configPath string) error {
 	return nil
 }
 
+// CreateNPMStructure creates the npm workspace directories for configured targets.
 func CreateNPMStructure(cfg *config.Config) error {
 	dist, ok := cfg.Distributions["npm"]
 	if !ok || strings.TrimSpace(dist.Package) == "" {
@@ -62,6 +64,7 @@ func CreateNPMStructure(cfg *config.Config) error {
 	return nil
 }
 
+// CreateUVStructure creates the uv staging directory when uv distribution is configured.
 func CreateUVStructure(cfg *config.Config) error {
 	dist, ok := cfg.Distributions["uv"]
 	if !ok || strings.TrimSpace(dist.Package) == "" {
@@ -75,6 +78,7 @@ func CreateUVStructure(cfg *config.Config) error {
 	return nil
 }
 
+// EnsureWorkspaceGitignore appends omnidist artifact paths to the workspace `.gitignore`.
 func EnsureWorkspaceGitignore(path string) error {
 	required := []string{
 		"dist/",

@@ -17,10 +17,12 @@ import (
 	"github.com/metalagman/omnidist/internal/workflow/shared"
 )
 
+// StageOptions controls npm staging behavior.
 type StageOptions struct {
 	Dev bool
 }
 
+// PublishOptions controls npm publish behavior.
 type PublishOptions struct {
 	DryRun   bool
 	Tag      string
@@ -34,12 +36,14 @@ const (
 
 var npmVersionPattern = regexp.MustCompile(`^\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$`)
 
+// VerificationResult summarizes npm staging validation results.
 type VerificationResult struct {
 	Valid    bool     `json:"valid"`
 	Errors   []string `json:"errors"`
 	Warnings []string `json:"warnings"`
 }
 
+// CheckAuth validates npm authentication for the configured registry.
 func CheckAuth(cfg *config.Config, registryOverride string, dryRun bool) error {
 	npmDist, err := npmDistribution(cfg)
 	if err != nil {
@@ -72,6 +76,7 @@ func CheckAuth(cfg *config.Config, registryOverride string, dryRun bool) error {
 	return nil
 }
 
+// Stage assembles npm platform packages and the meta package from built artifacts.
 func Stage(cfg *config.Config, opts StageOptions) error {
 	npmDist, err := npmDistribution(cfg)
 	if err != nil {
@@ -116,6 +121,7 @@ func resolveNPMStageVersion(cfg *config.Config, dev bool) (string, error) {
 	return validateNPMVersion(version, "build version")
 }
 
+// Verify validates staged npm packages and returns accumulated findings.
 func Verify(cfg *config.Config) *VerificationResult {
 	result := &VerificationResult{
 		Valid:    true,
@@ -151,6 +157,7 @@ func Verify(cfg *config.Config) *VerificationResult {
 	return result
 }
 
+// Publish publishes staged npm platform and meta packages.
 func Publish(cfg *config.Config, opts PublishOptions) error {
 	npmDist, err := npmDistribution(cfg)
 	if err != nil {

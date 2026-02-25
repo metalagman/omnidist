@@ -11,6 +11,7 @@ import (
 )
 
 const (
+	// DefaultCIWorkflowPath is the default output path for the generated GitHub Actions workflow.
 	DefaultCIWorkflowPath = ".github/workflows/omnidist-release.yml"
 	defaultNPXPackage     = "@omnidist/omnidist"
 	defaultNPXVersion     = "latest"
@@ -22,11 +23,13 @@ var (
 	npmVersionSpecPattern = regexp.MustCompile(`^[A-Za-z0-9.*xXvV_+~^<>=| -]+$`)
 )
 
+// CIWorkflowOptions customizes the generated GitHub release workflow.
 type CIWorkflowOptions struct {
 	NPXPackage string
 	NPXVersion string
 }
 
+// GenerateGitHubReleaseWorkflow renders a GitHub Actions workflow for omnidist releases.
 func GenerateGitHubReleaseWorkflow(cfg *config.Config, opts CIWorkflowOptions) (string, error) {
 	if cfg == nil {
 		return "", fmt.Errorf("config is nil")
@@ -83,6 +86,7 @@ jobs:
 	return content, nil
 }
 
+// WriteGitHubReleaseWorkflow writes generated workflow content to disk.
 func WriteGitHubReleaseWorkflow(path string, content string, force bool) error {
 	workflowPath := strings.TrimSpace(path)
 	if workflowPath == "" {

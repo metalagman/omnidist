@@ -36,7 +36,7 @@ func TestCICommandCreatesWorkflow(t *testing.T) {
 		`tags:`,
 		`- "v*"`,
 		`release:`,
-		`run: npm install -g @omnidist/omnidist@`,
+		`run: "npm install -g '@omnidist/omnidist@`,
 		`run: omnidist build`,
 		`run: omnidist stage`,
 		`run: omnidist verify`,
