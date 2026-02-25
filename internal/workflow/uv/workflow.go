@@ -40,6 +40,8 @@ type PublishOptions struct {
 	DryRun     bool
 	PublishURL string
 	Token      string
+	Stdout     io.Writer
+	Stderr     io.Writer
 }
 
 // VerificationResult summarizes uv staging validation results.
@@ -177,8 +179,8 @@ func Publish(cfg *config.Config, opts PublishOptions) error {
 	}
 
 	cmd := exec.Command("uv", args...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	cmd.Stdout = commandOutputWriter(opts.Stdout)
+	cmd.Stderr = commandOutputWriter(opts.Stderr)
 	cmd.Env = append([]string{}, os.Environ()...)
 	if token != "" {
 		cmd.Env = append(cmd.Env, "UV_PUBLISH_TOKEN="+token)
@@ -189,6 +191,13 @@ func Publish(cfg *config.Config, opts PublishOptions) error {
 	}
 
 	return nil
+}
+
+func commandOutputWriter(w io.Writer) io.Writer {
+	if w == nil {
+		return io.Discard
+	}
+	return w
 }
 
 func buildPublishArgs(defaultIndexURL string, opts PublishOptions, artifacts []string) []string {

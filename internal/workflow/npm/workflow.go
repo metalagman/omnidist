@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/url"
 	"os"
 	"os/exec"
@@ -28,6 +29,9 @@ type PublishOptions struct {
 	Tag      string
 	Registry string
 	OTP      string
+	Stdout   io.Writer
+	Stderr   io.Writer
+	Progress io.Writer
 }
 
 const (
@@ -185,7 +189,7 @@ func Publish(cfg *config.Config, opts PublishOptions) error {
 
 	publishOpts, autoDevTag := withAutoDevTag(opts, version)
 	if autoDevTag {
-		fmt.Printf("Detected dev npm version %s, publishing with --tag %q\n", version, publishOpts.Tag)
+		writeProgressf(opts.Progress, "Detected dev npm version %s, publishing with --tag %q\n", version, publishOpts.Tag)
 	}
 
 	platformPackages := []string{}
@@ -199,20 +203,20 @@ func Publish(cfg *config.Config, opts PublishOptions) error {
 		access = "public"
 	}
 
-	fmt.Println("Publishing platform packages first...")
+	writeProgressf(opts.Progress, "Publishing platform packages first...\n")
 	for _, pkgName := range platformPackages {
 		pkgDir := filepath.Join(paths.NPMDir, pkgName)
 		if err := publishPackage(pkgDir, npmDist.Registry, access, publishOpts, npmrcPath, token, version); err != nil {
 			return fmt.Errorf("failed to publish %s: %w", pkgName, err)
 		}
-		fmt.Printf("Published: %s\n", pkgName)
+		writeProgressf(opts.Progress, "Published: %s\n", pkgName)
 	}
 
-	fmt.Println("Publishing meta package...")
+	writeProgressf(opts.Progress, "Publishing meta package...\n")
 	if err := publishPackage(metaDir, npmDist.Registry, access, publishOpts, npmrcPath, token, version); err != nil {
 		return fmt.Errorf("failed to publish meta package: %w", err)
 	}
-	fmt.Printf("Published: %s\n", npmDist.Package)
+	writeProgressf(opts.Progress, "Published: %s\n", npmDist.Package)
 
 	return nil
 }
@@ -713,10 +717,24 @@ func publishPackage(dir, defaultRegistry, defaultAccess string, opts PublishOpti
 	execCmd := exec.Command("npm", args...)
 	execCmd.Dir = packageDir
 	execCmd.Env = npmCommandEnv(npmrcPath, token)
-	execCmd.Stdout = os.Stdout
-	execCmd.Stderr = os.Stderr
+	execCmd.Stdout = commandOutputWriter(opts.Stdout)
+	execCmd.Stderr = commandOutputWriter(opts.Stderr)
 
 	return execCmd.Run()
+}
+
+func commandOutputWriter(w io.Writer) io.Writer {
+	if w == nil {
+		return io.Discard
+	}
+	return w
+}
+
+func writeProgressf(w io.Writer, format string, args ...interface{}) {
+	if w == nil {
+		return
+	}
+	_, _ = fmt.Fprintf(w, format, args...)
 }
 
 func validateNPMVersion(version string, source string) (string, error) {

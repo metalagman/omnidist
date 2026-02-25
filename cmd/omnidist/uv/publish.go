@@ -40,6 +40,8 @@ var publishCmd = &cobra.Command{
 			DryRun:     publishDryRun,
 			PublishURL: publishURL,
 			Token:      publishToken,
+			Stdout:     cmd.OutOrStdout(),
+			Stderr:     cmd.ErrOrStderr(),
 		}
 		if opts.PublishURL == "" {
 			opts.PublishURL = publishLegacyURL

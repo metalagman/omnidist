@@ -34,7 +34,12 @@ var publishCmd = &cobra.Command{
 				if err := npmworkflow.CheckAuth(cfg, "", publishDryRunFlag); err != nil {
 					return fmt.Errorf("npm authentication failed: %w", err)
 				}
-				if err := npmworkflow.Publish(cfg, npmworkflow.PublishOptions{DryRun: publishDryRunFlag}); err != nil {
+				if err := npmworkflow.Publish(cfg, npmworkflow.PublishOptions{
+					DryRun:   publishDryRunFlag,
+					Stdout:   cmd.OutOrStdout(),
+					Stderr:   cmd.ErrOrStderr(),
+					Progress: cmd.OutOrStdout(),
+				}); err != nil {
 					return fmt.Errorf("npm publish failed: %w", err)
 				}
 				fmt.Println("npm publish completed")
@@ -43,7 +48,11 @@ var publishCmd = &cobra.Command{
 				if err := uvworkflow.CheckDependency(); err != nil {
 					return err
 				}
-				if err := uvworkflow.Publish(cfg, uvworkflow.PublishOptions{DryRun: publishDryRunFlag}); err != nil {
+				if err := uvworkflow.Publish(cfg, uvworkflow.PublishOptions{
+					DryRun: publishDryRunFlag,
+					Stdout: cmd.OutOrStdout(),
+					Stderr: cmd.ErrOrStderr(),
+				}); err != nil {
 					return fmt.Errorf("uv publish failed: %w", err)
 				}
 				fmt.Println("uv publish completed")

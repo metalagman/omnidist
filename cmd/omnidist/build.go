@@ -55,7 +55,11 @@ var buildCmd = &cobra.Command{
 		}
 		defer restoreBuildMetadataEnv()
 
-		if err := workflow.Build(cfg); err != nil {
+		if err := workflow.BuildWithOptions(cfg, workflow.BuildOptions{
+			Stdout:         cmd.OutOrStdout(),
+			Stderr:         cmd.ErrOrStderr(),
+			ProgressWriter: cmd.OutOrStdout(),
+		}); err != nil {
 			return fmt.Errorf("build: %w", err)
 		}
 		if buildVersion != "" {

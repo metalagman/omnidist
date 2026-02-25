@@ -1,6 +1,7 @@
 package npm
 
 import (
+	"bytes"
 	"errors"
 	"os"
 	"os/exec"
@@ -161,6 +162,61 @@ func TestCheckAuthPreservesExitErrorAndStderr(t *testing.T) {
 	var exitErr *exec.ExitError
 	if !errors.As(err, &exitErr) {
 		t.Fatalf("CheckAuth() error = %T %v, want wrapped *exec.ExitError", err, err)
+	}
+}
+
+func TestPublishPackageRoutesCommandOutputToProvidedWriters(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell script test")
+	}
+
+	dir := t.TempDir()
+	t.Chdir(dir)
+
+	binDir := filepath.Join(dir, "bin")
+	if err := os.MkdirAll(binDir, 0755); err != nil {
+		t.Fatalf("os.MkdirAll(%q) error = %v", binDir, err)
+	}
+
+	npmPath := filepath.Join(binDir, "npm")
+	script := "#!/bin/sh\n" +
+		"echo \"publish stdout\"\n" +
+		"echo \"publish stderr\" >&2\n" +
+		"exit 0\n"
+	if err := os.WriteFile(npmPath, []byte(script), 0755); err != nil {
+		t.Fatalf("os.WriteFile(%q) error = %v", npmPath, err)
+	}
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	pkgDir := filepath.Join(dir, "pkg")
+	if err := os.MkdirAll(pkgDir, 0755); err != nil {
+		t.Fatalf("os.MkdirAll(%q) error = %v", pkgDir, err)
+	}
+
+	npmrcPath := filepath.Join(dir, ".npmrc")
+	if err := os.WriteFile(npmrcPath, []byte("registry=https://registry.npmjs.org\n"), 0644); err != nil {
+		t.Fatalf("os.WriteFile(%q) error = %v", npmrcPath, err)
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	err := publishPackage(
+		pkgDir,
+		"https://registry.npmjs.org",
+		"public",
+		PublishOptions{Stdout: &stdout, Stderr: &stderr},
+		npmrcPath,
+		"",
+		"1.2.3",
+	)
+	if err != nil {
+		t.Fatalf("publishPackage() error = %v", err)
+	}
+	if !strings.Contains(stdout.String(), "publish stdout") {
+		t.Fatalf("stdout = %q, want publish stdout", stdout.String())
+	}
+	if !strings.Contains(stderr.String(), "publish stderr") {
+		t.Fatalf("stderr = %q, want publish stderr", stderr.String())
 	}
 }
 

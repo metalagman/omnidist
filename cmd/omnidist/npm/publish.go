@@ -36,6 +36,9 @@ var publishCmd = &cobra.Command{
 			Tag:      flagTag,
 			Registry: flagRegistry,
 			OTP:      flagOTP,
+			Stdout:   cmd.OutOrStdout(),
+			Stderr:   cmd.ErrOrStderr(),
+			Progress: cmd.OutOrStdout(),
 		}
 
 		if err := npmworkflow.CheckAuth(cfg, opts.Registry, opts.DryRun); err != nil {
