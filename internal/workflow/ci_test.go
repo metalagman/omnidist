@@ -27,7 +27,7 @@ func TestGenerateGitHubReleaseWorkflow(t *testing.T) {
 		`release:`,
 		`NPM_PUBLISH_TOKEN: ${{ secrets.NPM_PUBLISH_TOKEN }}`,
 		`UV_PUBLISH_TOKEN: ${{ secrets.UV_PUBLISH_TOKEN }}`,
-		`run: npm install -g @omnidist/omnidist@0.1.9`,
+		`run: "npm install -g '@omnidist/omnidist@0.1.9'"`,
 		`run: omnidist build`,
 		`run: omnidist stage`,
 		`run: omnidist verify`,
@@ -48,7 +48,7 @@ func TestGenerateGitHubReleaseWorkflowDefaultsToLatest(t *testing.T) {
 		t.Fatalf("GenerateGitHubReleaseWorkflow() error = %v", err)
 	}
 
-	if !strings.Contains(content, "npm install -g @omnidist/omnidist@latest") {
+	if !strings.Contains(content, `"npm install -g '@omnidist/omnidist@latest'"`) {
 		t.Fatalf("workflow content = %q, want latest install version", content)
 	}
 }
@@ -58,6 +58,53 @@ func TestGenerateGitHubReleaseWorkflowNilConfig(t *testing.T) {
 
 	if _, err := GenerateGitHubReleaseWorkflow(nil, CIWorkflowOptions{}); err == nil {
 		t.Fatalf("GenerateGitHubReleaseWorkflow(nil) error = nil, want error")
+	}
+}
+
+func TestGenerateGitHubReleaseWorkflowQuotesVersionRange(t *testing.T) {
+	t.Parallel()
+
+	cfg := config.DefaultConfig()
+	content, err := GenerateGitHubReleaseWorkflow(cfg, CIWorkflowOptions{
+		NPXVersion: ">=0.1.0 <2.0.0 || 3.0.0",
+	})
+	if err != nil {
+		t.Fatalf("GenerateGitHubReleaseWorkflow() error = %v", err)
+	}
+
+	want := `run: "npm install -g '@omnidist/omnidist@>=0.1.0 <2.0.0 || 3.0.0'"`
+	if !strings.Contains(content, want) {
+		t.Fatalf("workflow content missing quoted range %q\n---\n%s", want, content)
+	}
+}
+
+func TestGenerateGitHubReleaseWorkflowRejectsInvalidNPXPackage(t *testing.T) {
+	t.Parallel()
+
+	cfg := config.DefaultConfig()
+	_, err := GenerateGitHubReleaseWorkflow(cfg, CIWorkflowOptions{
+		NPXPackage: "@omnidist/omnidist;echo pwned",
+	})
+	if err == nil {
+		t.Fatalf("GenerateGitHubReleaseWorkflow() error = nil, want error")
+	}
+	if !strings.Contains(err.Error(), "invalid npx package name") {
+		t.Fatalf("GenerateGitHubReleaseWorkflow() error = %v, want invalid package error", err)
+	}
+}
+
+func TestGenerateGitHubReleaseWorkflowRejectsInvalidNPXVersion(t *testing.T) {
+	t.Parallel()
+
+	cfg := config.DefaultConfig()
+	_, err := GenerateGitHubReleaseWorkflow(cfg, CIWorkflowOptions{
+		NPXVersion: "latest; echo pwned",
+	})
+	if err == nil {
+		t.Fatalf("GenerateGitHubReleaseWorkflow() error = nil, want error")
+	}
+	if !strings.Contains(err.Error(), "invalid npx version spec") {
+		t.Fatalf("GenerateGitHubReleaseWorkflow() error = %v, want invalid version error", err)
 	}
 }
 
