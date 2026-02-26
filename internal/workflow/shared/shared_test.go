@@ -214,3 +214,38 @@ func TestReadBuildVersionMissingFileIncludesPathContext(t *testing.T) {
 		t.Fatalf("ReadBuildVersion() error = %v, want os.ErrNotExist", err)
 	}
 }
+
+func TestReadOptionalProjectREADME(t *testing.T) {
+	t.Run("missing", func(t *testing.T) {
+		t.Chdir(t.TempDir())
+
+		data, exists, err := ReadOptionalProjectREADME()
+		if err != nil {
+			t.Fatalf("ReadOptionalProjectREADME() error = %v", err)
+		}
+		if exists {
+			t.Fatalf("ReadOptionalProjectREADME() exists = true, want false")
+		}
+		if data != nil {
+			t.Fatalf("ReadOptionalProjectREADME() data = %q, want nil", string(data))
+		}
+	})
+
+	t.Run("present", func(t *testing.T) {
+		t.Chdir(t.TempDir())
+		if err := os.WriteFile(ProjectREADMEPath, []byte("hello"), 0644); err != nil {
+			t.Fatalf("os.WriteFile(%q) error = %v", ProjectREADMEPath, err)
+		}
+
+		data, exists, err := ReadOptionalProjectREADME()
+		if err != nil {
+			t.Fatalf("ReadOptionalProjectREADME() error = %v", err)
+		}
+		if !exists {
+			t.Fatalf("ReadOptionalProjectREADME() exists = false, want true")
+		}
+		if string(data) != "hello" {
+			t.Fatalf("ReadOptionalProjectREADME() data = %q, want %q", string(data), "hello")
+		}
+	})
+}

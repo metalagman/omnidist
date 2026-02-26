@@ -318,11 +318,34 @@ try {
 }
 
 func copyFile(src, dst string) error {
+	return copyFileWithMode(src, dst, 0755)
+}
+
+func copyFileWithMode(src, dst string, mode os.FileMode) error {
 	data, err := os.ReadFile(src)
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(dst, data, 0755)
+	return os.WriteFile(dst, data, mode)
+}
+
+func stageProjectREADME(dstDir string, enabled bool) (bool, error) {
+	if !enabled {
+		return false, nil
+	}
+
+	data, exists, err := shared.ReadOptionalProjectREADME()
+	if err != nil {
+		return false, err
+	}
+	if !exists {
+		return false, nil
+	}
+
+	if err := os.WriteFile(filepath.Join(dstDir, shared.ProjectREADMEPath), data, 0644); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func readPackageJSON(dir string) (map[string]interface{}, error) {
@@ -365,6 +388,13 @@ func stagePlatformPackage(cfg *config.Config, npmDist config.DistributionConfig,
 		}
 	}
 
+	files := []string{"bin"}
+	if included, err := stageProjectREADME(pkgDir, npmDist.IncludeREADMEEnabled()); err != nil {
+		return err
+	} else if included {
+		files = append(files, shared.ProjectREADMEPath)
+	}
+
 	pkgJSON := map[string]interface{}{
 		"name":        pkgName,
 		"version":     version,
@@ -374,7 +404,7 @@ func stagePlatformPackage(cfg *config.Config, npmDist config.DistributionConfig,
 		"bin": map[string]string{
 			cfg.Tool.Name: "bin/" + binaryName,
 		},
-		"files": []string{"bin"},
+		"files": files,
 	}
 
 	return writePackageJSON(pkgDir, pkgJSON)
@@ -385,6 +415,13 @@ func stageMetaPackage(cfg *config.Config, npmDist config.DistributionConfig, ver
 
 	if err := os.MkdirAll(metaDir, 0755); err != nil {
 		return err
+	}
+
+	files := []string{cfg.Tool.Name + ".js"}
+	if included, err := stageProjectREADME(metaDir, npmDist.IncludeREADMEEnabled()); err != nil {
+		return err
+	} else if included {
+		files = append(files, shared.ProjectREADMEPath)
 	}
 
 	optionalDeps := make(map[string]string)
@@ -400,7 +437,7 @@ func stageMetaPackage(cfg *config.Config, npmDist config.DistributionConfig, ver
 		"bin":                  map[string]string{cfg.Tool.Name: cfg.Tool.Name + ".js"},
 		"optionalDependencies": optionalDeps,
 		"engines":              map[string]string{"node": ">=16"},
-		"files":                []string{cfg.Tool.Name + ".js"},
+		"files":                files,
 	}
 
 	if err := writePackageJSON(metaDir, pkgJSON); err != nil {

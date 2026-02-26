@@ -38,11 +38,20 @@ type Target struct {
 
 // DistributionConfig stores distribution-specific packaging settings.
 type DistributionConfig struct {
-	Package  string `yaml:"package"`
-	Registry string `yaml:"registry,omitempty"`
-	Access   string `yaml:"access,omitempty"`
-	IndexURL string `yaml:"index-url,omitempty"`
-	LinuxTag string `yaml:"linux-tag,omitempty"`
+	Package       string `yaml:"package"`
+	Registry      string `yaml:"registry,omitempty"`
+	Access        string `yaml:"access,omitempty"`
+	IndexURL      string `yaml:"index-url,omitempty"`
+	LinuxTag      string `yaml:"linux-tag,omitempty"`
+	IncludeREADME *bool  `yaml:"include-readme,omitempty"`
+}
+
+// IncludeREADMEEnabled reports whether README.md should be included in staged artifacts.
+func (d DistributionConfig) IncludeREADMEEnabled() bool {
+	if d.IncludeREADME == nil {
+		return true
+	}
+	return *d.IncludeREADME
 }
 
 // MapGoArchToNPM converts a Go GOARCH value to the corresponding npm cpu value.
@@ -100,14 +109,16 @@ func DefaultConfig() *Config {
 		},
 		Distributions: map[string]DistributionConfig{
 			"npm": {
-				Package:  "@omnidist/omnidist",
-				Registry: "https://registry.npmjs.org",
-				Access:   "public",
+				Package:       "@omnidist/omnidist",
+				Registry:      "https://registry.npmjs.org",
+				Access:        "public",
+				IncludeREADME: boolPtr(true),
 			},
 			"uv": {
-				Package:  "omnidist",
-				IndexURL: "https://upload.pypi.org/legacy/",
-				LinuxTag: "manylinux2014",
+				Package:       "omnidist",
+				IndexURL:      "https://upload.pypi.org/legacy/",
+				LinuxTag:      "manylinux2014",
+				IncludeREADME: boolPtr(true),
 			},
 		},
 	}
@@ -151,6 +162,9 @@ func applyDistributionDefaults(cfg *Config) {
 	if npmDist.Package == "" {
 		npmDist.Package = "@omnidist/omnidist"
 	}
+	if npmDist.IncludeREADME == nil {
+		npmDist.IncludeREADME = boolPtr(true)
+	}
 	cfg.Distributions["npm"] = npmDist
 
 	uvDist := cfg.Distributions["uv"]
@@ -166,7 +180,14 @@ func applyDistributionDefaults(cfg *Config) {
 	if uvDist.LinuxTag == "" {
 		uvDist.LinuxTag = "manylinux2014"
 	}
+	if uvDist.IncludeREADME == nil {
+		uvDist.IncludeREADME = boolPtr(true)
+	}
 	cfg.Distributions["uv"] = uvDist
+}
+
+func boolPtr(v bool) *bool {
+	return &v
 }
 
 func validate(cfg *Config) error {

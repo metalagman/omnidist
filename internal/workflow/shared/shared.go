@@ -20,6 +20,8 @@ const (
 	DefaultUVLinuxTag = "manylinux2014"
 	// EnvVersionName is the environment variable used when `version.source` is `env`.
 	EnvVersionName = "OMNIDIST_VERSION"
+	// ProjectREADMEPath is the README file included in staged artifacts when enabled.
+	ProjectREADMEPath = "README.md"
 )
 
 var exactSemverPattern = regexp.MustCompile(`^\d+\.\d+\.\d+$`)
@@ -123,6 +125,18 @@ func ReadBuildVersion() (string, error) {
 		return "", fmt.Errorf("empty build version in %s", paths.DistVersionPath)
 	}
 	return version, nil
+}
+
+// ReadOptionalProjectREADME reads README.md from the project root if it exists.
+func ReadOptionalProjectREADME() ([]byte, bool, error) {
+	data, err := os.ReadFile(ProjectREADMEPath)
+	if err == nil {
+		return data, true, nil
+	}
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, false, nil
+	}
+	return nil, false, fmt.Errorf("read project README %s: %w", ProjectREADMEPath, err)
 }
 
 // ResolveStageVersion resolves the version used for staging artifacts.

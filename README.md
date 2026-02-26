@@ -217,11 +217,13 @@ distributions:
     package: "@omnidist/omnidist"
     registry: https://registry.npmjs.org
     access: public # public | restricted
+    include-readme: true # include project README.md in staged packages when present
 
   uv:
     package: omnidist
     index-url: https://upload.pypi.org/legacy/
     linux-tag: manylinux2014 # manylinux2014 | musllinux_1_2
+    include-readme: true # include project README.md in staged wheels when present
 ```
 
 `targets` use Go values (`GOOS`/`GOARCH`). Distribution workflows map them as needed (for example `windows/amd64` -> npm `win32/x64`).

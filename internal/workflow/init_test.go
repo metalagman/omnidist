@@ -42,6 +42,15 @@ func TestInitCreatesNPMAndUVStructure(t *testing.T) {
 		}
 	}
 
+	configData, err := os.ReadFile(paths.ConfigPath)
+	if err != nil {
+		t.Fatalf("os.ReadFile(config) error = %v", err)
+	}
+	configContent := string(configData)
+	if !strings.Contains(configContent, "include-readme: true") {
+		t.Fatalf("generated config missing include-readme default, got:\n%s", configContent)
+	}
+
 	if _, err := os.Stat(".gitignore"); !os.IsNotExist(err) {
 		t.Fatalf("expected root .gitignore to be untouched in fresh repo, got err=%v", err)
 	}

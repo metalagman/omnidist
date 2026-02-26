@@ -512,6 +512,15 @@ func writeWheelArchive(w io.Writer, platformTag string, cfg *config.Config, uvDi
 		{name: path.Join(distInfoDir, "METADATA"), data: []byte(metadata), mode: 0644},
 		{name: path.Join(distInfoDir, "entry_points.txt"), data: []byte(consoleEntryPoints(cfg.Tool.Name, distName)), mode: 0644},
 	}
+	if uvDist.IncludeREADMEEnabled() {
+		readmeData, exists, err := shared.ReadOptionalProjectREADME()
+		if err != nil {
+			return err
+		}
+		if exists {
+			files = append(files, wheelFile{name: shared.ProjectREADMEPath, data: readmeData, mode: 0644})
+		}
+	}
 
 	var record strings.Builder
 	for _, file := range files {

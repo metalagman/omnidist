@@ -725,6 +725,79 @@ func TestStageAndVerifyPasses(t *testing.T) {
 	}
 }
 
+func TestStageIncludesProjectREADMEByDefaultWhenPresent(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	t.Setenv(shared.EnvVersionName, "1.2.3")
+
+	cfg := testConfig()
+	if err := createDistArtifacts(cfg); err != nil {
+		t.Fatalf("createDistArtifacts() error = %v", err)
+	}
+	if err := os.WriteFile("README.md", []byte("project docs"), 0644); err != nil {
+		t.Fatalf("os.WriteFile(README.md) error = %v", err)
+	}
+	if err := shared.WriteBuildVersion("1.2.3"); err != nil {
+		t.Fatalf("shared.WriteBuildVersion() error = %v", err)
+	}
+
+	if err := Stage(cfg, StageOptions{}); err != nil {
+		t.Fatalf("Stage() error = %v", err)
+	}
+
+	metaDir := filepath.Join(paths.NPMDir, cfg.Distributions["npm"].Package)
+	if _, err := os.Stat(filepath.Join(metaDir, "README.md")); err != nil {
+		t.Fatalf("meta README missing: %v", err)
+	}
+
+	target := cfg.Targets[0]
+	pkgName := platformPackageName(cfg.Distributions["npm"].Package, target)
+	pkgDir := filepath.Join(paths.NPMDir, pkgName)
+	if _, err := os.Stat(filepath.Join(pkgDir, "README.md")); err != nil {
+		t.Fatalf("platform README missing: %v", err)
+	}
+
+	assertNPMPackageFilesContains(t, metaDir, "README.md")
+	assertNPMPackageFilesContains(t, pkgDir, "README.md")
+}
+
+func TestStageSkipsProjectREADMEWhenDisabled(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	t.Setenv(shared.EnvVersionName, "1.2.3")
+
+	cfg := testConfig()
+	npmDist := cfg.Distributions["npm"]
+	npmDist.IncludeREADME = boolPtr(false)
+	cfg.Distributions["npm"] = npmDist
+
+	if err := createDistArtifacts(cfg); err != nil {
+		t.Fatalf("createDistArtifacts() error = %v", err)
+	}
+	if err := os.WriteFile("README.md", []byte("project docs"), 0644); err != nil {
+		t.Fatalf("os.WriteFile(README.md) error = %v", err)
+	}
+	if err := shared.WriteBuildVersion("1.2.3"); err != nil {
+		t.Fatalf("shared.WriteBuildVersion() error = %v", err)
+	}
+
+	if err := Stage(cfg, StageOptions{}); err != nil {
+		t.Fatalf("Stage() error = %v", err)
+	}
+
+	metaDir := filepath.Join(paths.NPMDir, cfg.Distributions["npm"].Package)
+	if _, err := os.Stat(filepath.Join(metaDir, "README.md")); !os.IsNotExist(err) {
+		t.Fatalf("meta README stat err = %v, want not exists", err)
+	}
+
+	target := cfg.Targets[0]
+	pkgName := platformPackageName(cfg.Distributions["npm"].Package, target)
+	pkgDir := filepath.Join(paths.NPMDir, pkgName)
+	if _, err := os.Stat(filepath.Join(pkgDir, "README.md")); !os.IsNotExist(err) {
+		t.Fatalf("platform README stat err = %v, want not exists", err)
+	}
+}
+
 func TestVerifyDetectsPlatformVersionMismatch(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)
@@ -824,4 +897,28 @@ func createDistArtifacts(cfg *config.Config) error {
 		}
 	}
 	return nil
+}
+
+func assertNPMPackageFilesContains(t *testing.T, dir string, want string) {
+	t.Helper()
+
+	pkgJSON, err := readPackageJSON(dir)
+	if err != nil {
+		t.Fatalf("readPackageJSON(%q) error = %v", dir, err)
+	}
+
+	rawFiles, ok := pkgJSON["files"].([]interface{})
+	if !ok {
+		t.Fatalf("package %s files field missing/invalid: %#v", dir, pkgJSON["files"])
+	}
+	for _, item := range rawFiles {
+		if s, ok := item.(string); ok && s == want {
+			return
+		}
+	}
+	t.Fatalf("package %s files = %#v, want %q", dir, rawFiles, want)
+}
+
+func boolPtr(v bool) *bool {
+	return &v
 }

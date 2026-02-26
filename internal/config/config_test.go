@@ -12,6 +12,13 @@ import (
 
 func TestDefaultConfigIncludesUV(t *testing.T) {
 	cfg := DefaultConfig()
+	npmDist, ok := cfg.Distributions["npm"]
+	if !ok {
+		t.Fatalf("DefaultConfig() missing npm distribution")
+	}
+	if !npmDist.IncludeREADMEEnabled() {
+		t.Fatalf("npm include-readme default = false, want true")
+	}
 	uvDist, ok := cfg.Distributions["uv"]
 	if !ok {
 		t.Fatalf("DefaultConfig() missing uv distribution")
@@ -21,6 +28,9 @@ func TestDefaultConfigIncludesUV(t *testing.T) {
 	}
 	if uvDist.LinuxTag != "manylinux2014" {
 		t.Fatalf("uv linux tag = %q, want %q", uvDist.LinuxTag, "manylinux2014")
+	}
+	if !uvDist.IncludeREADMEEnabled() {
+		t.Fatalf("uv include-readme default = false, want true")
 	}
 }
 
@@ -65,6 +75,59 @@ distributions:
 	}
 	if uvDist.LinuxTag != "manylinux2014" {
 		t.Fatalf("uv linux-tag = %q, want default", uvDist.LinuxTag)
+	}
+	if !uvDist.IncludeREADMEEnabled() {
+		t.Fatalf("uv include-readme = false, want default true")
+	}
+
+	npmDist := cfg.Distributions["npm"]
+	if !npmDist.IncludeREADMEEnabled() {
+		t.Fatalf("npm include-readme = false, want default true")
+	}
+}
+
+func TestLoadPreservesExplicitIncludeReadmeFalse(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, paths.ConfigPath)
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		t.Fatalf("os.MkdirAll() error = %v", err)
+	}
+
+	yaml := `tool:
+  name: omnidist
+  main: ./cmd/omnidist
+version:
+  source: env
+targets:
+  - os: linux
+    arch: amd64
+build:
+  ldflags: -s -w
+  tags: []
+  cgo: false
+distributions:
+  npm:
+    package: "@scope/tool"
+    include-readme: false
+  uv:
+    package: "tool"
+    include-readme: false
+`
+
+	if err := os.WriteFile(path, []byte(yaml), 0644); err != nil {
+		t.Fatalf("os.WriteFile() error = %v", err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if cfg.Distributions["npm"].IncludeREADMEEnabled() {
+		t.Fatalf("npm include-readme = true, want false")
+	}
+	if cfg.Distributions["uv"].IncludeREADMEEnabled() {
+		t.Fatalf("uv include-readme = true, want false")
 	}
 }
 

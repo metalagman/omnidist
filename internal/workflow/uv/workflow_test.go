@@ -63,6 +63,63 @@ func TestStageAndVerifyPasses(t *testing.T) {
 	}
 }
 
+func TestStageIncludesProjectREADMEByDefaultWhenPresent(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	t.Setenv(shared.EnvVersionName, "1.2.3")
+
+	cfg := testConfig()
+	if err := createDistArtifacts(cfg); err != nil {
+		t.Fatalf("createDistArtifacts() error = %v", err)
+	}
+	if err := os.WriteFile("README.md", []byte("project docs"), 0644); err != nil {
+		t.Fatalf("os.WriteFile(README.md) error = %v", err)
+	}
+
+	if err := Stage(cfg, StageOptions{}); err != nil {
+		t.Fatalf("Stage() error = %v", err)
+	}
+
+	uvDist := cfg.Distributions["uv"]
+	wheelPath, err := wheelPathForTarget(uvDist, cfg.Targets[0], "1.2.3")
+	if err != nil {
+		t.Fatalf("wheelPathForTarget() error = %v", err)
+	}
+	if !wheelContainsFile(t, wheelPath, "README.md") {
+		t.Fatalf("wheel %s missing README.md", wheelPath)
+	}
+}
+
+func TestStageSkipsProjectREADMEWhenDisabled(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	t.Setenv(shared.EnvVersionName, "1.2.3")
+
+	cfg := testConfig()
+	uvDist := cfg.Distributions["uv"]
+	uvDist.IncludeREADME = boolPtr(false)
+	cfg.Distributions["uv"] = uvDist
+
+	if err := createDistArtifacts(cfg); err != nil {
+		t.Fatalf("createDistArtifacts() error = %v", err)
+	}
+	if err := os.WriteFile("README.md", []byte("project docs"), 0644); err != nil {
+		t.Fatalf("os.WriteFile(README.md) error = %v", err)
+	}
+
+	if err := Stage(cfg, StageOptions{}); err != nil {
+		t.Fatalf("Stage() error = %v", err)
+	}
+
+	wheelPath, err := wheelPathForTarget(cfg.Distributions["uv"], cfg.Targets[0], "1.2.3")
+	if err != nil {
+		t.Fatalf("wheelPathForTarget() error = %v", err)
+	}
+	if wheelContainsFile(t, wheelPath, "README.md") {
+		t.Fatalf("wheel %s unexpectedly contains README.md", wheelPath)
+	}
+}
+
 func TestVerifyDetectsMissingBinary(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)
@@ -248,6 +305,27 @@ func TestBuildPublishArgs(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("buildPublishArgs() = %#v, want %#v", got, want)
 	}
+}
+
+func wheelContainsFile(t *testing.T, wheelPath string, want string) bool {
+	t.Helper()
+
+	reader, err := zip.OpenReader(wheelPath)
+	if err != nil {
+		t.Fatalf("zip.OpenReader(%q) error = %v", wheelPath, err)
+	}
+	defer reader.Close()
+
+	for _, file := range reader.File {
+		if file.Name == want {
+			return true
+		}
+	}
+	return false
+}
+
+func boolPtr(v bool) *bool {
+	return &v
 }
 
 func TestUVDistValidation(t *testing.T) {
