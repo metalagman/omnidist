@@ -17,7 +17,7 @@ jobs:
       - uses: actions/setup-node@v4
       - uses: astral-sh/setup-uv@v6
       - name: Install omnidist
-        run: npm install -g @omnidist/omnidist@latest
+        run: npm install -g '@omnidist/omnidist@latest'
       - name: Build artifacts
         run: omnidist build
       - name: Stage artifacts
@@ -43,7 +43,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
       - name: Install omnidist
-        run: npm install -g @omnidist/omnidist@latest
+        run: npm install -g '@omnidist/omnidist@latest'
       - name: Download staged artifacts
         uses: actions/download-artifact@v4
         with:
@@ -65,7 +65,7 @@ jobs:
       - uses: actions/setup-node@v4
       - uses: astral-sh/setup-uv@v6
       - name: Install omnidist
-        run: npm install -g @omnidist/omnidist@latest
+        run: npm install -g '@omnidist/omnidist@latest'
       - name: Download staged artifacts
         uses: actions/download-artifact@v4
         with:

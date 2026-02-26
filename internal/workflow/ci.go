@@ -57,13 +57,10 @@ on:
     tags:
       - "v*"
 jobs:
-  release:
+  prepare:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    env:
-      NPM_PUBLISH_TOKEN: ${{ secrets.NPM_PUBLISH_TOKEN }}
-      UV_PUBLISH_TOKEN: ${{ secrets.UV_PUBLISH_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -72,16 +69,64 @@ jobs:
       - uses: actions/setup-node@v4
       - uses: astral-sh/setup-uv@v6
       - name: Install omnidist
-        run: %q
+        run: %s
       - name: Build artifacts
         run: omnidist build
       - name: Stage artifacts
         run: omnidist stage
       - name: Verify artifacts
         run: omnidist verify
-      - name: Publish artifacts
-        run: omnidist publish
-`, installCmd)
+      - name: Pack staged artifacts
+        run: tar -czf omnidist-staged.tgz .omnidist
+      - name: Upload staged artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: omnidist-staged
+          path: omnidist-staged.tgz
+
+  publish_npm:
+    needs: prepare
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      NPM_PUBLISH_TOKEN: ${{ secrets.NPM_PUBLISH_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+      - name: Install omnidist
+        run: %s
+      - name: Download staged artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: omnidist-staged
+      - name: Restore staged artifacts
+        run: tar -xzf omnidist-staged.tgz
+      - name: Publish npm artifacts
+        run: omnidist npm publish
+
+  publish_uv:
+    needs: prepare
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      UV_PUBLISH_TOKEN: ${{ secrets.UV_PUBLISH_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Install omnidist
+        run: %s
+      - name: Download staged artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: omnidist-staged
+      - name: Restore staged artifacts
+        run: tar -xzf omnidist-staged.tgz
+      - name: Publish uv artifacts
+        run: omnidist uv publish
+`, installCmd, installCmd, installCmd)
 
 	return content, nil
 }

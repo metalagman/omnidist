@@ -24,14 +24,21 @@ func TestGenerateGitHubReleaseWorkflow(t *testing.T) {
 		`name: omnidist-release`,
 		`tags:`,
 		`- "v*"`,
-		`release:`,
+		`prepare:`,
+		`publish_npm:`,
+		`publish_uv:`,
+		`needs: prepare`,
 		`NPM_PUBLISH_TOKEN: ${{ secrets.NPM_PUBLISH_TOKEN }}`,
 		`UV_PUBLISH_TOKEN: ${{ secrets.UV_PUBLISH_TOKEN }}`,
-		`run: "npm install -g '@omnidist/omnidist@0.1.9'"`,
+		`run: npm install -g '@omnidist/omnidist@0.1.9'`,
 		`run: omnidist build`,
 		`run: omnidist stage`,
 		`run: omnidist verify`,
-		`run: omnidist publish`,
+		`run: tar -czf omnidist-staged.tgz .omnidist`,
+		`uses: actions/upload-artifact@v4`,
+		`uses: actions/download-artifact@v4`,
+		`run: omnidist npm publish`,
+		`run: omnidist uv publish`,
 	} {
 		if !strings.Contains(content, want) {
 			t.Fatalf("workflow content missing %q\n---\n%s", want, content)
@@ -48,7 +55,7 @@ func TestGenerateGitHubReleaseWorkflowDefaultsToLatest(t *testing.T) {
 		t.Fatalf("GenerateGitHubReleaseWorkflow() error = %v", err)
 	}
 
-	if !strings.Contains(content, `"npm install -g '@omnidist/omnidist@latest'"`) {
+	if !strings.Contains(content, `npm install -g '@omnidist/omnidist@latest'`) {
 		t.Fatalf("workflow content = %q, want latest install version", content)
 	}
 }
@@ -72,7 +79,7 @@ func TestGenerateGitHubReleaseWorkflowQuotesVersionRange(t *testing.T) {
 		t.Fatalf("GenerateGitHubReleaseWorkflow() error = %v", err)
 	}
 
-	want := `run: "npm install -g '@omnidist/omnidist@>=0.1.0 <2.0.0 || 3.0.0'"`
+	want := `run: npm install -g '@omnidist/omnidist@>=0.1.0 <2.0.0 || 3.0.0'`
 	if !strings.Contains(content, want) {
 		t.Fatalf("workflow content missing quoted range %q\n---\n%s", want, content)
 	}
