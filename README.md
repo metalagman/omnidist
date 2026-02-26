@@ -4,7 +4,7 @@
 [![lint](https://github.com/metalagman/omnidist/actions/workflows/lint.yml/badge.svg)](https://github.com/metalagman/omnidist/actions/workflows/lint.yml)
 [![test](https://github.com/metalagman/omnidist/actions/workflows/test.yml/badge.svg)](https://github.com/metalagman/omnidist/actions/workflows/test.yml)
 [![codecov](https://codecov.io/github/metalagman/omnidist/graph/badge.svg)](https://codecov.io/github/metalagman/omnidist)
-[![version](https://img.shields.io/github/v/tag/metalagman/omnidist?sort=semver)](https://github.com/metalagman/omnidist/tags)
+[![version](https://img.shields.io/github/v/release/metalagman/omnidist?sort=semver)](https://github.com/metalagman/omnidist/releases)
 [![npm](https://img.shields.io/npm/v/%40omnidist%2Fomnidist)](https://www.npmjs.com/package/@omnidist/omnidist)
 [![PyPI](https://img.shields.io/pypi/v/omnidist)](https://pypi.org/project/omnidist/)
 [![license](https://img.shields.io/github/license/metalagman/omnidist)](LICENSE)
