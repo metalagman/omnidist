@@ -88,6 +88,13 @@ func TestStageIncludesProjectREADMEByDefaultWhenPresent(t *testing.T) {
 	if !wheelContainsFile(t, wheelPath, "README.md") {
 		t.Fatalf("wheel %s missing README.md", wheelPath)
 	}
+	metadata := string(wheelFileData(t, wheelPath, metadataFilePath(t, cfg, "1.2.3")))
+	if !strings.Contains(metadata, "Description-Content-Type: text/markdown\n") {
+		t.Fatalf("wheel METADATA missing markdown description content type, got:\n%s", metadata)
+	}
+	if !strings.Contains(metadata, "\n\nproject docs\n") {
+		t.Fatalf("wheel METADATA missing README long description body, got:\n%s", metadata)
+	}
 }
 
 func TestStageSkipsProjectREADMEWhenDisabled(t *testing.T) {
@@ -117,6 +124,10 @@ func TestStageSkipsProjectREADMEWhenDisabled(t *testing.T) {
 	}
 	if wheelContainsFile(t, wheelPath, "README.md") {
 		t.Fatalf("wheel %s unexpectedly contains README.md", wheelPath)
+	}
+	metadata := string(wheelFileData(t, wheelPath, metadataFilePath(t, cfg, "1.2.3")))
+	if strings.Contains(metadata, "Description-Content-Type: text/markdown\n") {
+		t.Fatalf("wheel METADATA unexpectedly includes markdown long description header when README disabled, got:\n%s", metadata)
 	}
 }
 
@@ -322,6 +333,44 @@ func wheelContainsFile(t *testing.T, wheelPath string, want string) bool {
 		}
 	}
 	return false
+}
+
+func wheelFileData(t *testing.T, wheelPath string, want string) []byte {
+	t.Helper()
+
+	reader, err := zip.OpenReader(wheelPath)
+	if err != nil {
+		t.Fatalf("zip.OpenReader(%q) error = %v", wheelPath, err)
+	}
+	defer reader.Close()
+
+	for _, file := range reader.File {
+		if file.Name != want {
+			continue
+		}
+		rc, err := file.Open()
+		if err != nil {
+			t.Fatalf("file.Open(%q) error = %v", want, err)
+		}
+		defer rc.Close()
+
+		data, err := io.ReadAll(rc)
+		if err != nil {
+			t.Fatalf("io.ReadAll(%q) error = %v", want, err)
+		}
+		return data
+	}
+
+	t.Fatalf("wheel %s missing %s", wheelPath, want)
+	return nil
+}
+
+func metadataFilePath(t *testing.T, cfg *config.Config, version string) string {
+	t.Helper()
+
+	uvDist := cfg.Distributions["uv"]
+	distName := shared.NormalizePythonDistributionName(uvDist.Package)
+	return distName + "-" + version + ".dist-info/METADATA"
 }
 
 func boolPtr(v bool) *bool {
