@@ -798,6 +798,80 @@ func TestStageSkipsProjectREADMEWhenDisabled(t *testing.T) {
 	}
 }
 
+func TestStageIncludesProjectLicenseAndMetadata(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	t.Setenv(shared.EnvVersionName, "1.2.3")
+
+	cfg := testConfig()
+	if err := createDistArtifacts(cfg); err != nil {
+		t.Fatalf("createDistArtifacts() error = %v", err)
+	}
+	if err := os.WriteFile("LICENSE.md", []byte("license text"), 0644); err != nil {
+		t.Fatalf("os.WriteFile(LICENSE.md) error = %v", err)
+	}
+	if err := shared.WriteBuildVersion("1.2.3"); err != nil {
+		t.Fatalf("shared.WriteBuildVersion() error = %v", err)
+	}
+
+	if err := Stage(cfg, StageOptions{}); err != nil {
+		t.Fatalf("Stage() error = %v", err)
+	}
+
+	metaDir := filepath.Join(paths.NPMDir, cfg.Distributions["npm"].Package)
+	if _, err := os.Stat(filepath.Join(metaDir, "LICENSE.md")); err != nil {
+		t.Fatalf("meta license missing: %v", err)
+	}
+	assertNPMPackageFilesContains(t, metaDir, "LICENSE.md")
+	assertNPMPackageLicenseEquals(t, metaDir, "SEE LICENSE IN LICENSE.md")
+
+	target := cfg.Targets[0]
+	pkgName := platformPackageName(cfg.Distributions["npm"].Package, target)
+	pkgDir := filepath.Join(paths.NPMDir, pkgName)
+	if _, err := os.Stat(filepath.Join(pkgDir, "LICENSE.md")); err != nil {
+		t.Fatalf("platform license missing: %v", err)
+	}
+	assertNPMPackageFilesContains(t, pkgDir, "LICENSE.md")
+	assertNPMPackageLicenseEquals(t, pkgDir, "SEE LICENSE IN LICENSE.md")
+}
+
+func TestStagePrefersLicenseOverLicenseVariants(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	t.Setenv(shared.EnvVersionName, "1.2.3")
+
+	cfg := testConfig()
+	if err := createDistArtifacts(cfg); err != nil {
+		t.Fatalf("createDistArtifacts() error = %v", err)
+	}
+	if err := os.WriteFile("LICENSE", []byte("canonical"), 0644); err != nil {
+		t.Fatalf("os.WriteFile(LICENSE) error = %v", err)
+	}
+	if err := os.WriteFile("LICENSE.md", []byte("markdown"), 0644); err != nil {
+		t.Fatalf("os.WriteFile(LICENSE.md) error = %v", err)
+	}
+	if err := os.WriteFile("LICENSE.txt", []byte("text"), 0644); err != nil {
+		t.Fatalf("os.WriteFile(LICENSE.txt) error = %v", err)
+	}
+	if err := shared.WriteBuildVersion("1.2.3"); err != nil {
+		t.Fatalf("shared.WriteBuildVersion() error = %v", err)
+	}
+
+	if err := Stage(cfg, StageOptions{}); err != nil {
+		t.Fatalf("Stage() error = %v", err)
+	}
+
+	metaDir := filepath.Join(paths.NPMDir, cfg.Distributions["npm"].Package)
+	assertNPMPackageFilesContains(t, metaDir, "LICENSE")
+	assertNPMPackageLicenseEquals(t, metaDir, "SEE LICENSE IN LICENSE")
+	if _, err := os.Stat(filepath.Join(metaDir, "LICENSE.md")); !os.IsNotExist(err) {
+		t.Fatalf("meta LICENSE.md stat err = %v, want not exists", err)
+	}
+	if _, err := os.Stat(filepath.Join(metaDir, "LICENSE.txt")); !os.IsNotExist(err) {
+		t.Fatalf("meta LICENSE.txt stat err = %v, want not exists", err)
+	}
+}
+
 func TestVerifyDetectsPlatformVersionMismatch(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)
@@ -917,6 +991,20 @@ func assertNPMPackageFilesContains(t *testing.T, dir string, want string) {
 		}
 	}
 	t.Fatalf("package %s files = %#v, want %q", dir, rawFiles, want)
+}
+
+func assertNPMPackageLicenseEquals(t *testing.T, dir string, want string) {
+	t.Helper()
+
+	pkgJSON, err := readPackageJSON(dir)
+	if err != nil {
+		t.Fatalf("readPackageJSON(%q) error = %v", dir, err)
+	}
+
+	got, _ := pkgJSON["license"].(string)
+	if got != want {
+		t.Fatalf("package %s license = %q, want %q", dir, got, want)
+	}
 }
 
 func boolPtr(v bool) *bool {

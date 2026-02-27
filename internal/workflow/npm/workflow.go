@@ -38,6 +38,7 @@ const (
 	npmPublishTokenEnv = "NPM_PUBLISH_TOKEN"
 )
 
+var projectLicenseCandidates = []string{"LICENSE", "LICENSE.md", "LICENSE.txt"}
 var npmVersionPattern = regexp.MustCompile(`^\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$`)
 
 // VerificationResult summarizes npm staging validation results.
@@ -348,6 +349,35 @@ func stageProjectREADME(dstDir string, enabled bool) (bool, error) {
 	return true, nil
 }
 
+func stageProjectLicense(dstDir string) (string, bool, error) {
+	name, data, exists, err := readOptionalProjectLicense()
+	if err != nil {
+		return "", false, err
+	}
+	if !exists {
+		return "", false, nil
+	}
+
+	if err := os.WriteFile(filepath.Join(dstDir, name), data, 0644); err != nil {
+		return "", false, err
+	}
+	return name, true, nil
+}
+
+func readOptionalProjectLicense() (string, []byte, bool, error) {
+	for _, candidate := range projectLicenseCandidates {
+		data, err := os.ReadFile(candidate)
+		if err == nil {
+			return candidate, data, true, nil
+		}
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		return "", nil, false, fmt.Errorf("read project license %s: %w", candidate, err)
+	}
+	return "", nil, false, nil
+}
+
 func readPackageJSON(dir string) (map[string]interface{}, error) {
 	data, err := os.ReadFile(filepath.Join(dir, "package.json"))
 	if err != nil {
@@ -394,6 +424,13 @@ func stagePlatformPackage(cfg *config.Config, npmDist config.DistributionConfig,
 	} else if included {
 		files = append(files, shared.ProjectREADMEPath)
 	}
+	licenseName, licenseIncluded, err := stageProjectLicense(pkgDir)
+	if err != nil {
+		return err
+	}
+	if licenseIncluded {
+		files = append(files, licenseName)
+	}
 
 	pkgJSON := map[string]interface{}{
 		"name":        pkgName,
@@ -405,6 +442,9 @@ func stagePlatformPackage(cfg *config.Config, npmDist config.DistributionConfig,
 			cfg.Tool.Name: "bin/" + binaryName,
 		},
 		"files": files,
+	}
+	if licenseIncluded {
+		pkgJSON["license"] = "SEE LICENSE IN " + licenseName
 	}
 
 	return writePackageJSON(pkgDir, pkgJSON)
@@ -423,6 +463,13 @@ func stageMetaPackage(cfg *config.Config, npmDist config.DistributionConfig, ver
 	} else if included {
 		files = append(files, shared.ProjectREADMEPath)
 	}
+	licenseName, licenseIncluded, err := stageProjectLicense(metaDir)
+	if err != nil {
+		return err
+	}
+	if licenseIncluded {
+		files = append(files, licenseName)
+	}
 
 	optionalDeps := make(map[string]string)
 	for _, target := range cfg.Targets {
@@ -438,6 +485,9 @@ func stageMetaPackage(cfg *config.Config, npmDist config.DistributionConfig, ver
 		"optionalDependencies": optionalDeps,
 		"engines":              map[string]string{"node": ">=16"},
 		"files":                files,
+	}
+	if licenseIncluded {
+		pkgJSON["license"] = "SEE LICENSE IN " + licenseName
 	}
 
 	if err := writePackageJSON(metaDir, pkgJSON); err != nil {
