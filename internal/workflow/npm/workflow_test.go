@@ -301,6 +301,69 @@ func TestBuildPublishArgs(t *testing.T) {
 	}
 }
 
+func TestPublishDryRunPublishesStagedPackages(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell script test")
+	}
+
+	dir := t.TempDir()
+	t.Chdir(dir)
+	t.Setenv(shared.EnvVersionName, "1.2.3-dev.4.gabc123")
+
+	cfg := testConfig()
+	if err := createDistArtifacts(cfg); err != nil {
+		t.Fatalf("createDistArtifacts() error = %v", err)
+	}
+	if err := Stage(cfg, StageOptions{Dev: true}); err != nil {
+		t.Fatalf("Stage(dev) error = %v", err)
+	}
+
+	binDir := filepath.Join(dir, "bin")
+	if err := os.MkdirAll(binDir, 0755); err != nil {
+		t.Fatalf("os.MkdirAll(%q) error = %v", binDir, err)
+	}
+	logPath := filepath.Join(dir, "npm-publish.log")
+	npmPath := filepath.Join(binDir, "npm")
+	script := "#!/bin/sh\n" +
+		"echo \"$@\" >> " + logPath + "\n" +
+		"exit 0\n"
+	if err := os.WriteFile(npmPath, []byte(script), 0755); err != nil {
+		t.Fatalf("os.WriteFile(%q) error = %v", npmPath, err)
+	}
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	var progress bytes.Buffer
+	if err := Publish(cfg, PublishOptions{
+		DryRun:   true,
+		Progress: &progress,
+	}); err != nil {
+		t.Fatalf("Publish(dry-run) error = %v", err)
+	}
+
+	progressText := progress.String()
+	if !strings.Contains(progressText, "Detected dev npm version") {
+		t.Fatalf("Publish progress missing dev tag message: %q", progressText)
+	}
+	if !strings.Contains(progressText, "Publishing platform packages first") {
+		t.Fatalf("Publish progress missing platform publish message: %q", progressText)
+	}
+	if !strings.Contains(progressText, "Publishing meta package") {
+		t.Fatalf("Publish progress missing meta publish message: %q", progressText)
+	}
+
+	logData, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatalf("os.ReadFile(%q) error = %v", logPath, err)
+	}
+	lines := strings.Fields(strings.TrimSpace(string(logData)))
+	if len(lines) == 0 {
+		t.Fatalf("fake npm was not called, log=%q", string(logData))
+	}
+	if !strings.Contains(string(logData), "publish") {
+		t.Fatalf("fake npm log missing publish command: %q", string(logData))
+	}
+}
+
 func TestBuildPublishArgsFlagOverrides(t *testing.T) {
 	t.Parallel()
 
@@ -722,6 +785,19 @@ func TestStageAndVerifyPasses(t *testing.T) {
 	result := Verify(cfg)
 	if !result.Valid {
 		t.Fatalf("Verify().Valid = false, errors = %v", result.Errors)
+	}
+}
+
+func TestVerifyNilConfig(t *testing.T) {
+	result := Verify(nil)
+	if result.Valid {
+		t.Fatalf("Verify(nil).Valid = true, want false")
+	}
+	if len(result.Errors) == 0 {
+		t.Fatalf("Verify(nil).Errors = nil, want config error")
+	}
+	if !strings.Contains(result.Errors[0], "config is nil") {
+		t.Fatalf("Verify(nil).Errors[0] = %q, want config is nil", result.Errors[0])
 	}
 }
 

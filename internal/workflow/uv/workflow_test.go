@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"sort"
 	"strings"
 	"testing"
@@ -60,6 +61,19 @@ func TestStageAndVerifyPasses(t *testing.T) {
 	result := Verify(cfg)
 	if !result.Valid {
 		t.Fatalf("Verify().Valid = false, errors = %v", result.Errors)
+	}
+}
+
+func TestVerifyNilConfig(t *testing.T) {
+	result := Verify(nil)
+	if result.Valid {
+		t.Fatalf("Verify(nil).Valid = true, want false")
+	}
+	if len(result.Errors) == 0 {
+		t.Fatalf("Verify(nil).Errors = nil, want config error")
+	}
+	if !strings.Contains(result.Errors[0], "config is nil") {
+		t.Fatalf("Verify(nil).Errors[0] = %q, want config is nil", result.Errors[0])
 	}
 }
 
@@ -315,6 +329,70 @@ func TestBuildPublishArgs(t *testing.T) {
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("buildPublishArgs() = %#v, want %#v", got, want)
+	}
+}
+
+func TestCommandOutputWriterNilReturnsDiscard(t *testing.T) {
+	w := commandOutputWriter(nil)
+	if w == nil {
+		t.Fatalf("commandOutputWriter(nil) = nil, want io.Writer")
+	}
+	if _, err := w.Write([]byte("ok")); err != nil {
+		t.Fatalf("commandOutputWriter(nil).Write() error = %v", err)
+	}
+}
+
+func TestPublishDryRunUsesStagedArtifacts(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell script test")
+	}
+
+	dir := t.TempDir()
+	t.Chdir(dir)
+	t.Setenv(shared.EnvVersionName, "1.2.3")
+
+	cfg := testConfig()
+	if err := createDistArtifacts(cfg); err != nil {
+		t.Fatalf("createDistArtifacts() error = %v", err)
+	}
+	if err := Stage(cfg, StageOptions{}); err != nil {
+		t.Fatalf("Stage() error = %v", err)
+	}
+
+	binDir := filepath.Join(dir, "bin")
+	if err := os.MkdirAll(binDir, 0755); err != nil {
+		t.Fatalf("os.MkdirAll(%q) error = %v", binDir, err)
+	}
+	logPath := filepath.Join(dir, "uv-publish.log")
+	uvPath := filepath.Join(binDir, "uv")
+	script := "#!/bin/sh\n" +
+		"echo \"$@\" >> " + logPath + "\n" +
+		"exit 0\n"
+	if err := os.WriteFile(uvPath, []byte(script), 0755); err != nil {
+		t.Fatalf("os.WriteFile(%q) error = %v", uvPath, err)
+	}
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	if err := Publish(cfg, PublishOptions{
+		DryRun: true,
+		Stdout: &stdout,
+		Stderr: &stderr,
+	}); err != nil {
+		t.Fatalf("Publish(dry-run) error = %v", err)
+	}
+
+	logData, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatalf("os.ReadFile(%q) error = %v", logPath, err)
+	}
+	logText := string(logData)
+	if !strings.Contains(logText, "publish") {
+		t.Fatalf("fake uv log missing publish command: %q", logText)
+	}
+	if !strings.Contains(logText, "--dry-run") {
+		t.Fatalf("fake uv log missing --dry-run: %q", logText)
 	}
 }
 

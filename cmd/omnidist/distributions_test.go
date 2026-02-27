@@ -110,3 +110,12 @@ func TestRunDistributionSteps(t *testing.T) {
 		}
 	})
 }
+
+func TestDistributionListSortsNames(t *testing.T) {
+	t.Parallel()
+
+	got := distributionList([]distribution{distributionUV, distributionNPM})
+	if got != "npm, uv" {
+		t.Fatalf("distributionList() = %q, want %q", got, "npm, uv")
+	}
+}

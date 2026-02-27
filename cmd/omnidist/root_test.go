@@ -109,3 +109,31 @@ func executeCommand(args ...string) (string, error) {
 	rootCmd.SetArgs(nil)
 	return buf.String(), err
 }
+
+func TestExecuteUsesRootCommand(t *testing.T) {
+	buf := &bytes.Buffer{}
+	rootCmd.SetOut(buf)
+	rootCmd.SetErr(buf)
+	rootCmd.SetArgs([]string{"--help"})
+	defer rootCmd.SetArgs(nil)
+
+	if err := Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if !strings.Contains(buf.String(), "omnidist") {
+		t.Fatalf("Execute() output = %q, want omnidist help", buf.String())
+	}
+}
+
+func TestMainHelpPathDoesNotExit(t *testing.T) {
+	buf := &bytes.Buffer{}
+	rootCmd.SetOut(buf)
+	rootCmd.SetErr(buf)
+	rootCmd.SetArgs([]string{"--help"})
+	defer rootCmd.SetArgs(nil)
+
+	main()
+	if !strings.Contains(buf.String(), "omnidist") {
+		t.Fatalf("main() output = %q, want omnidist help", buf.String())
+	}
+}

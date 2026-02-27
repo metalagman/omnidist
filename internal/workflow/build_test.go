@@ -135,3 +135,49 @@ echo "fake go stderr" >&2
 		t.Fatalf("progress = %q, want built path", progress.String())
 	}
 }
+
+func TestBuildUsesDefaultOptions(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell script test")
+	}
+
+	dir := t.TempDir()
+	t.Chdir(dir)
+
+	binDir := filepath.Join(dir, "bin")
+	if err := os.MkdirAll(binDir, 0755); err != nil {
+		t.Fatalf("os.MkdirAll(%q) error = %v", binDir, err)
+	}
+
+	goPath := filepath.Join(binDir, "go")
+	script := `#!/bin/sh
+out=""
+prev=""
+for arg in "$@"; do
+  if [ "$prev" = "-o" ]; then
+    out="$arg"
+    prev=""
+    continue
+  fi
+  prev="$arg"
+done
+mkdir -p "$(dirname "$out")"
+printf "fake-binary" > "$out"
+`
+	if err := os.WriteFile(goPath, []byte(script), 0755); err != nil {
+		t.Fatalf("os.WriteFile(%q) error = %v", goPath, err)
+	}
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	cfg := config.DefaultConfig()
+	cfg.Tool.Name = "omnitest"
+	cfg.Tool.Main = "./cmd/does-not-matter"
+	cfg.Targets = []config.Target{{OS: "linux", Arch: "amd64"}}
+
+	if err := Build(cfg); err != nil {
+		t.Fatalf("Build() error = %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(".omnidist", "dist", "linux", "amd64", "omnitest")); err != nil {
+		t.Fatalf("built artifact missing: %v", err)
+	}
+}

@@ -183,3 +183,49 @@ func TestLoadMissingFileIncludesPathContext(t *testing.T) {
 		t.Fatalf("Load(%q) error = %v, want os.ErrNotExist", path, err)
 	}
 }
+
+func TestSaveRoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, paths.ConfigPath)
+	cfg := DefaultConfig()
+	cfg.Tool.Name = "mytool"
+
+	if err := Save(cfg, path); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+
+	got, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if got.Tool.Name != "mytool" {
+		t.Fatalf("loaded tool name = %q, want %q", got.Tool.Name, "mytool")
+	}
+}
+
+func TestMapGoArchToNPM(t *testing.T) {
+	tests := map[string]string{
+		"amd64": "x64",
+		"arm64": "arm64",
+		"386":   "x86",
+		"mips":  "mips",
+	}
+	for in, want := range tests {
+		if got := MapGoArchToNPM(in); got != want {
+			t.Fatalf("MapGoArchToNPM(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestMapGoOSToNPM(t *testing.T) {
+	tests := map[string]string{
+		"windows": "win32",
+		"linux":   "linux",
+		"darwin":  "darwin",
+	}
+	for in, want := range tests {
+		if got := MapGoOSToNPM(in); got != want {
+			t.Fatalf("MapGoOSToNPM(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
