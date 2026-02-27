@@ -1,4 +1,4 @@
-name: lint
+name: Lint
 on:
   push:
     branches: [ master, main ]
@@ -6,7 +6,7 @@ on:
     branches: [ master, main ]
 jobs:
   golangci:
-    name: lint
+    name: Lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
