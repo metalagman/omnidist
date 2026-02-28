@@ -99,6 +99,14 @@ func TestPublishErrorsExtra(t *testing.T) {
 			t.Fatalf("shared.WriteBuildVersion() error = %v", err)
 		}
 		os.MkdirAll(paths.UVDistDir, 0755)
+
+		// Provide dummy uv to pass CheckDependency
+		binDir := filepath.Join(dir, "bin")
+		os.MkdirAll(binDir, 0755)
+		uvPath := filepath.Join(binDir, "uv")
+		os.WriteFile(uvPath, []byte("#!/bin/sh\nexit 0"), 0755)
+		t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
 		cfg := testConfig()
 		err := Publish(cfg, PublishOptions{})
 		if err == nil || !strings.Contains(err.Error(), "missing wheel artifact") {
