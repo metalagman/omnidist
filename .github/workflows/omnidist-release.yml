@@ -16,6 +16,8 @@ jobs:
           go-version-file: "go.mod"
       - uses: actions/setup-node@v4
       - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: false
       - name: Install omnidist
         run: npm install -g '@omnidist/omnidist@latest'
       - name: Build artifacts
@@ -64,6 +66,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
       - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: false
       - name: Install omnidist
         run: npm install -g '@omnidist/omnidist@latest'
       - name: Download staged artifacts

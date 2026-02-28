@@ -23,6 +23,8 @@ jobs:
 
       - name: Set up uv
         uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: false
 
       - name: Lint
         uses: golangci/golangci-lint-action@v7
