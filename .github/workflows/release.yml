@@ -21,6 +21,9 @@ jobs:
           go-version-file: 'go.mod'
           cache: true
 
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+
       - name: Lint
         uses: golangci/golangci-lint-action@v7
         with:
