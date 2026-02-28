@@ -1,0 +1,289 @@
+package shared
+
+import (
+	"os"
+	"strings"
+	"testing"
+
+	"github.com/metalagman/omnidist/internal/config"
+	"github.com/metalagman/omnidist/internal/paths"
+)
+
+func TestResolveVersionFileSource(t *testing.T) {
+	t.Run("valid", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		t.Chdir(tmpDir)
+
+		want := "v2.0.0"
+		if err := os.WriteFile("VERSION", []byte(want), 0644); err != nil {
+			t.Fatalf("os.WriteFile(VERSION) error = %v", err)
+		}
+
+		cfg := &config.Config{Version: config.VersionConfig{Source: "file"}}
+		got, err := ResolveVersion(cfg, false)
+		if err != nil {
+			t.Fatalf("ResolveVersion(file) error = %v", err)
+		}
+		if got != "v2.0.0" {
+			t.Fatalf("ResolveVersion(file) = %q, want %q", got, "v2.0.0")
+		}
+	})
+
+	t.Run("missing", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		t.Chdir(tmpDir)
+
+		cfg := &config.Config{Version: config.VersionConfig{Source: "file"}}
+		_, err := ResolveVersion(cfg, false)
+		if err == nil || !strings.Contains(err.Error(), "read VERSION file") {
+			t.Fatalf("ResolveVersion(file missing) error = %v, want missing file error", err)
+		}
+	})
+
+	t.Run("empty", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		t.Chdir(tmpDir)
+
+		if err := os.WriteFile("VERSION", []byte("  \n"), 0644); err != nil {
+			t.Fatalf("os.WriteFile(VERSION) error = %v", err)
+		}
+
+		cfg := &config.Config{Version: config.VersionConfig{Source: "file"}}
+		_, err := ResolveVersion(cfg, false)
+		if err == nil || !strings.Contains(err.Error(), "empty version from source") {
+			t.Fatalf("ResolveVersion(file empty) error = %v, want empty version error", err)
+		}
+	})
+}
+
+func TestResolveReleaseVersionFileSource(t *testing.T) {
+	t.Run("valid_exact_semver", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		t.Chdir(tmpDir)
+
+		want := "1.2.3"
+		if err := os.WriteFile("VERSION", []byte(want), 0644); err != nil {
+			t.Fatalf("os.WriteFile(VERSION) error = %v", err)
+		}
+
+		cfg := &config.Config{Version: config.VersionConfig{Source: "file"}}
+		got, err := ResolveReleaseVersion(cfg)
+		if err != nil {
+			t.Fatalf("ResolveReleaseVersion(file) error = %v", err)
+		}
+		if got != want {
+			t.Fatalf("ResolveReleaseVersion(file) = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("not_exact_semver", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		t.Chdir(tmpDir)
+
+		if err := os.WriteFile("VERSION", []byte("1.2.3-beta"), 0644); err != nil {
+			t.Fatalf("os.WriteFile(VERSION) error = %v", err)
+		}
+
+		cfg := &config.Config{Version: config.VersionConfig{Source: "file"}}
+		_, err := ResolveReleaseVersion(cfg)
+		if err == nil || !strings.Contains(err.Error(), "is not exact semver") {
+			t.Fatalf("ResolveReleaseVersion(file non-semver) error = %v, want semver validation error", err)
+		}
+	})
+
+	t.Run("missing", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		t.Chdir(tmpDir)
+
+		cfg := &config.Config{Version: config.VersionConfig{Source: "file"}}
+		_, err := ResolveReleaseVersion(cfg)
+		if err == nil || !strings.Contains(err.Error(), "read VERSION file") {
+			t.Fatalf("ResolveReleaseVersion(file missing) error = %v, want missing file error", err)
+		}
+	})
+}
+
+func TestResolveReleaseVersionEmptyEnv(t *testing.T) {
+	cfg := &config.Config{Version: config.VersionConfig{Source: "env"}}
+	t.Setenv(EnvVersionName, "  ")
+	_, err := ResolveReleaseVersion(cfg)
+	if err == nil || !strings.Contains(err.Error(), "empty version from source") {
+		t.Fatalf("ResolveReleaseVersion(env empty) error = %v, want empty version error", err)
+	}
+}
+
+func TestWriteBuildVersionErrors(t *testing.T) {
+	t.Run("empty", func(t *testing.T) {
+		err := WriteBuildVersion("  ")
+		if err == nil || !strings.Contains(err.Error(), "version is empty") {
+			t.Fatalf("WriteBuildVersion(empty) error = %v, want empty error", err)
+		}
+	})
+
+	t.Run("mkdir_fail", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		t.Chdir(tmpDir)
+		// Create a file where paths.DistDir should be
+		if err := os.WriteFile(paths.WorkspaceDir, []byte("file"), 0644); err != nil {
+			t.Fatalf("os.WriteFile(%q) error = %v", paths.WorkspaceDir, err)
+		}
+		err := WriteBuildVersion("1.0.0")
+		if err == nil || !strings.Contains(err.Error(), "create dist directory") {
+			t.Fatalf("WriteBuildVersion(mkdir fail) error = %v, want mkdir error", err)
+		}
+	})
+
+	t.Run("write_fail", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		t.Chdir(tmpDir)
+		if err := os.MkdirAll(paths.DistDir, 0755); err != nil {
+			t.Fatalf("os.MkdirAll(%q) error = %v", paths.DistDir, err)
+		}
+		// Create a directory where paths.DistVersionPath should be
+		if err := os.MkdirAll(paths.DistVersionPath, 0755); err != nil {
+			t.Fatalf("os.MkdirAll(%q) error = %v", paths.DistVersionPath, err)
+		}
+		err := WriteBuildVersion("1.0.0")
+		if err == nil || !strings.Contains(err.Error(), "write build version file") {
+			t.Fatalf("WriteBuildVersion(write fail) error = %v, want write error", err)
+		}
+	})
+}
+
+func TestReadBuildVersionErrors(t *testing.T) {
+	t.Run("empty", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		t.Chdir(tmpDir)
+		if err := os.MkdirAll(paths.DistDir, 0755); err != nil {
+			t.Fatalf("os.MkdirAll(%q) error = %v", paths.DistDir, err)
+		}
+		if err := os.WriteFile(paths.DistVersionPath, []byte("  "), 0644); err != nil {
+			t.Fatalf("os.WriteFile(%q) error = %v", paths.DistVersionPath, err)
+		}
+		_, err := ReadBuildVersion()
+		if err == nil || !strings.Contains(err.Error(), "empty build version in") {
+			t.Fatalf("ReadBuildVersion(empty) error = %v, want empty error", err)
+		}
+	})
+}
+
+func TestResolveStageVersionReadBuildVersionError(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Chdir(tmpDir)
+	if err := os.MkdirAll(paths.DistDir, 0755); err != nil {
+		t.Fatalf("os.MkdirAll(%q) error = %v", paths.DistDir, err)
+	}
+	// Create a directory where DistVersionPath should be to trigger a read error
+	if err := os.MkdirAll(paths.DistVersionPath, 0755); err != nil {
+		t.Fatalf("os.MkdirAll(%q) error = %v", paths.DistVersionPath, err)
+	}
+
+	cfg := &config.Config{Version: config.VersionConfig{Source: "env"}}
+	_, err := ResolveStageVersion(cfg, false)
+	if err == nil || !strings.Contains(err.Error(), "read build version") {
+		t.Fatalf("ResolveStageVersion(read build version error) error = %v, want read error", err)
+	}
+}
+
+func TestToPEP440EdgeCases(t *testing.T) {
+	t.Run("empty", func(t *testing.T) {
+		_, err := ToPEP440("  ")
+		if err == nil || !strings.Contains(err.Error(), "version is empty") {
+			t.Fatalf("ToPEP440(empty) error = %v, want empty error", err)
+		}
+	})
+
+	t.Run("short_dev_part", func(t *testing.T) {
+		got, err := ToPEP440("1.2.3-dev.5")
+		if err != nil {
+			t.Fatalf("ToPEP440(short dev) error = %v", err)
+		}
+		if got != "1.2.3.dev5" {
+			t.Fatalf("ToPEP440(short dev) = %q, want %q", got, "1.2.3.dev5")
+		}
+	})
+}
+
+func TestReadOptionalProjectREADMEError(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	// Create a directory where README.md should be a file
+	if err := os.Mkdir(ProjectREADMEPath, 0755); err != nil {
+		t.Fatalf("os.Mkdir(%q) error = %v", ProjectREADMEPath, err)
+	}
+	_, exists, err := ReadOptionalProjectREADME()
+	if err == nil || !strings.Contains(err.Error(), "read project README") {
+		t.Fatalf("ReadOptionalProjectREADME() error = %v, want read error", err)
+	}
+	if exists {
+		t.Fatalf("ReadOptionalProjectREADME() exists = true, want false")
+	}
+}
+
+func TestWheelPlatformTagUnsupported(t *testing.T) {
+	tests := []struct {
+		name   string
+		target config.Target
+	}{
+		{name: "linux_386", target: config.Target{OS: "linux", Arch: "386"}},
+		{name: "darwin_386", target: config.Target{OS: "darwin", Arch: "386"}},
+		{name: "windows_386", target: config.Target{OS: "windows", Arch: "386"}},
+		{name: "unknown_os", target: config.Target{OS: "solaris", Arch: "amd64"}},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := WheelPlatformTag(tc.target, "")
+			if err == nil {
+				t.Fatalf("WheelPlatformTag(%+v) error = nil, want error", tc.target)
+			}
+		})
+	}
+}
+
+func TestWheelPlatformTagLinuxDefault(t *testing.T) {
+	target := config.Target{OS: "linux", Arch: "amd64"}
+	got, err := WheelPlatformTag(target, "  ")
+	if err != nil {
+		t.Fatalf("WheelPlatformTag(linux default) error = %v", err)
+	}
+	if !strings.HasPrefix(got, DefaultUVLinuxTag) {
+		t.Fatalf("WheelPlatformTag(linux default) = %q, want prefix %q", got, DefaultUVLinuxTag)
+	}
+}
+
+func TestWheelFilenameError(t *testing.T) {
+	target := config.Target{OS: "unknown", Arch: "amd64"}
+	_, err := WheelFilename("pkg", "1.0.0", target, "")
+	if err == nil {
+		t.Fatalf("WheelFilename(unknown) error = nil, want error")
+	}
+}
+
+func TestResolveStageVersionFallback(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Chdir(tmpDir)
+	// No build version file
+
+	t.Setenv(EnvVersionName, "1.2.3")
+	cfg := &config.Config{Version: config.VersionConfig{Source: "env"}}
+	got, err := ResolveStageVersion(cfg, false)
+	if err != nil {
+		t.Fatalf("ResolveStageVersion(fallback) error = %v", err)
+	}
+	if got != "1.2.3" {
+		t.Fatalf("ResolveStageVersion(fallback) = %q, want %q", got, "1.2.3")
+	}
+}
+
+func TestResolveStageVersionDev(t *testing.T) {
+	t.Setenv(EnvVersionName, "1.2.3-dev.1")
+	cfg := &config.Config{Version: config.VersionConfig{Source: "env"}}
+	got, err := ResolveStageVersion(cfg, true)
+	if err != nil {
+		t.Fatalf("ResolveStageVersion(dev) error = %v", err)
+	}
+	if got != "1.2.3-dev.1" {
+		t.Fatalf("ResolveStageVersion(dev) = %q, want %q", got, "1.2.3-dev.1")
+	}
+}

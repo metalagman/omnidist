@@ -32,3 +32,36 @@ func TestSetBuildMetadataEnvSetsAndRestores(t *testing.T) {
 		t.Fatalf("%s after restore = %q, want %q", envBuildCommitName, got, "old-commit")
 	}
 }
+
+func TestSetBuildMetadataEnvSetsAndRestoresFromEmpty(t *testing.T) {
+	if err := os.Unsetenv(envBuildDateName); err != nil {
+		t.Fatalf("os.Unsetenv(%q) error = %v", envBuildDateName, err)
+	}
+	if err := os.Unsetenv(envBuildCommitName); err != nil {
+		t.Fatalf("os.Unsetenv(%q) error = %v", envBuildCommitName, err)
+	}
+
+	restore, err := setBuildMetadataEnv()
+	if err != nil {
+		t.Fatalf("setBuildMetadataEnv() error = %v", err)
+	}
+
+	restore()
+
+	if _, ok := os.LookupEnv(envBuildDateName); ok {
+		t.Fatalf("%s unexpectedly set after restore", envBuildDateName)
+	}
+	if _, ok := os.LookupEnv(envBuildCommitName); ok {
+		t.Fatalf("%s unexpectedly set after restore", envBuildCommitName)
+	}
+}
+
+func TestResolveBuildGitCommitNotInRepo(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+
+	got := resolveBuildGitCommit()
+	if got != "" {
+		t.Fatalf("resolveBuildGitCommit() = %q, want empty when not in git repo", got)
+	}
+}

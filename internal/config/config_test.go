@@ -203,6 +203,101 @@ func TestSaveRoundTrip(t *testing.T) {
 	}
 }
 
+func TestSaveInvalidPath(t *testing.T) {
+	// Use a path that is likely to fail (e.g., a directory that exists as a file)
+	dir := t.TempDir()
+	path := filepath.Join(dir, "isfile")
+	if err := os.WriteFile(path, []byte("not a dir"), 0644); err != nil {
+		t.Fatalf("os.WriteFile() error = %v", err)
+	}
+	configPath := filepath.Join(path, "omnidist.yaml")
+
+	err := Save(DefaultConfig(), configPath)
+	if err == nil {
+		t.Fatalf("Save to invalid path error = nil, want error")
+	}
+}
+
+func TestValidate(t *testing.T) {
+	tests := []struct {
+		name    string
+		cfg     *Config
+		wantErr string
+	}{
+		{
+			name:    "nil config",
+			cfg:     nil,
+			wantErr: "config is nil",
+		},
+		{
+			name: "missing target os",
+			cfg: &Config{
+				Targets: []Target{{Arch: "amd64"}},
+			},
+			wantErr: "targets[0].os is required",
+		},
+		{
+			name: "missing target arch",
+			cfg: &Config{
+				Targets: []Target{{OS: "linux"}},
+			},
+			wantErr: "targets[0].arch is required",
+		},
+		{
+			name: "invalid win32 os",
+			cfg: &Config{
+				Targets: []Target{{OS: "win32", Arch: "amd64"}},
+			},
+			wantErr: "use Go GOOS value \"windows\"",
+		},
+		{
+			name: "invalid x64 arch",
+			cfg: &Config{
+				Targets: []Target{{OS: "linux", Arch: "x64"}},
+			},
+			wantErr: "use Go GOARCH value \"amd64\"",
+		},
+		{
+			name: "invalid npm access",
+			cfg: &Config{
+				Targets: []Target{{OS: "linux", Arch: "amd64"}},
+				Distributions: map[string]DistributionConfig{
+					"npm": {Access: "invalid"},
+				},
+			},
+			wantErr: "invalid distributions.npm.access \"invalid\"",
+		},
+		{
+			name: "missing uv package",
+			cfg: &Config{
+				Targets: []Target{{OS: "linux", Arch: "amd64"}},
+				Distributions: map[string]DistributionConfig{
+					"uv": {LinuxTag: "manylinux2014"},
+				},
+			},
+			wantErr: "distributions.uv.package is required",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validate(tt.cfg)
+			if err == nil {
+				if tt.wantErr != "" {
+					t.Fatalf("validate() error = nil, want %q", tt.wantErr)
+				}
+				return
+			}
+			if tt.wantErr == "" {
+				t.Fatalf("validate() error = %v, want nil", err)
+			}
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("validate() error = %v, want to contain %q", err, tt.wantErr)
+			}
+		})
+	}
+}
+
 func TestMapGoArchToNPM(t *testing.T) {
 	tests := map[string]string{
 		"amd64": "x64",

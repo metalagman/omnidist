@@ -234,6 +234,9 @@ func validate(cfg *Config) error {
 
 // Save writes cfg to path in YAML format, creating parent directories as needed.
 func Save(cfg *Config, path string) error {
+	if cfg == nil {
+		return fmt.Errorf("config is nil")
+	}
 	data, err := yaml.Marshal(cfg)
 	if err != nil {
 		return fmt.Errorf("marshal config for %s: %w", path, err)

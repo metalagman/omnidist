@@ -154,6 +154,10 @@ func Verify(cfg *config.Config) *VerificationResult {
 
 // Publish uploads staged uv wheel artifacts.
 func Publish(cfg *config.Config, opts PublishOptions) error {
+	if err := CheckDependency(); err != nil {
+		return err
+	}
+
 	uvDist, err := uvDistribution(cfg)
 	if err != nil {
 		return err

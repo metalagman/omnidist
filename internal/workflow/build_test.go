@@ -181,3 +181,102 @@ printf "fake-binary" > "$out"
 		t.Fatalf("built artifact missing: %v", err)
 	}
 }
+
+func TestBuildErrors(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+
+	// Case 1: MkdirAll failure for dist dir
+	os.WriteFile(filepath.Join(dir, ".omnidist"), []byte("file"), 0644)
+	cfg := config.DefaultConfig()
+	if err := Build(cfg); err == nil {
+		t.Fatalf("Build() with blocked .omnidist error = nil, want error")
+	}
+	os.Remove(filepath.Join(dir, ".omnidist"))
+
+	// Case 2: MkdirAll failure for target dir
+	cfg.Targets = []config.Target{{OS: "linux", Arch: "amd64"}}
+	os.MkdirAll(".omnidist/dist/linux", 0755)
+	os.WriteFile(".omnidist/dist/linux/amd64", []byte("file"), 0644)
+	if err := Build(cfg); err == nil {
+		t.Fatalf("Build() with blocked target dir error = nil, want error")
+	}
+}
+
+func TestBuildWindowsTarget(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell script test")
+	}
+
+	dir := t.TempDir()
+	t.Chdir(dir)
+
+	binDir := filepath.Join(dir, "bin")
+	os.MkdirAll(binDir, 0755)
+	goPath := filepath.Join(binDir, "go")
+	script := `#!/bin/sh
+out=""
+prev=""
+for arg in "$@"; do
+  if [ "$prev" = "-o" ]; then
+    out="$arg"
+  fi
+  prev="$arg"
+done
+mkdir -p "$(dirname "$out")"
+printf "fake-binary" > "$out"
+`
+	os.WriteFile(goPath, []byte(script), 0755)
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	cfg := config.DefaultConfig()
+	cfg.Tool.Name = "omnitest"
+	cfg.Targets = []config.Target{{OS: "windows", Arch: "amd64"}}
+
+	if err := Build(cfg); err != nil {
+		t.Fatalf("Build(windows) error = %v", err)
+	}
+
+	if _, err := os.Stat(".omnidist/dist/windows/amd64/omnitest.exe"); err != nil {
+		t.Fatalf("built artifact missing: %v", err)
+	}
+}
+
+func TestBuildCGO(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell script test")
+	}
+
+	dir := t.TempDir()
+	t.Chdir(dir)
+
+	binDir := filepath.Join(dir, "bin")
+	os.MkdirAll(binDir, 0755)
+	goPath := filepath.Join(binDir, "go")
+	script := `#!/bin/sh
+if [ "$CGO_ENABLED" != "1" ]; then
+  echo "CGO_ENABLED not 1" >&2
+  exit 1
+fi
+out=""
+prev=""
+for arg in "$@"; do
+  if [ "$prev" = "-o" ]; then
+    out="$arg"
+  fi
+  prev="$arg"
+done
+mkdir -p "$(dirname "$out")"
+printf "fake-binary" > "$out"
+`
+	os.WriteFile(goPath, []byte(script), 0755)
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	cfg := config.DefaultConfig()
+	cfg.Build.CGO = true
+	cfg.Targets = []config.Target{{OS: "linux", Arch: "amd64"}}
+
+	if err := Build(cfg); err != nil {
+		t.Fatalf("Build(cgo) error = %v", err)
+	}
+}

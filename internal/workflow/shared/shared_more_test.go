@@ -106,6 +106,18 @@ func TestResolveVersionGitTag(t *testing.T) {
 	}
 }
 
+func TestResolveReleaseVersionGitTagRejectsNonSemverTag(t *testing.T) {
+	repo := initGitRepoWithCommit(t)
+	t.Chdir(repo)
+	runGit(t, repo, "tag", "release-1")
+
+	cfg := &config.Config{Version: config.VersionConfig{Source: "git-tag"}}
+	_, err := ResolveReleaseVersion(cfg)
+	if err == nil || !strings.Contains(err.Error(), "not exact semver") {
+		t.Fatalf("ResolveReleaseVersion(non-semver-tag) error = %v, want semver validation error", err)
+	}
+}
+
 func TestResolveVersionGitTagDevRejectsNonSemverTag(t *testing.T) {
 	repo := initGitRepoWithCommit(t)
 	t.Chdir(repo)
@@ -115,6 +127,34 @@ func TestResolveVersionGitTagDevRejectsNonSemverTag(t *testing.T) {
 	_, err := ResolveVersion(cfg, true)
 	if err == nil || !strings.Contains(err.Error(), "not exact semver") {
 		t.Fatalf("ResolveVersion(dev, non-semver-tag) error = %v, want semver validation error", err)
+	}
+}
+
+func TestResolveVersionGitTagDevNoTags(t *testing.T) {
+	repo := initGitRepoWithCommit(t)
+	t.Chdir(repo)
+	// No tags
+
+	cfg := &config.Config{Version: config.VersionConfig{Source: "git-tag"}}
+	dev, err := ResolveVersion(cfg, true)
+	if err != nil {
+		t.Fatalf("ResolveVersion(dev, no tags) error = %v", err)
+	}
+	// Should return just the hash (at least 7 chars)
+	if len(dev) < 7 {
+		t.Fatalf("ResolveVersion(dev, no tags) = %q, want git hash", dev)
+	}
+}
+
+func TestResolveVersionGitTagNoRepo(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Chdir(tmpDir)
+	// Not a git repo
+
+	cfg := &config.Config{Version: config.VersionConfig{Source: "git-tag"}}
+	_, err := ResolveVersion(cfg, false)
+	if err == nil {
+		t.Fatalf("ResolveVersion(git-tag, no repo) error = nil, want error")
 	}
 }
 
@@ -150,6 +190,14 @@ func TestResolveReleaseVersionGitTag(t *testing.T) {
 			t.Fatalf("ResolveReleaseVersion() error = %v, want exact tag error", err)
 		}
 	})
+}
+
+func TestResolveReleaseVersionUnknownSource(t *testing.T) {
+	cfg := &config.Config{Version: config.VersionConfig{Source: "unknown"}}
+	_, err := ResolveReleaseVersion(cfg)
+	if err == nil || !strings.Contains(err.Error(), "unknown version source") {
+		t.Fatalf("ResolveReleaseVersion(unknown) error = %v, want unknown source error", err)
+	}
 }
 
 func initGitRepoWithCommit(t *testing.T) string {

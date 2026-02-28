@@ -18,6 +18,7 @@ func TestToPEP440(t *testing.T) {
 		wantErr bool
 	}{
 		{name: "release", input: "1.2.3", want: "1.2.3"},
+		{name: "distance_zero", input: "1.2.3-0-gabc123", want: "1.2.3.dev0"},
 		{name: "dev", input: "1.2.3-dev.5.gabc123", want: "1.2.3.dev5"},
 		{name: "git_describe", input: "1.2.3-5-gabc123", want: "1.2.3.dev5"},
 		{name: "invalid", input: "1.2.3-rc1", wantErr: true},
@@ -53,8 +54,10 @@ func TestWheelPlatformTag(t *testing.T) {
 	}{
 		{name: "linux_amd64", target: config.Target{OS: "linux", Arch: "amd64"}, policy: "manylinux2014", want: "manylinux2014_x86_64"},
 		{name: "linux_arm64", target: config.Target{OS: "linux", Arch: "arm64"}, policy: "manylinux2014", want: "manylinux2014_aarch64"},
+		{name: "darwin_amd64", target: config.Target{OS: "darwin", Arch: "amd64"}, policy: "manylinux2014", want: "macosx_10_13_x86_64"},
 		{name: "darwin_arm64", target: config.Target{OS: "darwin", Arch: "arm64"}, policy: "manylinux2014", want: "macosx_11_0_arm64"},
 		{name: "windows_amd64", target: config.Target{OS: "windows", Arch: "amd64"}, policy: "manylinux2014", want: "win_amd64"},
+		{name: "windows_arm64", target: config.Target{OS: "windows", Arch: "arm64"}, policy: "manylinux2014", want: "win_arm64"},
 		{name: "invalid", target: config.Target{OS: "linux", Arch: "386"}, policy: "manylinux2014", wantErr: true},
 	}
 

@@ -180,3 +180,70 @@ func TestWriteGitHubReleaseWorkflowExistingWithForce(t *testing.T) {
 		t.Fatalf("workflow content = %q, want %q", string(data), "name: new\n")
 	}
 }
+
+func TestShellQuote(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{input: "", want: "''"},
+		{input: "simple", want: "'simple'"},
+		{input: "don't", want: "'don'\"'\"'t'"},
+	}
+
+	for _, tc := range tests {
+		got := shellQuote(tc.input)
+		if got != tc.want {
+			t.Fatalf("shellQuote(%q) = %q, want %q", tc.input, got, tc.want)
+		}
+	}
+}
+
+func TestWriteGitHubReleaseWorkflowErrors(t *testing.T) {
+	t.Parallel()
+
+	t.Run("empty_path", func(t *testing.T) {
+		err := WriteGitHubReleaseWorkflow("  ", "content", false)
+		if err == nil || !strings.Contains(err.Error(), "workflow path is empty") {
+			t.Fatalf("WriteGitHubReleaseWorkflow(empty path) error = %v", err)
+		}
+	})
+
+	t.Run("empty_content", func(t *testing.T) {
+		err := WriteGitHubReleaseWorkflow("path", "  ", false)
+		if err == nil || !strings.Contains(err.Error(), "workflow content is empty") {
+			t.Fatalf("WriteGitHubReleaseWorkflow(empty content) error = %v", err)
+		}
+	})
+
+	t.Run("mkdir_fail", func(t *testing.T) {
+		dir := t.TempDir()
+		// Create a file where a directory should be
+		path := filepath.Join(dir, "file")
+		if err := os.WriteFile(path, []byte("file"), 0644); err != nil {
+			t.Fatalf("os.WriteFile() error = %v", err)
+		}
+		workflowPath := filepath.Join(path, "workflow.yml")
+
+		err := WriteGitHubReleaseWorkflow(workflowPath, "name: test\n", true)
+		if err == nil || !strings.Contains(err.Error(), "create workflow directory") {
+			t.Fatalf("WriteGitHubReleaseWorkflow(mkdir fail) error = %v", err)
+		}
+	})
+
+	t.Run("write_fail", func(t *testing.T) {
+		dir := t.TempDir()
+		// Create a directory where the file should be
+		path := filepath.Join(dir, "workflow.yml")
+		if err := os.MkdirAll(path, 0755); err != nil {
+			t.Fatalf("os.MkdirAll() error = %v", err)
+		}
+
+		err := WriteGitHubReleaseWorkflow(path, "name: test\n", true)
+		if err == nil || !strings.Contains(err.Error(), "write workflow file") {
+			t.Fatalf("WriteGitHubReleaseWorkflow(write fail) error = %v", err)
+		}
+	})
+}
