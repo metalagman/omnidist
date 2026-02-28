@@ -123,6 +123,7 @@ func TestPublishErrors(t *testing.T) {
 	t.Run("working_dir_fail", func(t *testing.T) {
 		dir := t.TempDir()
 		t.Chdir(dir)
+		t.Setenv("NPM_PUBLISH_TOKEN", "dummy")
 		t.Setenv(shared.EnvVersionName, "1.2.3")
 		if err := shared.WriteBuildVersion("1.2.3"); err != nil {
 			t.Fatalf("shared.WriteBuildVersion() error = %v", err)
