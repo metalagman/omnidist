@@ -1,0 +1,25 @@
+version: "3"
+
+tasks:
+  test:
+    desc: Run Go tests
+    env:
+      GOCACHE: "{{.TASKFILE_DIR}}/.cache/go-build"
+    cmds:
+      - mkdir -p "$GOCACHE"
+      - go test -v -race ./...
+
+  lint:
+    desc: Run golangci-lint checks
+    env:
+      GOCACHE: "{{.TASKFILE_DIR}}/.cache/go-build"
+      GOLANGCI_LINT_CACHE: "{{.TASKFILE_DIR}}/.cache/golangci-lint"
+    cmds:
+      - mkdir -p "$GOCACHE" "$GOLANGCI_LINT_CACHE"
+      - if command -v golangci-lint >/dev/null 2>&1; then golangci-lint run; else go tool golangci-lint run; fi
+
+  clean:
+    desc: Remove local build and lint artifacts
+    cmds:
+      - rm -rf .cache
+      - rm -f coverage.out omnidist

@@ -8,6 +8,9 @@
 # Test coverage
 *.out
 
+# Local tool caches
+.cache/
+
 # IDE
 .idea/
 .vscode/
