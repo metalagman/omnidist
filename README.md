@@ -81,7 +81,15 @@ This creates:
 - `.omnidist/` workspace directories
 - `.omnidist/.gitignore` for generated artifacts
 
-3. Build binaries for configured targets:
+3. Edit config and set environment variables (optional):
+
+```bash
+$EDITOR .omnidist/omnidist.yaml
+```
+
+`omnidist` loads `.env` automatically when present, so you can keep values like `OMNIDIST_VERSION`, `NPM_PUBLISH_TOKEN`, and `UV_PUBLISH_TOKEN` there.
+
+4. Build binaries for configured targets:
 
 ```bash
 omnidist build
@@ -89,7 +97,7 @@ omnidist build
 
 This also writes the resolved build version to `.omnidist/dist/VERSION`.
 
-4. Stage and verify artifacts:
+5. Stage and verify artifacts:
 
 ```bash
 omnidist stage
@@ -100,13 +108,13 @@ omnidist verify
 `.omnidist/uv/pyproject.toml` with that version.
 It also recreates `.omnidist/uv/dist` to prevent stale wheel artifacts from previous runs.
 
-5. Publish when verification passes:
+6. Publish when verification passes:
 
 ```bash
 omnidist publish
 ```
 
-6. Generate tag-triggered release workflow:
+7. Generate tag-triggered release workflow:
 
 ```bash
 omnidist ci

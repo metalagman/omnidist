@@ -16,8 +16,15 @@ var initCmd = &cobra.Command{
 			return fmt.Errorf("initialize project: %w", err)
 		}
 
-		fmt.Printf("Created %s\n", paths.ConfigPath)
-		fmt.Printf("Created %s workspace and %s/.gitignore\n", paths.WorkspaceDir, paths.WorkspaceDir)
+		out := cmd.OutOrStdout()
+		fmt.Fprintf(out, "Created %s\n", paths.ConfigPath)
+		fmt.Fprintf(out, "Created %s workspace and %s/.gitignore\n\n", paths.WorkspaceDir, paths.WorkspaceDir)
+		fmt.Fprintln(out, "Next steps:")
+		fmt.Fprintf(out, "1. Edit %s\n", paths.ConfigPath)
+		fmt.Fprintln(out, "2. Set environment variables in .env (loaded automatically by omnidist)")
+		fmt.Fprintln(out, "3. omnidist build")
+		fmt.Fprintln(out, "4. omnidist stage")
+		fmt.Fprintln(out, "5. omnidist publish")
 		return nil
 	},
 }
