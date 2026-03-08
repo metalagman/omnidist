@@ -38,14 +38,19 @@ func TestCICommandCreatesWorkflow(t *testing.T) {
 		`prepare:`,
 		`publish_npm:`,
 		`publish_uv:`,
+		`release:`,
 		`needs: prepare`,
 		`run: npm install -g '@omnidist/omnidist@`,
 		`run: omnidist build`,
 		`run: omnidist stage`,
 		`run: omnidist verify`,
 		`run: tar -czf omnidist-staged.tgz .omnidist`,
+		`path: .omnidist/dist/**/*`,
+		`if-no-files-found: error`,
 		`run: omnidist npm publish`,
 		`run: omnidist uv publish`,
+		`sha256sum * > checksums.txt`,
+		`uses: softprops/action-gh-release@v2`,
 	} {
 		if !strings.Contains(content, want) {
 			t.Fatalf("workflow missing %q: %s", want, content)

@@ -83,6 +83,12 @@ jobs:
         with:
           name: omnidist-staged
           path: omnidist-staged.tgz
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: .omnidist/dist/**/*
+          if-no-files-found: error
 
   publish_npm:
     needs: prepare
@@ -126,6 +132,48 @@ jobs:
         run: tar -xzf omnidist-staged.tgz
       - name: Publish uv artifacts
         run: omnidist uv publish
+
+  release:
+    needs: prepare
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: .omnidist/dist
+          merge-multiple: true
+      - name: Prepare release assets
+        run: |
+          mkdir -p release-assets
+          while IFS= read -r -d '' f; do
+            rel="${f#.omnidist/dist/}"
+            os="${rel%%%%/*}"
+            rem="${rel#*/}"
+            arch="${rem%%%%/*}"
+            name="${rel##*/}"
+            ext=""
+            base="$name"
+            if [[ "$name" == *.exe ]]; then
+              ext=".exe"
+              base="${name%%.exe}"
+            fi
+            cp "$f" "release-assets/${base}-${os}-${arch}${ext}"
+          done < <(find .omnidist/dist -type f ! -name VERSION -print0 | sort -z)
+      - name: Generate checksums
+        run: |
+          cd release-assets
+          sha256sum * > checksums.txt
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release-assets/*
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 `, installCmd, installCmd, installCmd)
 
 	return content, nil

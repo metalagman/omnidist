@@ -120,6 +120,9 @@ omnidist publish
 omnidist ci
 ```
 
+The generated workflow publishes npm and uv artifacts and also creates a GitHub
+release with the built cross-platform binaries plus `checksums.txt`.
+
 ## Common Commands
 
 ```bash
@@ -299,7 +302,8 @@ omnidist ci
 ```
 
 The generated workflow triggers on `v*` tag pushes and runs:
-`build -> stage -> verify -> publish`.
+`build -> stage -> verify -> publish`, then publishes the built binaries and
+checksums to the GitHub release.
 
 If workflow already exists:
 
