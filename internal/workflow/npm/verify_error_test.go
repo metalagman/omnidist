@@ -179,6 +179,38 @@ func TestVerifyErrors(t *testing.T) {
 		assertContainsError(t, result.Errors, "Scripts.postinstall found in meta package")
 	})
 
+	t.Run("configured_license_mismatch", func(t *testing.T) {
+		dir := t.TempDir()
+		t.Chdir(dir)
+		t.Setenv(shared.EnvVersionName, "1.0.0")
+		cfg := testConfig()
+		npmDist := cfg.Distributions["npm"]
+		npmDist.License = "MIT"
+		cfg.Distributions["npm"] = npmDist
+		createDistArtifacts(cfg)
+		shared.WriteBuildVersion("1.0.0")
+		Stage(cfg, StageOptions{})
+
+		metaDir := filepath.Join(paths.NPMDir, cfg.Distributions["npm"].Package)
+		metaJSON, _ := readPackageJSON(metaDir)
+		metaJSON["license"] = "Apache-2.0"
+		writePackageJSON(metaDir, metaJSON)
+
+		target := cfg.Targets[0]
+		pkgName := platformPackageName(cfg.Distributions["npm"].Package, target)
+		pkgDir := filepath.Join(paths.NPMDir, pkgName)
+		pkgJSON, _ := readPackageJSON(pkgDir)
+		pkgJSON["license"] = "Apache-2.0"
+		writePackageJSON(pkgDir, pkgJSON)
+
+		result := Verify(cfg)
+		if result.Valid {
+			t.Fatalf("Verify() = valid, want invalid")
+		}
+		assertContainsError(t, result.Errors, "Meta package license mismatch")
+		assertContainsError(t, result.Errors, fmt.Sprintf("license mismatch in %s", pkgName))
+	})
+
 	t.Run("meta_missing_optionalDependencies", func(t *testing.T) {
 		dir := t.TempDir()
 		t.Chdir(dir)

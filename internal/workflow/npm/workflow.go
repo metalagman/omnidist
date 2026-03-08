@@ -378,6 +378,16 @@ func readOptionalProjectLicense() (string, []byte, bool, error) {
 	return "", nil, false, nil
 }
 
+func packageLicenseValue(dist config.DistributionConfig, licenseName string, licenseIncluded bool) (string, bool) {
+	if license := dist.LicenseValue(); license != "" {
+		return license, true
+	}
+	if licenseIncluded {
+		return "SEE LICENSE IN " + licenseName, true
+	}
+	return "", false
+}
+
 func readPackageJSON(dir string) (map[string]interface{}, error) {
 	data, err := os.ReadFile(filepath.Join(dir, "package.json"))
 	if err != nil {
@@ -443,8 +453,8 @@ func stagePlatformPackage(cfg *config.Config, npmDist config.DistributionConfig,
 		},
 		"files": files,
 	}
-	if licenseIncluded {
-		pkgJSON["license"] = "SEE LICENSE IN " + licenseName
+	if license, ok := packageLicenseValue(npmDist, licenseName, licenseIncluded); ok {
+		pkgJSON["license"] = license
 	}
 
 	return writePackageJSON(pkgDir, pkgJSON)
@@ -486,8 +496,8 @@ func stageMetaPackage(cfg *config.Config, npmDist config.DistributionConfig, ver
 		"engines":              map[string]string{"node": ">=16"},
 		"files":                files,
 	}
-	if licenseIncluded {
-		pkgJSON["license"] = "SEE LICENSE IN " + licenseName
+	if license, ok := packageLicenseValue(npmDist, licenseName, licenseIncluded); ok {
+		pkgJSON["license"] = license
 	}
 
 	if err := writePackageJSON(metaDir, pkgJSON); err != nil {
@@ -553,6 +563,13 @@ func verifyPlatformPackages(cfg *config.Config, npmDist config.DistributionConfi
 				result.Valid = false
 			}
 		}
+
+		if expectedLicense := npmDist.LicenseValue(); expectedLicense != "" {
+			if pkgJSON["license"] != expectedLicense {
+				result.Errors = append(result.Errors, fmt.Sprintf("license mismatch in %s: got %v, expected %s", pkgName, pkgJSON["license"], expectedLicense))
+				result.Valid = false
+			}
+		}
 	}
 
 	return nil
@@ -576,6 +593,13 @@ func verifyMetaPackage(cfg *config.Config, npmDist config.DistributionConfig, ve
 	if scripts, ok := pkgJSON["scripts"].(map[string]interface{}); ok {
 		if _, hasPostinstall := scripts["postinstall"]; hasPostinstall {
 			result.Errors = append(result.Errors, "Scripts.postinstall found in meta package (not allowed)")
+			result.Valid = false
+		}
+	}
+
+	if expectedLicense := npmDist.LicenseValue(); expectedLicense != "" {
+		if pkgJSON["license"] != expectedLicense {
+			result.Errors = append(result.Errors, fmt.Sprintf("Meta package license mismatch: got %v, expected %s", pkgJSON["license"], expectedLicense))
 			result.Valid = false
 		}
 	}

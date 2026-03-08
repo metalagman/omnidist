@@ -41,6 +41,7 @@ type DistributionConfig struct {
 	Package       string `yaml:"package"`
 	Registry      string `yaml:"registry,omitempty"`
 	Access        string `yaml:"access,omitempty"`
+	License       string `yaml:"license,omitempty"`
 	IndexURL      string `yaml:"index-url,omitempty"`
 	LinuxTag      string `yaml:"linux-tag,omitempty"`
 	IncludeREADME *bool  `yaml:"include-readme,omitempty"`
@@ -52,6 +53,11 @@ func (d DistributionConfig) IncludeREADMEEnabled() bool {
 		return true
 	}
 	return *d.IncludeREADME
+}
+
+// LicenseValue reports the configured package license value after trimming whitespace.
+func (d DistributionConfig) LicenseValue() string {
+	return strings.TrimSpace(d.License)
 }
 
 // MapGoArchToNPM converts a Go GOARCH value to the corresponding npm cpu value.
@@ -153,6 +159,7 @@ func applyDistributionDefaults(cfg *Config) {
 	npmDist.Package = strings.TrimSpace(npmDist.Package)
 	npmDist.Registry = strings.TrimSpace(npmDist.Registry)
 	npmDist.Access = strings.TrimSpace(npmDist.Access)
+	npmDist.License = npmDist.LicenseValue()
 	if npmDist.Registry == "" {
 		npmDist.Registry = "https://registry.npmjs.org"
 	}

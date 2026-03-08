@@ -911,6 +911,75 @@ func TestStageIncludesProjectLicenseAndMetadata(t *testing.T) {
 	assertNPMPackageLicenseEquals(t, pkgDir, "SEE LICENSE IN LICENSE.md")
 }
 
+func TestStageUsesConfiguredLicenseOverride(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	t.Setenv(shared.EnvVersionName, "1.2.3")
+
+	cfg := testConfig()
+	npmDist := cfg.Distributions["npm"]
+	npmDist.License = "MIT"
+	cfg.Distributions["npm"] = npmDist
+	if err := createDistArtifacts(cfg); err != nil {
+		t.Fatalf("createDistArtifacts() error = %v", err)
+	}
+	if err := os.WriteFile("LICENSE.md", []byte("license text"), 0644); err != nil {
+		t.Fatalf("os.WriteFile(LICENSE.md) error = %v", err)
+	}
+	if err := shared.WriteBuildVersion("1.2.3"); err != nil {
+		t.Fatalf("shared.WriteBuildVersion() error = %v", err)
+	}
+
+	if err := Stage(cfg, StageOptions{}); err != nil {
+		t.Fatalf("Stage() error = %v", err)
+	}
+
+	metaDir := filepath.Join(paths.NPMDir, cfg.Distributions["npm"].Package)
+	if _, err := os.Stat(filepath.Join(metaDir, "LICENSE.md")); err != nil {
+		t.Fatalf("meta license missing: %v", err)
+	}
+	assertNPMPackageFilesContains(t, metaDir, "LICENSE.md")
+	assertNPMPackageLicenseEquals(t, metaDir, "MIT")
+
+	target := cfg.Targets[0]
+	pkgName := platformPackageName(cfg.Distributions["npm"].Package, target)
+	pkgDir := filepath.Join(paths.NPMDir, pkgName)
+	if _, err := os.Stat(filepath.Join(pkgDir, "LICENSE.md")); err != nil {
+		t.Fatalf("platform license missing: %v", err)
+	}
+	assertNPMPackageFilesContains(t, pkgDir, "LICENSE.md")
+	assertNPMPackageLicenseEquals(t, pkgDir, "MIT")
+}
+
+func TestStageUsesConfiguredLicenseWithoutProjectLicenseFile(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	t.Setenv(shared.EnvVersionName, "1.2.3")
+
+	cfg := testConfig()
+	npmDist := cfg.Distributions["npm"]
+	npmDist.License = "Apache-2.0"
+	cfg.Distributions["npm"] = npmDist
+	if err := createDistArtifacts(cfg); err != nil {
+		t.Fatalf("createDistArtifacts() error = %v", err)
+	}
+	if err := shared.WriteBuildVersion("1.2.3"); err != nil {
+		t.Fatalf("shared.WriteBuildVersion() error = %v", err)
+	}
+
+	if err := Stage(cfg, StageOptions{}); err != nil {
+		t.Fatalf("Stage() error = %v", err)
+	}
+
+	metaDir := filepath.Join(paths.NPMDir, cfg.Distributions["npm"].Package)
+	assertNPMPackageLicenseEquals(t, metaDir, "Apache-2.0")
+
+	target := cfg.Targets[0]
+	pkgName := platformPackageName(cfg.Distributions["npm"].Package, target)
+	pkgDir := filepath.Join(paths.NPMDir, pkgName)
+	assertNPMPackageLicenseEquals(t, pkgDir, "Apache-2.0")
+}
+
 func TestStagePrefersLicenseOverLicenseVariants(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)

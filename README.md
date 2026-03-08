@@ -209,6 +209,7 @@ distributions:
     package: "@omnidist/omnidist"
     registry: https://registry.npmjs.org
     access: public # public | restricted
+    license: MIT # optional override for package.json license; omit to use SEE LICENSE IN <file>
     include-readme: true # include project README.md in staged packages when present
 
   uv:

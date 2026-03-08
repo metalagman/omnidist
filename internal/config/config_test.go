@@ -19,6 +19,9 @@ func TestDefaultConfigIncludesUV(t *testing.T) {
 	if !npmDist.IncludeREADMEEnabled() {
 		t.Fatalf("npm include-readme default = false, want true")
 	}
+	if npmDist.License != "" {
+		t.Fatalf("npm license = %q, want empty default", npmDist.License)
+	}
 	uvDist, ok := cfg.Distributions["uv"]
 	if !ok {
 		t.Fatalf("DefaultConfig() missing uv distribution")
@@ -128,6 +131,45 @@ distributions:
 	}
 	if cfg.Distributions["uv"].IncludeREADMEEnabled() {
 		t.Fatalf("uv include-readme = true, want false")
+	}
+}
+
+func TestLoadTrimsNPMLicense(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, paths.ConfigPath)
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		t.Fatalf("os.MkdirAll() error = %v", err)
+	}
+
+	yaml := `tool:
+  name: omnidist
+  main: ./cmd/omnidist
+version:
+  source: env
+targets:
+  - os: linux
+    arch: amd64
+build:
+  ldflags: -s -w
+  tags: []
+  cgo: false
+distributions:
+  npm:
+    package: "@scope/tool"
+    license: "  Apache-2.0  "
+`
+
+	if err := os.WriteFile(path, []byte(yaml), 0644); err != nil {
+		t.Fatalf("os.WriteFile() error = %v", err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if got := cfg.Distributions["npm"].License; got != "Apache-2.0" {
+		t.Fatalf("npm license = %q, want %q", got, "Apache-2.0")
 	}
 }
 
