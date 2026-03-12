@@ -139,7 +139,8 @@ npm:
 
 version:
   source: git-tag  # git-tag | file | env | fixed
-  fixed-version: 1.2.3  # required when source is fixed
+  file: VERSION  # optional; used when source is file (default VERSION)
+  fixed: 1.2.3  # required when source is fixed
 
 targets:
   - os: darwin

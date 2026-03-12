@@ -9,6 +9,11 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+const (
+	// DefaultVersionFile is the default version file path when version.source is file.
+	DefaultVersionFile = "VERSION"
+)
+
 // Config is the root omnidist configuration loaded from omnidist.yaml.
 type Config struct {
 	Tool          ToolConfig                    `yaml:"tool"`
@@ -26,8 +31,9 @@ type ToolConfig struct {
 
 // VersionConfig defines where omnidist resolves the release version from.
 type VersionConfig struct {
-	Source       string `yaml:"source"`
-	FixedVersion string `yaml:"fixed-version,omitempty"`
+	Source string `yaml:"source"`
+	File   string `yaml:"file,omitempty"`
+	Fixed  string `yaml:"fixed,omitempty"`
 }
 
 // Target describes a Go build target and optional packaging variant.
@@ -137,6 +143,9 @@ func Load(path string) (*Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("read config file %s: %w", path, err)
 	}
+	if hasLegacyFixedVersionKey(data) {
+		return nil, fmt.Errorf("version.fixed-version is no longer supported; use version.fixed")
+	}
 
 	var cfg Config
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
@@ -154,10 +163,36 @@ func Load(path string) (*Config, error) {
 
 func applyVersionDefaults(cfg *Config) {
 	cfg.Version.Source = strings.TrimSpace(cfg.Version.Source)
-	cfg.Version.FixedVersion = strings.TrimSpace(cfg.Version.FixedVersion)
+	cfg.Version.File = strings.TrimSpace(cfg.Version.File)
+	cfg.Version.Fixed = strings.TrimSpace(cfg.Version.Fixed)
 	if cfg.Version.Source == "" {
 		cfg.Version.Source = "git-tag"
 	}
+	if cfg.Version.Source == "file" && cfg.Version.File == "" {
+		cfg.Version.File = DefaultVersionFile
+	}
+}
+
+func hasLegacyFixedVersionKey(data []byte) bool {
+	var raw map[string]interface{}
+	if err := yaml.Unmarshal(data, &raw); err != nil {
+		return false
+	}
+	versionValue, ok := raw["version"]
+	if !ok {
+		return false
+	}
+	versionMap, ok := versionValue.(map[string]interface{})
+	if ok {
+		_, found := versionMap["fixed-version"]
+		return found
+	}
+	versionMapAny, ok := versionValue.(map[interface{}]interface{})
+	if !ok {
+		return false
+	}
+	_, found := versionMapAny["fixed-version"]
+	return found
 }
 
 func applyDistributionDefaults(cfg *Config) {
@@ -236,8 +271,8 @@ func validate(cfg *Config) error {
 	default:
 		return fmt.Errorf("invalid version.source %q: expected git-tag, file, env, or fixed", cfg.Version.Source)
 	}
-	if source == "fixed" && strings.TrimSpace(cfg.Version.FixedVersion) == "" {
-		return fmt.Errorf("version.fixed-version is required when version.source is %q", "fixed")
+	if source == "fixed" && strings.TrimSpace(cfg.Version.Fixed) == "" {
+		return fmt.Errorf("version.fixed is required when version.source is %q", "fixed")
 	}
 
 	if npmDist, ok := cfg.Distributions["npm"]; ok {

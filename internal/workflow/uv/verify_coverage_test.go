@@ -24,7 +24,7 @@ func TestVerifyCoverage(t *testing.T) {
 		if result.Valid {
 			t.Fatalf("Verify() = valid, want invalid due to missing version file")
 		}
-		assertContainsError(t, result.Errors, "read VERSION file")
+		assertContainsError(t, result.Errors, "read version file")
 	})
 
 	t.Run("validatePublishVersionPolicy_fails", func(t *testing.T) {
@@ -74,7 +74,7 @@ func TestVerifyCoverage(t *testing.T) {
 
 func TestWheelPathForTargetErrors(t *testing.T) {
 	uvDist := config.DistributionConfig{
-		Package: "pkg",
+		Package:  "pkg",
 		LinuxTag: "manylinux2014",
 	}
 	// Use an unsupported architecture to trigger an error in shared.WheelPlatformTag
@@ -89,19 +89,19 @@ func TestVerifyRecordEntriesZipError(t *testing.T) {
 	// This covers the error case in verifyWheel when reading from zip fails
 	// though it's hard to trigger via Verify() because it reads the whole map first.
 	// We can test verifyWheel directly if exported or just call it.
-	
+
 	dir := t.TempDir()
 	t.Chdir(dir)
 	cfg := testConfig()
 	uvDist, _ := uvDistribution(cfg)
 	target := cfg.Targets[0]
 	version := "1.0.0"
-	
+
 	// Create a zip that is valid but has a file that fails to read
 	// Wait, verifyWheel reads from a path.
 	wheelPath := filepath.Join(dir, "test.whl")
 	os.WriteFile(wheelPath, []byte("not-a-zip"), 0644)
-	
+
 	err := verifyWheel(cfg, uvDist, target, version, wheelPath)
 	if err == nil || !strings.Contains(err.Error(), "not a valid zip file") {
 		t.Fatalf("verifyWheel() with corrupt zip error = %v", err)

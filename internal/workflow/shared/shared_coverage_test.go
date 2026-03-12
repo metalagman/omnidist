@@ -2,6 +2,7 @@ package shared
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -35,7 +36,7 @@ func TestResolveVersionFileSource(t *testing.T) {
 
 		cfg := &config.Config{Version: config.VersionConfig{Source: "file"}}
 		_, err := ResolveVersion(cfg, false)
-		if err == nil || !strings.Contains(err.Error(), "read VERSION file") {
+		if err == nil || !strings.Contains(err.Error(), "read version file") {
 			t.Fatalf("ResolveVersion(file missing) error = %v, want missing file error", err)
 		}
 	})
@@ -54,13 +55,58 @@ func TestResolveVersionFileSource(t *testing.T) {
 			t.Fatalf("ResolveVersion(file empty) error = %v, want empty version error", err)
 		}
 	})
+
+	t.Run("custom_relative_path", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		t.Chdir(tmpDir)
+		if err := os.MkdirAll("versions", 0755); err != nil {
+			t.Fatalf("os.MkdirAll(versions) error = %v", err)
+		}
+		if err := os.WriteFile("versions/release.txt", []byte("3.4.5\n"), 0644); err != nil {
+			t.Fatalf("os.WriteFile(custom version file) error = %v", err)
+		}
+
+		cfg := &config.Config{Version: config.VersionConfig{
+			Source: "file",
+			File:   "versions/release.txt",
+		}}
+		got, err := ResolveVersion(cfg, false)
+		if err != nil {
+			t.Fatalf("ResolveVersion(file custom path) error = %v", err)
+		}
+		if got != "3.4.5" {
+			t.Fatalf("ResolveVersion(file custom path) = %q, want %q", got, "3.4.5")
+		}
+	})
+
+	t.Run("custom_absolute_path", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		t.Chdir(tmpDir)
+
+		absPath := filepath.Join(tmpDir, "version.txt")
+		if err := os.WriteFile(absPath, []byte("4.5.6"), 0644); err != nil {
+			t.Fatalf("os.WriteFile(absolute version file) error = %v", err)
+		}
+
+		cfg := &config.Config{Version: config.VersionConfig{
+			Source: "file",
+			File:   absPath,
+		}}
+		got, err := ResolveVersion(cfg, false)
+		if err != nil {
+			t.Fatalf("ResolveVersion(file absolute path) error = %v", err)
+		}
+		if got != "4.5.6" {
+			t.Fatalf("ResolveVersion(file absolute path) = %q, want %q", got, "4.5.6")
+		}
+	})
 }
 
 func TestResolveVersionFixedSource(t *testing.T) {
 	t.Run("valid", func(t *testing.T) {
 		cfg := &config.Config{Version: config.VersionConfig{
-			Source:       "fixed",
-			FixedVersion: " 1.2.3 ",
+			Source: "fixed",
+			Fixed:  " 1.2.3 ",
 		}}
 		got, err := ResolveVersion(cfg, false)
 		if err != nil {
@@ -73,8 +119,8 @@ func TestResolveVersionFixedSource(t *testing.T) {
 
 	t.Run("dev_passthrough", func(t *testing.T) {
 		cfg := &config.Config{Version: config.VersionConfig{
-			Source:       "fixed",
-			FixedVersion: "1.2.3",
+			Source: "fixed",
+			Fixed:  "1.2.3",
 		}}
 		got, err := ResolveVersion(cfg, true)
 		if err != nil {
@@ -87,8 +133,8 @@ func TestResolveVersionFixedSource(t *testing.T) {
 
 	t.Run("empty", func(t *testing.T) {
 		cfg := &config.Config{Version: config.VersionConfig{
-			Source:       "fixed",
-			FixedVersion: " ",
+			Source: "fixed",
+			Fixed:  " ",
 		}}
 		_, err := ResolveVersion(cfg, false)
 		if err == nil || !strings.Contains(err.Error(), "empty version from source") {
@@ -138,7 +184,7 @@ func TestResolveReleaseVersionFileSource(t *testing.T) {
 
 		cfg := &config.Config{Version: config.VersionConfig{Source: "file"}}
 		_, err := ResolveReleaseVersion(cfg)
-		if err == nil || !strings.Contains(err.Error(), "read VERSION file") {
+		if err == nil || !strings.Contains(err.Error(), "read version file") {
 			t.Fatalf("ResolveReleaseVersion(file missing) error = %v, want missing file error", err)
 		}
 	})

@@ -21,7 +21,7 @@ func TestVerifyErrors(t *testing.T) {
 		if result.Valid {
 			t.Fatalf("Verify() = valid, want invalid")
 		}
-		assertContainsError(t, result.Errors, "read VERSION file")
+		assertContainsError(t, result.Errors, "read version file")
 	})
 
 	t.Run("platform_missing_package_json", func(t *testing.T) {

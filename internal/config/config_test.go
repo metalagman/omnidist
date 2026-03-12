@@ -185,7 +185,7 @@ func TestLoadSupportsFixedVersionSource(t *testing.T) {
   main: ./cmd/omnidist
 version:
   source: fixed
-  fixed-version: " 1.2.3 "
+  fixed: " 1.2.3 "
 targets:
   - os: linux
     arch: amd64
@@ -207,12 +207,81 @@ build:
 	if got := cfg.Version.Source; got != "fixed" {
 		t.Fatalf("version.source = %q, want %q", got, "fixed")
 	}
-	if got := cfg.Version.FixedVersion; got != "1.2.3" {
-		t.Fatalf("version.fixed-version = %q, want %q", got, "1.2.3")
+	if got := cfg.Version.Fixed; got != "1.2.3" {
+		t.Fatalf("version.fixed = %q, want %q", got, "1.2.3")
 	}
 }
 
-func TestLoadRejectsFixedVersionSourceWithoutVersion(t *testing.T) {
+func TestLoadAppliesDefaultVersionFileForFileSource(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, paths.ConfigPath)
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		t.Fatalf("os.MkdirAll() error = %v", err)
+	}
+
+	yaml := `tool:
+  name: omnidist
+  main: ./cmd/omnidist
+version:
+  source: file
+targets:
+  - os: linux
+    arch: amd64
+build:
+  ldflags: -s -w
+  tags: []
+  cgo: false
+`
+
+	if err := os.WriteFile(path, []byte(yaml), 0644); err != nil {
+		t.Fatalf("os.WriteFile() error = %v", err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if got := cfg.Version.File; got != DefaultVersionFile {
+		t.Fatalf("version.file = %q, want %q", got, DefaultVersionFile)
+	}
+}
+
+func TestLoadPreservesExplicitVersionFilePath(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, paths.ConfigPath)
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		t.Fatalf("os.MkdirAll() error = %v", err)
+	}
+
+	yaml := `tool:
+  name: omnidist
+  main: ./cmd/omnidist
+version:
+  source: file
+  file: "  versions/release.txt "
+targets:
+  - os: linux
+    arch: amd64
+build:
+  ldflags: -s -w
+  tags: []
+  cgo: false
+`
+
+	if err := os.WriteFile(path, []byte(yaml), 0644); err != nil {
+		t.Fatalf("os.WriteFile() error = %v", err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if got := cfg.Version.File; got != "versions/release.txt" {
+		t.Fatalf("version.file = %q, want %q", got, "versions/release.txt")
+	}
+}
+
+func TestLoadRejectsFixedVersionSourceWithoutValue(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, paths.ConfigPath)
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
@@ -241,8 +310,43 @@ build:
 	if err == nil {
 		t.Fatalf("Load() error = nil, want fixed version validation error")
 	}
-	if !strings.Contains(err.Error(), "version.fixed-version is required") {
+	if !strings.Contains(err.Error(), "version.fixed is required") {
 		t.Fatalf("Load() error = %v, want fixed version validation error", err)
+	}
+}
+
+func TestLoadRejectsLegacyFixedVersionKey(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, paths.ConfigPath)
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		t.Fatalf("os.MkdirAll() error = %v", err)
+	}
+
+	yaml := `tool:
+  name: omnidist
+  main: ./cmd/omnidist
+version:
+  source: fixed
+  fixed-version: "1.2.3"
+targets:
+  - os: linux
+    arch: amd64
+build:
+  ldflags: -s -w
+  tags: []
+  cgo: false
+`
+
+	if err := os.WriteFile(path, []byte(yaml), 0644); err != nil {
+		t.Fatalf("os.WriteFile() error = %v", err)
+	}
+
+	_, err := Load(path)
+	if err == nil {
+		t.Fatalf("Load() error = nil, want legacy key migration error")
+	}
+	if !strings.Contains(err.Error(), "version.fixed-version is no longer supported") {
+		t.Fatalf("Load() error = %v, want legacy key migration error", err)
 	}
 }
 
@@ -430,15 +534,22 @@ func TestValidate(t *testing.T) {
 				Version: VersionConfig{Source: "fixed"},
 				Targets: []Target{{OS: "linux", Arch: "amd64"}},
 			},
-			wantErr: "version.fixed-version is required",
+			wantErr: "version.fixed is required",
 		},
 		{
 			name: "fixed version source with fixed-version",
 			cfg: &Config{
 				Version: VersionConfig{
-					Source:       "fixed",
-					FixedVersion: "1.2.3",
+					Source: "fixed",
+					Fixed:  "1.2.3",
 				},
+				Targets: []Target{{OS: "linux", Arch: "amd64"}},
+			},
+		},
+		{
+			name: "file version source without file path uses default",
+			cfg: &Config{
+				Version: VersionConfig{Source: "file"},
 				Targets: []Target{{OS: "linux", Arch: "amd64"}},
 			},
 		},

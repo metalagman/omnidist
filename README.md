@@ -189,7 +189,8 @@ tool:
 
 version:
   source: git-tag # git-tag | file | env | fixed
-  fixed-version: 1.2.3 # required when source is fixed
+  file: VERSION # optional; used when source is file (default VERSION)
+  fixed: 1.2.3 # required when source is fixed
 
 targets:
   - os: darwin
@@ -236,7 +237,11 @@ With `version.source: git-tag`, release workflows require `HEAD` to be on an exa
 
 With `version.source: file`, omnidist reads `./VERSION` from the repository root.
 
-With `version.source: fixed`, set `version.fixed-version` to an exact value in config (for example `1.2.3`).
+With `version.source: file`, you can override the path via `version.file` (for example `versions/release.txt`).
+
+With `version.source: fixed`, set `version.fixed` to an exact value in config (for example `1.2.3`).
+
+Use global `--omnidist-root <path>` to set the project root for a command. Omnidist resolves it to an absolute path at startup and changes working directory to it before loading `.env` and config.
 
 ## Command Reference
 

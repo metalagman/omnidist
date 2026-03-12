@@ -129,16 +129,16 @@ func TestResolveReleaseVersion(t *testing.T) {
 		{
 			name: "fixed_exact_semver",
 			cfg: &config.Config{Version: config.VersionConfig{
-				Source:       "fixed",
-				FixedVersion: "1.2.3",
+				Source: "fixed",
+				Fixed:  "1.2.3",
 			}},
 			want: "1.2.3",
 		},
 		{
 			name: "fixed_non_semver",
 			cfg: &config.Config{Version: config.VersionConfig{
-				Source:       "fixed",
-				FixedVersion: "1.2.3-dev.1.gabc123",
+				Source: "fixed",
+				Fixed:  "1.2.3-dev.1.gabc123",
 			}},
 			wantErr: true,
 		},

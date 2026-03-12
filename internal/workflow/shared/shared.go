@@ -76,15 +76,19 @@ func resolveConfiguredVersion(cfg *config.Config, dev bool, release bool) (strin
 		}
 		version = v
 	case "file":
-		data, err := os.ReadFile("VERSION")
+		versionPath := strings.TrimSpace(cfg.Version.File)
+		if versionPath == "" {
+			versionPath = config.DefaultVersionFile
+		}
+		data, err := os.ReadFile(versionPath)
 		if err != nil {
-			return "", fmt.Errorf("read VERSION file %s: %w", "VERSION", err)
+			return "", fmt.Errorf("read version file %s: %w", versionPath, err)
 		}
 		version = string(data)
 	case "env":
 		version = os.Getenv(EnvVersionName)
 	case "fixed":
-		version = cfg.Version.FixedVersion
+		version = cfg.Version.Fixed
 	default:
 		return "", fmt.Errorf("unknown version source %q", source)
 	}

@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -139,7 +141,66 @@ func TestGlobalConfigFlag(t *testing.T) {
 	}
 }
 
+func TestGlobalOmnidistRootFlagUsesRootAsWorkingDirectory(t *testing.T) {
+	projectDir := t.TempDir()
+	t.Chdir(projectDir)
+	if err := config.Save(config.DefaultConfig(), ".omnidist/omnidist.yaml"); err != nil {
+		t.Fatalf("config.Save() error = %v", err)
+	}
+
+	startDir := t.TempDir()
+	t.Chdir(startDir)
+
+	output, err := executeCommand("quickstart", "--omnidist-root", projectDir)
+	if err != nil {
+		t.Fatalf("executeCommand(quickstart --omnidist-root) error = %v, output=%s", err, output)
+	}
+	if !strings.Contains(output, "Config: .omnidist/omnidist.yaml") {
+		t.Fatalf("quickstart output missing root-resolved config path: %s", output)
+	}
+}
+
+func TestGlobalOmnidistRootWithRelativeConfigPath(t *testing.T) {
+	projectDir := t.TempDir()
+	customConfig := filepath.Join(projectDir, "configs", "custom.yaml")
+	if err := config.Save(config.DefaultConfig(), customConfig); err != nil {
+		t.Fatalf("config.Save(%q) error = %v", customConfig, err)
+	}
+
+	startDir := t.TempDir()
+	t.Chdir(startDir)
+
+	output, err := executeCommand("ci", "--omnidist-root", projectDir, "--config", "configs/custom.yaml", "--dry-run")
+	if err != nil {
+		t.Fatalf("executeCommand(ci --omnidist-root --config --dry-run) error = %v, output=%s", err, output)
+	}
+	if !strings.Contains(output, "name: omnidist-release") {
+		t.Fatalf("workflow output missing expected content: %s", output)
+	}
+}
+
+func TestGlobalOmnidistRootFlagInvalidPath(t *testing.T) {
+	output, err := executeCommand("quickstart", "--omnidist-root", filepath.Join(t.TempDir(), "missing-root"))
+	if err == nil {
+		t.Fatalf("executeCommand with invalid --omnidist-root should fail. Output: %s", output)
+	}
+	if !strings.Contains(err.Error(), "stat --omnidist-root") {
+		t.Fatalf("error = %v, want stat --omnidist-root context", err)
+	}
+}
+
+func TestRootHelpContainsOmnidistRootFlag(t *testing.T) {
+	output, err := executeCommand("--help")
+	if err != nil {
+		t.Fatalf("executeCommand(--help) error = %v", err)
+	}
+	if !strings.Contains(output, "--omnidist-root") {
+		t.Fatalf("root help missing --omnidist-root: %s", output)
+	}
+}
+
 func executeCommand(args ...string) (string, error) {
+	origWD, wdErr := os.Getwd()
 	buf := &bytes.Buffer{}
 	rootCmd.SetOut(buf)
 	rootCmd.SetErr(buf)
@@ -147,6 +208,8 @@ func executeCommand(args ...string) (string, error) {
 
 	// Reset global state
 	cfgFile = ""
+	omnidistRoot = ""
+	initRootErr = nil
 	viper.Reset()
 	rootCmd.SilenceUsage = true
 	rootCmd.SilenceErrors = true
@@ -155,6 +218,9 @@ func executeCommand(args ...string) (string, error) {
 	resetFlags(rootCmd)
 
 	err := rootCmd.Execute()
+	if wdErr == nil {
+		_ = os.Chdir(origWD)
+	}
 	rootCmd.SetArgs(nil)
 	return buf.String(), err
 }
