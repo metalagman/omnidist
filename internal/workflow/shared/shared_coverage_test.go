@@ -56,6 +56,47 @@ func TestResolveVersionFileSource(t *testing.T) {
 	})
 }
 
+func TestResolveVersionFixedSource(t *testing.T) {
+	t.Run("valid", func(t *testing.T) {
+		cfg := &config.Config{Version: config.VersionConfig{
+			Source:       "fixed",
+			FixedVersion: " 1.2.3 ",
+		}}
+		got, err := ResolveVersion(cfg, false)
+		if err != nil {
+			t.Fatalf("ResolveVersion(fixed) error = %v", err)
+		}
+		if got != "1.2.3" {
+			t.Fatalf("ResolveVersion(fixed) = %q, want %q", got, "1.2.3")
+		}
+	})
+
+	t.Run("dev_passthrough", func(t *testing.T) {
+		cfg := &config.Config{Version: config.VersionConfig{
+			Source:       "fixed",
+			FixedVersion: "1.2.3",
+		}}
+		got, err := ResolveVersion(cfg, true)
+		if err != nil {
+			t.Fatalf("ResolveVersion(fixed, dev) error = %v", err)
+		}
+		if got != "1.2.3" {
+			t.Fatalf("ResolveVersion(fixed, dev) = %q, want %q", got, "1.2.3")
+		}
+	})
+
+	t.Run("empty", func(t *testing.T) {
+		cfg := &config.Config{Version: config.VersionConfig{
+			Source:       "fixed",
+			FixedVersion: " ",
+		}}
+		_, err := ResolveVersion(cfg, false)
+		if err == nil || !strings.Contains(err.Error(), "empty version from source") {
+			t.Fatalf("ResolveVersion(fixed empty) error = %v, want empty version error", err)
+		}
+	})
+}
+
 func TestResolveReleaseVersionFileSource(t *testing.T) {
 	t.Run("valid_exact_semver", func(t *testing.T) {
 		tmpDir := t.TempDir()

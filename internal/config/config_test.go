@@ -173,6 +173,113 @@ distributions:
 	}
 }
 
+func TestLoadSupportsFixedVersionSource(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, paths.ConfigPath)
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		t.Fatalf("os.MkdirAll() error = %v", err)
+	}
+
+	yaml := `tool:
+  name: omnidist
+  main: ./cmd/omnidist
+version:
+  source: fixed
+  fixed-version: " 1.2.3 "
+targets:
+  - os: linux
+    arch: amd64
+build:
+  ldflags: -s -w
+  tags: []
+  cgo: false
+`
+
+	if err := os.WriteFile(path, []byte(yaml), 0644); err != nil {
+		t.Fatalf("os.WriteFile() error = %v", err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if got := cfg.Version.Source; got != "fixed" {
+		t.Fatalf("version.source = %q, want %q", got, "fixed")
+	}
+	if got := cfg.Version.FixedVersion; got != "1.2.3" {
+		t.Fatalf("version.fixed-version = %q, want %q", got, "1.2.3")
+	}
+}
+
+func TestLoadRejectsFixedVersionSourceWithoutVersion(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, paths.ConfigPath)
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		t.Fatalf("os.MkdirAll() error = %v", err)
+	}
+
+	yaml := `tool:
+  name: omnidist
+  main: ./cmd/omnidist
+version:
+  source: fixed
+targets:
+  - os: linux
+    arch: amd64
+build:
+  ldflags: -s -w
+  tags: []
+  cgo: false
+`
+
+	if err := os.WriteFile(path, []byte(yaml), 0644); err != nil {
+		t.Fatalf("os.WriteFile() error = %v", err)
+	}
+
+	_, err := Load(path)
+	if err == nil {
+		t.Fatalf("Load() error = nil, want fixed version validation error")
+	}
+	if !strings.Contains(err.Error(), "version.fixed-version is required") {
+		t.Fatalf("Load() error = %v, want fixed version validation error", err)
+	}
+}
+
+func TestLoadRejectsUnknownVersionSource(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, paths.ConfigPath)
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		t.Fatalf("os.MkdirAll() error = %v", err)
+	}
+
+	yaml := `tool:
+  name: omnidist
+  main: ./cmd/omnidist
+version:
+  source: mystery
+targets:
+  - os: linux
+    arch: amd64
+build:
+  ldflags: -s -w
+  tags: []
+  cgo: false
+`
+
+	if err := os.WriteFile(path, []byte(yaml), 0644); err != nil {
+		t.Fatalf("os.WriteFile() error = %v", err)
+	}
+
+	_, err := Load(path)
+	if err == nil {
+		t.Fatalf("Load() error = nil, want invalid source error")
+	}
+	if !strings.Contains(err.Error(), "invalid version.source") {
+		t.Fatalf("Load() error = %v, want invalid version.source error", err)
+	}
+}
+
 func TestLoadRejectsInvalidUVLinuxTag(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, paths.ConfigPath)
@@ -308,6 +415,32 @@ func TestValidate(t *testing.T) {
 				},
 			},
 			wantErr: "invalid distributions.npm.access \"invalid\"",
+		},
+		{
+			name: "invalid version source",
+			cfg: &Config{
+				Version: VersionConfig{Source: "mystery"},
+				Targets: []Target{{OS: "linux", Arch: "amd64"}},
+			},
+			wantErr: "invalid version.source",
+		},
+		{
+			name: "fixed version source missing fixed-version",
+			cfg: &Config{
+				Version: VersionConfig{Source: "fixed"},
+				Targets: []Target{{OS: "linux", Arch: "amd64"}},
+			},
+			wantErr: "version.fixed-version is required",
+		},
+		{
+			name: "fixed version source with fixed-version",
+			cfg: &Config{
+				Version: VersionConfig{
+					Source:       "fixed",
+					FixedVersion: "1.2.3",
+				},
+				Targets: []Target{{OS: "linux", Arch: "amd64"}},
+			},
 		},
 		{
 			name: "missing uv package",

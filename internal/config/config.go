@@ -26,7 +26,8 @@ type ToolConfig struct {
 
 // VersionConfig defines where omnidist resolves the release version from.
 type VersionConfig struct {
-	Source string `yaml:"source"`
+	Source       string `yaml:"source"`
+	FixedVersion string `yaml:"fixed-version,omitempty"`
 }
 
 // Target describes a Go build target and optional packaging variant.
@@ -142,12 +143,21 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("parse config file %s: %w", path, err)
 	}
 
+	applyVersionDefaults(&cfg)
 	applyDistributionDefaults(&cfg)
 	if err := validate(&cfg); err != nil {
 		return nil, err
 	}
 
 	return &cfg, nil
+}
+
+func applyVersionDefaults(cfg *Config) {
+	cfg.Version.Source = strings.TrimSpace(cfg.Version.Source)
+	cfg.Version.FixedVersion = strings.TrimSpace(cfg.Version.FixedVersion)
+	if cfg.Version.Source == "" {
+		cfg.Version.Source = "git-tag"
+	}
 }
 
 func applyDistributionDefaults(cfg *Config) {
@@ -215,6 +225,19 @@ func validate(cfg *Config) error {
 		if target.Arch == "x64" {
 			return fmt.Errorf("invalid targets[%d].arch %q: use Go GOARCH value %q", i, target.Arch, "amd64")
 		}
+	}
+
+	source := strings.TrimSpace(cfg.Version.Source)
+	if source == "" {
+		source = "git-tag"
+	}
+	switch source {
+	case "git-tag", "file", "env", "fixed":
+	default:
+		return fmt.Errorf("invalid version.source %q: expected git-tag, file, env, or fixed", cfg.Version.Source)
+	}
+	if source == "fixed" && strings.TrimSpace(cfg.Version.FixedVersion) == "" {
+		return fmt.Errorf("version.fixed-version is required when version.source is %q", "fixed")
 	}
 
 	if npmDist, ok := cfg.Distributions["npm"]; ok {

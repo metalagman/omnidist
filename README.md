@@ -163,7 +163,7 @@ omnidist uv publish --publish-url https://test.pypi.org/legacy/ --token <pypi-to
 
 Supported variables:
 
-- `OMNIDIST_VERSION`: used when `version.source: env`; also expanded in `build.ldflags` templates (for example `${OMNIDIST_VERSION}`).
+- `OMNIDIST_VERSION`: used only when `version.source: env`; also expanded in `build.ldflags` templates (for example `${OMNIDIST_VERSION}`).
   `VERSION` is not used.
 - `OMNIDIST_GIT_COMMIT`: optional ldflags template variable for build metadata; populated automatically by `omnidist build` when git metadata is available.
 - `OMNIDIST_BUILD_DATE`: optional ldflags template variable for build metadata; populated automatically by `omnidist build` as UTC RFC3339.
@@ -188,7 +188,8 @@ tool:
   main: ./cmd/omnidist
 
 version:
-  source: git-tag # git-tag | file | env
+  source: git-tag # git-tag | file | env | fixed
+  fixed-version: 1.2.3 # required when source is fixed
 
 targets:
   - os: darwin
@@ -232,6 +233,10 @@ build:
 ```
 
 With `version.source: git-tag`, release workflows require `HEAD` to be on an exact SemVer tag (`vX.Y.Z` or `X.Y.Z`).
+
+With `version.source: file`, omnidist reads `./VERSION` from the repository root.
+
+With `version.source: fixed`, set `version.fixed-version` to an exact value in config (for example `1.2.3`).
 
 ## Command Reference
 

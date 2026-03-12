@@ -33,10 +33,44 @@ func ResolveVersion(cfg *config.Config, dev bool) (string, error) {
 		return "", fmt.Errorf("config is nil")
 	}
 
+	return resolveConfiguredVersion(cfg, dev, false)
+}
+
+// ResolveReleaseVersion resolves an exact publishable semver version.
+func ResolveReleaseVersion(cfg *config.Config) (string, error) {
+	if cfg == nil {
+		return "", fmt.Errorf("config is nil")
+	}
+
+	version, err := resolveConfiguredVersion(cfg, false, true)
+	if err != nil {
+		return "", err
+	}
+	if !isExactSemver(version) {
+		return "", fmt.Errorf("release version %q is not exact semver (expected X.Y.Z)", version)
+	}
+
+	return version, nil
+}
+
+func resolveConfiguredVersion(cfg *config.Config, dev bool, release bool) (string, error) {
+	source := strings.TrimSpace(cfg.Version.Source)
+	if source == "" {
+		source = "git-tag"
+	}
+
 	var version string
-	switch strings.TrimSpace(cfg.Version.Source) {
+	switch source {
 	case "git-tag":
-		v, err := resolveGitTagVersion(dev)
+		var (
+			v   string
+			err error
+		)
+		if release {
+			v, err = resolveExactSemverTag()
+		} else {
+			v, err = resolveGitTagVersion(dev)
+		}
 		if err != nil {
 			return "", fmt.Errorf("resolve git tag version: %w", err)
 		}
@@ -49,49 +83,15 @@ func ResolveVersion(cfg *config.Config, dev bool) (string, error) {
 		version = string(data)
 	case "env":
 		version = os.Getenv(EnvVersionName)
+	case "fixed":
+		version = cfg.Version.FixedVersion
 	default:
-		return "", fmt.Errorf("unknown version source %q", cfg.Version.Source)
+		return "", fmt.Errorf("unknown version source %q", source)
 	}
 
 	version = strings.TrimSpace(version)
 	if version == "" {
-		return "", fmt.Errorf("empty version from source %q", cfg.Version.Source)
-	}
-
-	return version, nil
-}
-
-// ResolveReleaseVersion resolves an exact publishable semver version.
-func ResolveReleaseVersion(cfg *config.Config) (string, error) {
-	if cfg == nil {
-		return "", fmt.Errorf("config is nil")
-	}
-
-	var version string
-	switch strings.TrimSpace(cfg.Version.Source) {
-	case "git-tag":
-		v, err := resolveExactSemverTag()
-		if err != nil {
-			return "", fmt.Errorf("resolve git tag version: %w", err)
-		}
-		version = v
-	case "file":
-		data, err := os.ReadFile("VERSION")
-		if err != nil {
-			return "", fmt.Errorf("read VERSION file %s: %w", "VERSION", err)
-		}
-		version = strings.TrimSpace(string(data))
-	case "env":
-		version = strings.TrimSpace(os.Getenv(EnvVersionName))
-	default:
-		return "", fmt.Errorf("unknown version source %q", cfg.Version.Source)
-	}
-
-	if version == "" {
-		return "", fmt.Errorf("empty version from source %q", cfg.Version.Source)
-	}
-	if !isExactSemver(version) {
-		return "", fmt.Errorf("release version %q is not exact semver (expected X.Y.Z)", version)
+		return "", fmt.Errorf("empty version from source %q", source)
 	}
 
 	return version, nil

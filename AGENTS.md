@@ -138,7 +138,8 @@ npm:
   access: public
 
 version:
-  source: git-tag  # git-tag | file | env
+  source: git-tag  # git-tag | file | env | fixed
+  fixed-version: 1.2.3  # required when source is fixed
 
 targets:
   - os: darwin

@@ -22,7 +22,7 @@ var initCmd = &cobra.Command{
 		fmt.Fprintf(out, "Created %s workspace and %s/.gitignore\n\n", paths.WorkspaceDir, paths.WorkspaceDir)
 		fmt.Fprintln(out, "Next steps:")
 		fmt.Fprintf(out, "1. Edit %s\n", cfgPath)
-		fmt.Fprintln(out, "2. Set environment variables in .env (loaded automatically by omnidist)")
+		fmt.Fprintln(out, "2. Set environment variables in .env as needed (version.source: env, publish tokens)")
 		fmt.Fprintln(out, "3. omnidist build")
 		fmt.Fprintln(out, "4. omnidist stage")
 		fmt.Fprintln(out, "5. omnidist publish")
