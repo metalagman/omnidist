@@ -189,6 +189,22 @@ func TestGlobalOmnidistRootFlagInvalidPath(t *testing.T) {
 	}
 }
 
+func TestGlobalOmnidistRootFlagPathIsFile(t *testing.T) {
+	dir := t.TempDir()
+	filePath := filepath.Join(dir, "root-file")
+	if err := os.WriteFile(filePath, []byte("not-a-dir"), 0644); err != nil {
+		t.Fatalf("os.WriteFile(%q) error = %v", filePath, err)
+	}
+
+	output, err := executeCommand("quickstart", "--omnidist-root", filePath)
+	if err == nil {
+		t.Fatalf("executeCommand with file --omnidist-root should fail. Output: %s", output)
+	}
+	if !strings.Contains(err.Error(), "is not a directory") {
+		t.Fatalf("error = %v, want directory type validation error", err)
+	}
+}
+
 func TestRootHelpContainsOmnidistRootFlag(t *testing.T) {
 	output, err := executeCommand("--help")
 	if err != nil {

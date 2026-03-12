@@ -610,3 +610,104 @@ func TestMapGoOSToNPM(t *testing.T) {
 		}
 	}
 }
+
+func TestApplyVersionDefaults(t *testing.T) {
+	tests := []struct {
+		name      string
+		version   VersionConfig
+		wantSrc   string
+		wantFile  string
+		wantFixed string
+	}{
+		{
+			name:    "empty source defaults to git-tag",
+			version: VersionConfig{},
+			wantSrc: "git-tag",
+		},
+		{
+			name: "file source defaults file path",
+			version: VersionConfig{
+				Source: " file ",
+			},
+			wantSrc:  "file",
+			wantFile: DefaultVersionFile,
+		},
+		{
+			name: "file source preserves explicit path",
+			version: VersionConfig{
+				Source: "file",
+				File:   " versions/release.txt ",
+			},
+			wantSrc:  "file",
+			wantFile: "versions/release.txt",
+		},
+		{
+			name: "fixed source trims fixed value",
+			version: VersionConfig{
+				Source: " fixed ",
+				Fixed:  " 1.2.3 ",
+			},
+			wantSrc:   "fixed",
+			wantFixed: "1.2.3",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &Config{Version: tt.version}
+			applyVersionDefaults(cfg)
+			if got := cfg.Version.Source; got != tt.wantSrc {
+				t.Fatalf("source = %q, want %q", got, tt.wantSrc)
+			}
+			if got := cfg.Version.File; got != tt.wantFile {
+				t.Fatalf("file = %q, want %q", got, tt.wantFile)
+			}
+			if got := cfg.Version.Fixed; got != tt.wantFixed {
+				t.Fatalf("fixed = %q, want %q", got, tt.wantFixed)
+			}
+		})
+	}
+}
+
+func TestHasLegacyFixedVersionKey(t *testing.T) {
+	tests := []struct {
+		name string
+		yaml string
+		want bool
+	}{
+		{
+			name: "invalid yaml",
+			yaml: "version: [",
+			want: false,
+		},
+		{
+			name: "no version section",
+			yaml: "tool:\n  name: omnidist\n",
+			want: false,
+		},
+		{
+			name: "version not map",
+			yaml: "version: fixed\n",
+			want: false,
+		},
+		{
+			name: "version map without legacy key",
+			yaml: "version:\n  source: fixed\n  fixed: 1.2.3\n",
+			want: false,
+		},
+		{
+			name: "version map with legacy key",
+			yaml: "version:\n  source: fixed\n  fixed-version: 1.2.3\n",
+			want: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := hasLegacyFixedVersionKey([]byte(tt.yaml))
+			if got != tt.want {
+				t.Fatalf("hasLegacyFixedVersionKey() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

@@ -174,24 +174,16 @@ func applyVersionDefaults(cfg *Config) {
 }
 
 func hasLegacyFixedVersionKey(data []byte) bool {
-	var raw map[string]interface{}
+	var raw struct {
+		Version map[string]interface{} `yaml:"version"`
+	}
 	if err := yaml.Unmarshal(data, &raw); err != nil {
 		return false
 	}
-	versionValue, ok := raw["version"]
-	if !ok {
+	if raw.Version == nil {
 		return false
 	}
-	versionMap, ok := versionValue.(map[string]interface{})
-	if ok {
-		_, found := versionMap["fixed-version"]
-		return found
-	}
-	versionMapAny, ok := versionValue.(map[interface{}]interface{})
-	if !ok {
-		return false
-	}
-	_, found := versionMapAny["fixed-version"]
+	_, found := raw.Version["fixed-version"]
 	return found
 }
 
