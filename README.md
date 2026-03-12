@@ -241,6 +241,8 @@ With `version.source: file`, you can override the path via `version.file` (for e
 
 With `version.source: fixed`, set `version.fixed` to an exact value in config (for example `1.2.3`).
 
+With `version.source: env`, set `OMNIDIST_VERSION` (for example in `.env`) before build/stage/publish.
+
 Use global `--omnidist-root <path>` to set the project root for a command. Omnidist resolves it to an absolute path at startup and changes working directory to it before loading `.env` and config.
 
 ## Command Reference
