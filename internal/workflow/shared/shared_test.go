@@ -187,6 +187,36 @@ func TestBuildVersionRoundTrip(t *testing.T) {
 	}
 }
 
+func TestBuildVersionRoundTripProfileWorkspace(t *testing.T) {
+	t.Chdir(t.TempDir())
+
+	cfg := config.DefaultConfig()
+	cfg.Runtime.Profile = "release"
+	cfg.Runtime.ProfilesMode = true
+	cfg.Runtime.WorkspaceDir = ".omnidist/release"
+
+	const want = "2.3.4"
+	if err := WriteBuildVersionForConfig(cfg, want); err != nil {
+		t.Fatalf("WriteBuildVersionForConfig() error = %v", err)
+	}
+
+	got, err := ReadBuildVersionForConfig(cfg)
+	if err != nil {
+		t.Fatalf("ReadBuildVersionForConfig() error = %v", err)
+	}
+	if got != want {
+		t.Fatalf("ReadBuildVersionForConfig() = %q, want %q", got, want)
+	}
+
+	data, err := os.ReadFile(".omnidist/release/dist/VERSION")
+	if err != nil {
+		t.Fatalf("os.ReadFile(profile VERSION) error = %v", err)
+	}
+	if strings.TrimSpace(string(data)) != want {
+		t.Fatalf("profile VERSION data = %q, want %q", strings.TrimSpace(string(data)), want)
+	}
+}
+
 func TestResolveStageVersionUsesBuildVersion(t *testing.T) {
 	t.Chdir(t.TempDir())
 	t.Setenv(EnvVersionName, "9.9.9")

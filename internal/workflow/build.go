@@ -27,12 +27,13 @@ func Build(cfg *config.Config) error {
 
 // BuildWithOptions compiles the configured Go CLI for all configured targets into `dist/`.
 func BuildWithOptions(cfg *config.Config, opts BuildOptions) error {
-	if err := os.MkdirAll(paths.DistDir, 0755); err != nil {
-		return fmt.Errorf("create dist directory %s: %w", paths.DistDir, err)
+	layout := paths.NewLayout(cfg.EffectiveWorkspaceDir())
+	if err := os.MkdirAll(layout.DistDir, 0755); err != nil {
+		return fmt.Errorf("create dist directory %s: %w", layout.DistDir, err)
 	}
 
 	for _, target := range cfg.Targets {
-		if err := buildTarget(cfg, target, opts); err != nil {
+		if err := buildTarget(cfg, layout, target, opts); err != nil {
 			return fmt.Errorf("failed to build %s/%s: %w", target.OS, target.Arch, err)
 		}
 	}
@@ -40,8 +41,8 @@ func BuildWithOptions(cfg *config.Config, opts BuildOptions) error {
 	return nil
 }
 
-func buildTarget(cfg *config.Config, target config.Target, opts BuildOptions) error {
-	outputDir := filepath.Join(paths.DistDir, target.OS, target.Arch)
+func buildTarget(cfg *config.Config, layout paths.Layout, target config.Target, opts BuildOptions) error {
+	outputDir := filepath.Join(layout.DistDir, target.OS, target.Arch)
 	if err := os.MkdirAll(outputDir, 0755); err != nil {
 		return fmt.Errorf("create target output directory %s: %w", outputDir, err)
 	}

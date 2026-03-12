@@ -31,7 +31,7 @@ func TestStageErrors(t *testing.T) {
 			t.Fatalf("createDistArtifacts() error = %v", err)
 		}
 		npmDist, _ := npmDistribution(cfg)
-		
+
 		// Create a file where meta directory should be
 		metaDir := filepath.Join(paths.NPMDir, npmDist.Package)
 		if err := os.MkdirAll(filepath.Dir(metaDir), 0755); err != nil {
@@ -76,7 +76,7 @@ func TestCopyFileWithModeErrors(t *testing.T) {
 		dir := t.TempDir()
 		src := filepath.Join(dir, "src")
 		os.WriteFile(src, []byte("data"), 0644)
-		
+
 		dest := filepath.Join(dir, "dest")
 		os.MkdirAll(dest, 0755) // Create dest as a directory
 
@@ -95,7 +95,7 @@ func TestEnsureWorkspaceNPMRCErrors(t *testing.T) {
 		if err := os.MkdirAll(paths.NPMRCPath, 0755); err != nil {
 			t.Fatalf("os.MkdirAll() error = %v", err)
 		}
-		_, err := ensureWorkspaceNPMRC("https://registry.npmjs.org")
+		_, err := ensureWorkspaceNPMRC(paths.NewLayout(config.DefaultWorkspaceDir), "https://registry.npmjs.org")
 		if err == nil || !strings.Contains(err.Error(), "open .omnidist/.npmrc") {
 			t.Fatalf("ensureWorkspaceNPMRC(write fail) error = %v, want open error", err)
 		}
@@ -188,7 +188,7 @@ func TestCheckAuthErrors(t *testing.T) {
 		t.Chdir(dir)
 		// Make WorkspaceDir a file to fail MkdirAll
 		os.WriteFile(paths.WorkspaceDir, []byte("file"), 0644)
-		
+
 		cfg := testConfig()
 		err := CheckAuth(cfg, "", false)
 		if err == nil || !strings.Contains(err.Error(), "prepare npmrc") {

@@ -142,6 +142,16 @@ version:
   file: VERSION  # optional; used when source is file (default VERSION)
   fixed: 1.2.3  # required when source is fixed
 
+# optional profiles mode (use --profile or OMNIDIST_PROFILE)
+profiles:
+  default:
+    version:
+      source: env
+  release:
+    version:
+      source: fixed
+      fixed: 1.2.3
+
 targets:
   - os: darwin
     cpu: x64
@@ -159,6 +169,10 @@ build:
   tags: []
   cgo: false
 ```
+
+Workspace note:
+- Legacy config writes artifacts to `.omnidist/*`.
+- Profiles config writes artifacts to `.omnidist/<profile>/*`.
 
 ## Toolkit CLI Surface
 

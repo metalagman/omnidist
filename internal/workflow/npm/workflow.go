@@ -54,16 +54,17 @@ func CheckAuth(cfg *config.Config, registryOverride string, dryRun bool) error {
 	if err != nil {
 		return err
 	}
+	layout := layoutForConfig(cfg)
 	token, err := resolvePublishToken(dryRun)
 	if err != nil {
 		return err
 	}
 
-	npmrcPath, err := ensureWorkspaceNPMRC(resolveRegistry(npmDist.Registry, registryOverride))
+	npmrcPath, err := ensureWorkspaceNPMRC(layout, resolveRegistry(npmDist.Registry, registryOverride))
 	if err != nil {
 		return fmt.Errorf("prepare npmrc: %w", err)
 	}
-	workspaceDir, err := ensureWorkingDir(paths.WorkspaceDir)
+	workspaceDir, err := ensureWorkingDir(layout.WorkspaceDir)
 	if err != nil {
 		return fmt.Errorf("resolve npm auth working directory: %w", err)
 	}
@@ -91,6 +92,7 @@ func Stage(cfg *config.Config, opts StageOptions) error {
 	if err != nil {
 		return err
 	}
+	layout := layoutForConfig(cfg)
 
 	version, err := resolveNPMStageVersion(cfg, opts.Dev)
 	if err != nil {
@@ -98,12 +100,12 @@ func Stage(cfg *config.Config, opts StageOptions) error {
 	}
 
 	for _, target := range cfg.Targets {
-		if err := stagePlatformPackage(cfg, npmDist, target, version); err != nil {
+		if err := stagePlatformPackage(layout, cfg, npmDist, target, version); err != nil {
 			return fmt.Errorf("failed to stage %s/%s: %w", target.OS, target.Arch, err)
 		}
 	}
 
-	if err := stageMetaPackage(cfg, npmDist, version); err != nil {
+	if err := stageMetaPackage(layout, cfg, npmDist, version); err != nil {
 		return fmt.Errorf("failed to stage meta package: %w", err)
 	}
 
@@ -119,10 +121,11 @@ func resolveNPMStageVersion(cfg *config.Config, dev bool) (string, error) {
 		return validateNPMVersion(version, "resolved dev version")
 	}
 
-	version, err := shared.ReadBuildVersion()
+	version, err := shared.ReadBuildVersionForConfig(cfg)
 	if err != nil {
+		layout := layoutForConfig(cfg)
 		if errors.Is(err, os.ErrNotExist) {
-			return "", fmt.Errorf("missing build version file %s; run `omnidist build` before `omnidist npm stage`", paths.DistVersionPath)
+			return "", fmt.Errorf("missing build version file %s; run `omnidist build` before `omnidist npm stage`", layout.DistVersionPath)
 		}
 		return "", fmt.Errorf("read build version: %w", err)
 	}
@@ -144,8 +147,9 @@ func Verify(cfg *config.Config) *VerificationResult {
 		result.Valid = false
 		return result
 	}
+	layout := layoutForConfig(cfg)
 
-	metaDir := filepath.Join(paths.NPMDir, npmDist.Package)
+	metaDir := filepath.Join(layout.NPMDir, npmDist.Package)
 	version, err := resolveNPMVersion(cfg, metaDir)
 	if err != nil {
 		result.Errors = append(result.Errors, err.Error())
@@ -153,12 +157,12 @@ func Verify(cfg *config.Config) *VerificationResult {
 		return result
 	}
 
-	if err := verifyPlatformPackages(cfg, npmDist, version, result); err != nil {
+	if err := verifyPlatformPackages(layout, cfg, npmDist, version, result); err != nil {
 		result.Errors = append(result.Errors, err.Error())
 		result.Valid = false
 	}
 
-	if err := verifyMetaPackage(cfg, npmDist, version, result); err != nil {
+	if err := verifyMetaPackage(layout, cfg, npmDist, version, result); err != nil {
 		result.Errors = append(result.Errors, err.Error())
 		result.Valid = false
 	}
@@ -172,17 +176,18 @@ func Publish(cfg *config.Config, opts PublishOptions) error {
 	if err != nil {
 		return err
 	}
+	layout := layoutForConfig(cfg)
 	token, err := resolvePublishToken(opts.DryRun)
 	if err != nil {
 		return err
 	}
 
-	npmrcPath, err := ensureWorkspaceNPMRC(resolveRegistry(npmDist.Registry, opts.Registry))
+	npmrcPath, err := ensureWorkspaceNPMRC(layout, resolveRegistry(npmDist.Registry, opts.Registry))
 	if err != nil {
 		return fmt.Errorf("prepare npmrc: %w", err)
 	}
 
-	metaDir := filepath.Join(paths.NPMDir, npmDist.Package)
+	metaDir := filepath.Join(layout.NPMDir, npmDist.Package)
 	version, err := resolveNPMVersion(cfg, metaDir)
 	if err != nil {
 		return fmt.Errorf("resolve npm version: %w", err)
@@ -206,7 +211,7 @@ func Publish(cfg *config.Config, opts PublishOptions) error {
 
 	writeProgressf(opts.Progress, "Publishing platform packages first...\n")
 	for _, pkgName := range platformPackages {
-		pkgDir := filepath.Join(paths.NPMDir, pkgName)
+		pkgDir := filepath.Join(layout.NPMDir, pkgName)
 		if err := publishPackage(pkgDir, npmDist.Registry, access, publishOpts, npmrcPath, token, version); err != nil {
 			return fmt.Errorf("failed to publish %s: %w", pkgName, err)
 		}
@@ -402,9 +407,9 @@ func readPackageJSON(dir string) (map[string]interface{}, error) {
 	return pkg, nil
 }
 
-func stagePlatformPackage(cfg *config.Config, npmDist config.DistributionConfig, target config.Target, version string) error {
+func stagePlatformPackage(layout paths.Layout, cfg *config.Config, npmDist config.DistributionConfig, target config.Target, version string) error {
 	pkgName := platformPackageName(npmDist.Package, target)
-	pkgDir := filepath.Join(paths.NPMDir, pkgName)
+	pkgDir := filepath.Join(layout.NPMDir, pkgName)
 
 	if err := os.MkdirAll(filepath.Join(pkgDir, "bin"), 0755); err != nil {
 		return err
@@ -415,7 +420,7 @@ func stagePlatformPackage(cfg *config.Config, npmDist config.DistributionConfig,
 		binaryName += ".exe"
 	}
 
-	srcPath := filepath.Join(paths.DistDir, target.OS, target.Arch, binaryName)
+	srcPath := filepath.Join(layout.DistDir, target.OS, target.Arch, binaryName)
 	dstPath := filepath.Join(pkgDir, "bin", binaryName)
 
 	if err := copyFile(srcPath, dstPath); err != nil {
@@ -460,8 +465,8 @@ func stagePlatformPackage(cfg *config.Config, npmDist config.DistributionConfig,
 	return writePackageJSON(pkgDir, pkgJSON)
 }
 
-func stageMetaPackage(cfg *config.Config, npmDist config.DistributionConfig, version string) error {
-	metaDir := filepath.Join(paths.NPMDir, npmDist.Package)
+func stageMetaPackage(layout paths.Layout, cfg *config.Config, npmDist config.DistributionConfig, version string) error {
+	metaDir := filepath.Join(layout.NPMDir, npmDist.Package)
 
 	if err := os.MkdirAll(metaDir, 0755); err != nil {
 		return err
@@ -512,10 +517,10 @@ func stageMetaPackage(cfg *config.Config, npmDist config.DistributionConfig, ver
 	return nil
 }
 
-func verifyPlatformPackages(cfg *config.Config, npmDist config.DistributionConfig, version string, result *VerificationResult) error {
+func verifyPlatformPackages(layout paths.Layout, cfg *config.Config, npmDist config.DistributionConfig, version string, result *VerificationResult) error {
 	for _, target := range cfg.Targets {
 		pkgName := platformPackageName(npmDist.Package, target)
-		pkgDir := filepath.Join(paths.NPMDir, pkgName)
+		pkgDir := filepath.Join(layout.NPMDir, pkgName)
 
 		pkgJSON, err := readPackageJSON(pkgDir)
 		if err != nil {
@@ -575,8 +580,8 @@ func verifyPlatformPackages(cfg *config.Config, npmDist config.DistributionConfi
 	return nil
 }
 
-func verifyMetaPackage(cfg *config.Config, npmDist config.DistributionConfig, version string, result *VerificationResult) error {
-	metaDir := filepath.Join(paths.NPMDir, npmDist.Package)
+func verifyMetaPackage(layout paths.Layout, cfg *config.Config, npmDist config.DistributionConfig, version string, result *VerificationResult) error {
+	metaDir := filepath.Join(layout.NPMDir, npmDist.Package)
 
 	pkgJSON, err := readPackageJSON(metaDir)
 	if err != nil {
@@ -642,13 +647,13 @@ func resolveRegistry(defaultRegistry, overrideRegistry string) string {
 	return "https://registry.npmjs.org"
 }
 
-func ensureWorkspaceNPMRC(registry string) (string, error) {
+func ensureWorkspaceNPMRC(layout paths.Layout, registry string) (string, error) {
 	tokenKey, err := npmTokenConfigKey(registry)
 	if err != nil {
 		return "", err
 	}
 
-	if err := os.MkdirAll(paths.WorkspaceDir, 0755); err != nil {
+	if err := os.MkdirAll(layout.WorkspaceDir, 0755); err != nil {
 		return "", err
 	}
 
@@ -657,15 +662,22 @@ func ensureWorkspaceNPMRC(registry string) (string, error) {
 		registry,
 		tokenKey,
 	)
-	if err := os.WriteFile(paths.NPMRCPath, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(layout.NPMRCPath, []byte(content), 0644); err != nil {
 		return "", err
 	}
 
-	npmrcPath, err := filepath.Abs(paths.NPMRCPath)
+	npmrcPath, err := filepath.Abs(layout.NPMRCPath)
 	if err != nil {
 		return "", err
 	}
 	return npmrcPath, nil
+}
+
+func layoutForConfig(cfg *config.Config) paths.Layout {
+	if cfg == nil {
+		return paths.NewLayout(config.DefaultWorkspaceDir)
+	}
+	return paths.NewLayout(cfg.EffectiveWorkspaceDir())
 }
 
 func ensureWorkingDir(dir string) (string, error) {

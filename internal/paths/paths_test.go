@@ -29,3 +29,47 @@ func TestPaths(t *testing.T) {
 		}
 	}
 }
+
+func TestNewLayout(t *testing.T) {
+	tests := []struct {
+		name      string
+		workspace string
+		want      Layout
+	}{
+		{
+			name:      "empty_workspace_uses_default",
+			workspace: "",
+			want: Layout{
+				WorkspaceDir:    ".omnidist",
+				DistDir:         ".omnidist/dist",
+				DistVersionPath: ".omnidist/dist/VERSION",
+				NPMDir:          ".omnidist/npm",
+				NPMRCPath:       ".omnidist/.npmrc",
+				UVDir:           ".omnidist/uv",
+				UVPyprojectPath: ".omnidist/uv/pyproject.toml",
+				UVDistDir:       ".omnidist/uv/dist",
+			},
+		},
+		{
+			name:      "custom_workspace",
+			workspace: ".omnidist/prod",
+			want: Layout{
+				WorkspaceDir:    ".omnidist/prod",
+				DistDir:         ".omnidist/prod/dist",
+				DistVersionPath: ".omnidist/prod/dist/VERSION",
+				NPMDir:          ".omnidist/prod/npm",
+				NPMRCPath:       ".omnidist/prod/.npmrc",
+				UVDir:           ".omnidist/prod/uv",
+				UVPyprojectPath: ".omnidist/prod/uv/pyproject.toml",
+				UVDistDir:       ".omnidist/prod/uv/dist",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		got := NewLayout(tt.workspace)
+		if got != tt.want {
+			t.Fatalf("%s: NewLayout(%q) = %#v, want %#v", tt.name, tt.workspace, got, tt.want)
+		}
+	}
+}

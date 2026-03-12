@@ -17,6 +17,7 @@ import (
 
 var cfgFile string
 var omnidistRoot string
+var profileName string
 var initRootErr error
 
 var rootCmd = &cobra.Command{
@@ -41,16 +42,18 @@ func AddCommand(cmd *cobra.Command) {
 }
 
 func init() {
-	cobra.OnInitialize(initOmnidistRoot, initDotEnv, initConfig)
+	cobra.OnInitialize(initConfig, initOmnidistRoot, initDotEnv)
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is .omnidist/omnidist.yaml)")
 	rootCmd.PersistentFlags().StringVar(&omnidistRoot, "omnidist-root", "", "project root directory used as working directory")
+	rootCmd.PersistentFlags().StringVar(&profileName, "profile", "", "configuration profile name (default: default)")
+	bindRootFlagsToViper()
 	rootCmd.AddCommand(npm.Cmd)
 	rootCmd.AddCommand(uv.Cmd)
 }
 
 func initOmnidistRoot() {
 	initRootErr = nil
-	root := strings.TrimSpace(omnidistRoot)
+	root := strings.TrimSpace(viper.GetString("omnidist-root"))
 	if root == "" {
 		return
 	}
@@ -85,7 +88,14 @@ func initDotEnv() {
 }
 
 func initConfig() {
-	if cfgFile != "" {
-		viper.SetConfigFile(cfgFile)
-	}
+	viper.SetEnvPrefix("OMNIDIST")
+	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_", "-", "_"))
+	bindRootFlagsToViper()
+	viper.AutomaticEnv()
+}
+
+func bindRootFlagsToViper() {
+	_ = viper.BindPFlag("config", rootCmd.PersistentFlags().Lookup("config"))
+	_ = viper.BindPFlag("omnidist-root", rootCmd.PersistentFlags().Lookup("omnidist-root"))
+	_ = viper.BindPFlag("profile", rootCmd.PersistentFlags().Lookup("profile"))
 }

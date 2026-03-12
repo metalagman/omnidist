@@ -70,21 +70,22 @@ func Stage(cfg *config.Config, opts StageOptions) error {
 	if err != nil {
 		return err
 	}
+	layout := layoutForConfig(cfg)
 
 	version, err := resolveUVVersion(cfg, opts.Dev)
 	if err != nil {
 		return err
 	}
 
-	if err := resetUVStagingDir(); err != nil {
+	if err := resetUVStagingDir(layout); err != nil {
 		return err
 	}
-	if err := writeStagingPyproject(uvDist.Package, version); err != nil {
+	if err := writeStagingPyprojectWithLayout(layout, uvDist.Package, version); err != nil {
 		return fmt.Errorf("write uv staging pyproject: %w", err)
 	}
 
 	for _, target := range cfg.Targets {
-		if err := stageWheel(cfg, uvDist, target, version); err != nil {
+		if err := stageWheelWithLayout(layout, cfg, uvDist, target, version); err != nil {
 			return fmt.Errorf("stage wheel for %s/%s: %w", target.OS, target.Arch, err)
 		}
 	}
@@ -92,11 +93,11 @@ func Stage(cfg *config.Config, opts StageOptions) error {
 	return nil
 }
 
-func resetUVStagingDir() error {
-	if err := os.RemoveAll(paths.UVDistDir); err != nil {
+func resetUVStagingDir(layout paths.Layout) error {
+	if err := os.RemoveAll(layout.UVDistDir); err != nil {
 		return fmt.Errorf("clean uv staging directory: %w", err)
 	}
-	if err := os.MkdirAll(paths.UVDistDir, 0755); err != nil {
+	if err := os.MkdirAll(layout.UVDistDir, 0755); err != nil {
 		return fmt.Errorf("create uv staging directory: %w", err)
 	}
 	return nil
@@ -116,8 +117,9 @@ func Verify(cfg *config.Config) *VerificationResult {
 		result.Errors = append(result.Errors, err.Error())
 		return result
 	}
+	layout := layoutForConfig(cfg)
 
-	version, err := resolveUVStagingVersion(cfg, false)
+	version, err := resolveUVStagingVersionWithLayout(cfg, layout, false)
 	if err != nil {
 		result.Valid = false
 		result.Errors = append(result.Errors, err.Error())
@@ -130,7 +132,7 @@ func Verify(cfg *config.Config) *VerificationResult {
 	}
 
 	for _, target := range cfg.Targets {
-		wheelPath, err := wheelPathForTarget(uvDist, target, version)
+		wheelPath, err := wheelPathForTargetWithLayout(layout, uvDist, target, version)
 		if err != nil {
 			result.Valid = false
 			result.Errors = append(result.Errors, err.Error())
@@ -162,8 +164,9 @@ func Publish(cfg *config.Config, opts PublishOptions) error {
 	if err != nil {
 		return err
 	}
+	layout := layoutForConfig(cfg)
 
-	version, err := resolveUVPublishVersion(cfg)
+	version, err := resolveUVPublishVersionWithLayout(cfg, layout)
 	if err != nil {
 		return err
 	}
@@ -171,7 +174,7 @@ func Publish(cfg *config.Config, opts PublishOptions) error {
 		return err
 	}
 
-	artifacts, err := collectWheelArtifacts(cfg, uvDist, version)
+	artifacts, err := collectWheelArtifactsWithLayout(layout, cfg, uvDist, version)
 	if err != nil {
 		return err
 	}
@@ -324,7 +327,11 @@ func resolveUVReleaseVersion(cfg *config.Config) (string, error) {
 }
 
 func resolveUVPublishVersion(cfg *config.Config) (string, error) {
-	version, err := readStagingPyprojectVersion()
+	return resolveUVPublishVersionWithLayout(cfg, layoutForConfig(cfg))
+}
+
+func resolveUVPublishVersionWithLayout(cfg *config.Config, layout paths.Layout) (string, error) {
+	version, err := readStagingPyprojectVersionWithLayout(layout)
 	if err == nil {
 		return version, nil
 	}
@@ -332,7 +339,7 @@ func resolveUVPublishVersion(cfg *config.Config) (string, error) {
 		return "", fmt.Errorf("read uv staging pyproject version: %w", err)
 	}
 
-	version, err = shared.ReadBuildVersion()
+	version, err = shared.ReadBuildVersionForConfig(cfg)
 	if err != nil {
 		if !errors.Is(err, os.ErrNotExist) {
 			return "", fmt.Errorf("read build version: %w", err)
@@ -349,7 +356,11 @@ func resolveUVPublishVersion(cfg *config.Config) (string, error) {
 }
 
 func resolveUVStagingVersion(cfg *config.Config, dev bool) (string, error) {
-	version, err := readStagingPyprojectVersion()
+	return resolveUVStagingVersionWithLayout(cfg, layoutForConfig(cfg), dev)
+}
+
+func resolveUVStagingVersionWithLayout(cfg *config.Config, layout paths.Layout, dev bool) (string, error) {
+	version, err := readStagingPyprojectVersionWithLayout(layout)
 	if err == nil {
 		return version, nil
 	}
@@ -360,6 +371,10 @@ func resolveUVStagingVersion(cfg *config.Config, dev bool) (string, error) {
 }
 
 func writeStagingPyproject(pkg string, version string) error {
+	return writeStagingPyprojectWithLayout(paths.NewLayout(config.DefaultWorkspaceDir), pkg, version)
+}
+
+func writeStagingPyprojectWithLayout(layout paths.Layout, pkg string, version string) error {
 	name := strings.TrimSpace(pkg)
 	v := strings.TrimSpace(version)
 	if name == "" {
@@ -369,7 +384,7 @@ func writeStagingPyproject(pkg string, version string) error {
 		return fmt.Errorf("version is empty")
 	}
 
-	if err := os.MkdirAll(paths.UVDir, 0755); err != nil {
+	if err := os.MkdirAll(layout.UVDir, 0755); err != nil {
 		return err
 	}
 
@@ -381,36 +396,44 @@ version = %s
 generated = true
 `, strconv.Quote(name), strconv.Quote(v))
 
-	return os.WriteFile(paths.UVPyprojectPath, []byte(content), 0644)
+	return os.WriteFile(layout.UVPyprojectPath, []byte(content), 0644)
 }
 
 func readStagingPyprojectVersion() (string, error) {
-	data, err := os.ReadFile(paths.UVPyprojectPath)
+	return readStagingPyprojectVersionWithLayout(paths.NewLayout(config.DefaultWorkspaceDir))
+}
+
+func readStagingPyprojectVersionWithLayout(layout paths.Layout) (string, error) {
+	data, err := os.ReadFile(layout.UVPyprojectPath)
 	if err != nil {
 		return "", err
 	}
 	match := pyprojectVersionPattern.FindStringSubmatch(string(data))
 	if len(match) < 2 {
-		return "", fmt.Errorf("missing project.version in %s", paths.UVPyprojectPath)
+		return "", fmt.Errorf("missing project.version in %s", layout.UVPyprojectPath)
 	}
 	version := strings.TrimSpace(match[1])
 	if version == "" {
-		return "", fmt.Errorf("empty project.version in %s", paths.UVPyprojectPath)
+		return "", fmt.Errorf("empty project.version in %s", layout.UVPyprojectPath)
 	}
 	return version, nil
 }
 
 func stageWheel(cfg *config.Config, uvDist config.DistributionConfig, target config.Target, version string) error {
+	return stageWheelWithLayout(layoutForConfig(cfg), cfg, uvDist, target, version)
+}
+
+func stageWheelWithLayout(layout paths.Layout, cfg *config.Config, uvDist config.DistributionConfig, target config.Target, version string) error {
 	goOS, _ := shared.NormalizeGoTarget(target)
 	binaryName := shared.BinaryName(cfg.Tool.Name, goOS)
-	sourceBinary := filepath.Join(paths.DistDir, target.OS, target.Arch, binaryName)
+	sourceBinary := filepath.Join(layout.DistDir, target.OS, target.Arch, binaryName)
 
 	binaryData, err := os.ReadFile(sourceBinary)
 	if err != nil {
 		return fmt.Errorf("read built binary %s: %w", sourceBinary, err)
 	}
 
-	wheelPath, err := wheelPathForTarget(uvDist, target, version)
+	wheelPath, err := wheelPathForTargetWithLayout(layout, uvDist, target, version)
 	if err != nil {
 		return err
 	}
@@ -423,11 +446,15 @@ func stageWheel(cfg *config.Config, uvDist config.DistributionConfig, target con
 }
 
 func wheelPathForTarget(uvDist config.DistributionConfig, target config.Target, version string) (string, error) {
+	return wheelPathForTargetWithLayout(paths.NewLayout(config.DefaultWorkspaceDir), uvDist, target, version)
+}
+
+func wheelPathForTargetWithLayout(layout paths.Layout, uvDist config.DistributionConfig, target config.Target, version string) (string, error) {
 	filename, err := shared.WheelFilename(uvDist.Package, version, target, uvDist.LinuxTag)
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(paths.UVDistDir, filename), nil
+	return filepath.Join(layout.UVDistDir, filename), nil
 }
 
 func writeWheel(wheelPath string, cfg *config.Config, uvDist config.DistributionConfig, target config.Target, version string, binaryData []byte) error {
@@ -735,9 +762,13 @@ func readZipFile(f *zip.File) ([]byte, error) {
 }
 
 func collectWheelArtifacts(cfg *config.Config, uvDist config.DistributionConfig, version string) ([]string, error) {
+	return collectWheelArtifactsWithLayout(layoutForConfig(cfg), cfg, uvDist, version)
+}
+
+func collectWheelArtifactsWithLayout(layout paths.Layout, cfg *config.Config, uvDist config.DistributionConfig, version string) ([]string, error) {
 	artifacts := make([]string, 0, len(cfg.Targets))
 	for _, target := range cfg.Targets {
-		wheelPath, err := wheelPathForTarget(uvDist, target, version)
+		wheelPath, err := wheelPathForTargetWithLayout(layout, uvDist, target, version)
 		if err != nil {
 			return nil, err
 		}
@@ -748,4 +779,11 @@ func collectWheelArtifacts(cfg *config.Config, uvDist config.DistributionConfig,
 	}
 	sort.Strings(artifacts)
 	return artifacts, nil
+}
+
+func layoutForConfig(cfg *config.Config) paths.Layout {
+	if cfg == nil {
+		return paths.NewLayout(config.DefaultWorkspaceDir)
+	}
+	return paths.NewLayout(cfg.EffectiveWorkspaceDir())
 }

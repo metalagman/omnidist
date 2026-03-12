@@ -54,10 +54,11 @@ func resolveStageVersionForOutput(cfg *config.Config, dev bool) (string, error) 
 		return shared.ResolveVersion(cfg, true)
 	}
 
-	version, err := shared.ReadBuildVersion()
+	version, err := shared.ReadBuildVersionForConfig(cfg)
 	if err != nil {
+		layout := paths.NewLayout(cfg.EffectiveWorkspaceDir())
 		if errors.Is(err, os.ErrNotExist) {
-			return "", fmt.Errorf("missing build version file %s; run `omnidist build` before `omnidist npm stage`", paths.DistVersionPath)
+			return "", fmt.Errorf("missing build version file %s; run `omnidist build` before `omnidist npm stage`", layout.DistVersionPath)
 		}
 		return "", fmt.Errorf("read build version: %w", err)
 	}

@@ -63,7 +63,7 @@ var buildCmd = &cobra.Command{
 			return fmt.Errorf("build: %w", err)
 		}
 		if buildVersion != "" {
-			if err := shared.WriteBuildVersion(buildVersion); err != nil {
+			if err := shared.WriteBuildVersionForConfig(cfg, buildVersion); err != nil {
 				return fmt.Errorf("write build version: %w", err)
 			}
 			fmt.Println("Build version saved:", buildVersion)
@@ -75,15 +75,27 @@ var buildCmd = &cobra.Command{
 }
 
 func getConfigPath() string {
-	configFile := viper.ConfigFileUsed()
-	if configFile == "" {
-		configFile = paths.ConfigPath
+	configFile := strings.TrimSpace(viper.GetString("config"))
+	if configFile != "" {
+		return configFile
 	}
-	return configFile
+	configFile = strings.TrimSpace(viper.ConfigFileUsed())
+	if configFile != "" {
+		return configFile
+	}
+	return paths.ConfigPath
+}
+
+func getSelectedProfile() string {
+	profile := strings.TrimSpace(viper.GetString("profile"))
+	if profile == "" {
+		return config.DefaultProfileName
+	}
+	return profile
 }
 
 func loadConfig() (*config.Config, error) {
-	return config.Load(getConfigPath())
+	return config.LoadWithProfile(getConfigPath(), getSelectedProfile())
 }
 
 func init() {

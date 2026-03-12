@@ -33,6 +33,40 @@ func TestLoadConfigUsesViperConfigFile(t *testing.T) {
 	}
 }
 
+func TestLoadConfigUsesViperConfigKey(t *testing.T) {
+	t.Chdir(t.TempDir())
+	viper.Reset()
+	t.Cleanup(viper.Reset)
+
+	customPath := filepath.Join(t.TempDir(), "custom-config.yaml")
+	if err := config.Save(config.DefaultConfig(), customPath); err != nil {
+		t.Fatalf("config.Save(%q) error = %v", customPath, err)
+	}
+	viper.Set("config", customPath)
+
+	cfg, err := loadConfig()
+	if err != nil {
+		t.Fatalf("loadConfig() error = %v", err)
+	}
+	if cfg.Tool.Name != "omnidist" {
+		t.Fatalf("cfg.Tool.Name = %q, want %q", cfg.Tool.Name, "omnidist")
+	}
+}
+
+func TestGetSelectedProfile(t *testing.T) {
+	viper.Reset()
+	t.Cleanup(viper.Reset)
+
+	if got := getSelectedProfile(); got != config.DefaultProfileName {
+		t.Fatalf("getSelectedProfile() = %q, want %q", got, config.DefaultProfileName)
+	}
+
+	viper.Set("profile", "release")
+	if got := getSelectedProfile(); got != "release" {
+		t.Fatalf("getSelectedProfile() with profile set = %q, want %q", got, "release")
+	}
+}
+
 func TestLoadConfigFallsBackToDefaultPath(t *testing.T) {
 	t.Chdir(t.TempDir())
 	viper.Reset()

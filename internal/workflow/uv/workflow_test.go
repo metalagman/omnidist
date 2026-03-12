@@ -763,6 +763,26 @@ func TestWriteWheelArchivePropagatesZipCloseError(t *testing.T) {
 	}
 }
 
+func TestLayoutForConfigUsesWorkspaceDir(t *testing.T) {
+	defaultLayout := layoutForConfig(nil)
+	if got := defaultLayout.WorkspaceDir; got != config.DefaultWorkspaceDir {
+		t.Fatalf("layoutForConfig(nil).WorkspaceDir = %q, want %q", got, config.DefaultWorkspaceDir)
+	}
+
+	cfg := config.DefaultConfig()
+	cfg.Runtime.Profile = "release"
+	cfg.Runtime.ProfilesMode = true
+	cfg.Runtime.WorkspaceDir = ".omnidist/release"
+
+	layout := layoutForConfig(cfg)
+	if got := layout.WorkspaceDir; got != ".omnidist/release" {
+		t.Fatalf("layout.WorkspaceDir = %q, want %q", got, ".omnidist/release")
+	}
+	if got := layout.UVDir; got != ".omnidist/release/uv" {
+		t.Fatalf("layout.UVDir = %q, want %q", got, ".omnidist/release/uv")
+	}
+}
+
 func testConfig() *config.Config {
 	return &config.Config{
 		Tool: config.ToolConfig{Name: "omnidist"},

@@ -103,30 +103,56 @@ func resolveConfiguredVersion(cfg *config.Config, dev bool, release bool) (strin
 
 // WriteBuildVersion persists the resolved build version to `dist/version`.
 func WriteBuildVersion(version string) error {
+	return writeBuildVersionForLayout(paths.NewLayout(config.DefaultWorkspaceDir), version)
+}
+
+// WriteBuildVersionForConfig persists the resolved build version for the selected workspace.
+func WriteBuildVersionForConfig(cfg *config.Config, version string) error {
+	layout := paths.NewLayout(config.DefaultWorkspaceDir)
+	if cfg != nil {
+		layout = paths.NewLayout(cfg.EffectiveWorkspaceDir())
+	}
+	return writeBuildVersionForLayout(layout, version)
+}
+
+func writeBuildVersionForLayout(layout paths.Layout, version string) error {
 	v := strings.TrimSpace(version)
 	if v == "" {
 		return fmt.Errorf("version is empty")
 	}
 
-	if err := os.MkdirAll(paths.DistDir, 0755); err != nil {
+	if err := os.MkdirAll(layout.DistDir, 0755); err != nil {
 		return fmt.Errorf("create dist directory: %w", err)
 	}
 
-	if err := os.WriteFile(paths.DistVersionPath, []byte(v+"\n"), 0644); err != nil {
-		return fmt.Errorf("write build version file %s: %w", paths.DistVersionPath, err)
+	if err := os.WriteFile(layout.DistVersionPath, []byte(v+"\n"), 0644); err != nil {
+		return fmt.Errorf("write build version file %s: %w", layout.DistVersionPath, err)
 	}
 	return nil
 }
 
 // ReadBuildVersion reads the persisted build version from `dist/version`.
 func ReadBuildVersion() (string, error) {
-	data, err := os.ReadFile(paths.DistVersionPath)
+	return readBuildVersionForLayout(paths.NewLayout(config.DefaultWorkspaceDir))
+}
+
+// ReadBuildVersionForConfig reads persisted build version for the selected workspace.
+func ReadBuildVersionForConfig(cfg *config.Config) (string, error) {
+	layout := paths.NewLayout(config.DefaultWorkspaceDir)
+	if cfg != nil {
+		layout = paths.NewLayout(cfg.EffectiveWorkspaceDir())
+	}
+	return readBuildVersionForLayout(layout)
+}
+
+func readBuildVersionForLayout(layout paths.Layout) (string, error) {
+	data, err := os.ReadFile(layout.DistVersionPath)
 	if err != nil {
-		return "", fmt.Errorf("read build version file %s: %w", paths.DistVersionPath, err)
+		return "", fmt.Errorf("read build version file %s: %w", layout.DistVersionPath, err)
 	}
 	version := strings.TrimSpace(string(data))
 	if version == "" {
-		return "", fmt.Errorf("empty build version in %s", paths.DistVersionPath)
+		return "", fmt.Errorf("empty build version in %s", layout.DistVersionPath)
 	}
 	return version, nil
 }
@@ -149,7 +175,7 @@ func ResolveStageVersion(cfg *config.Config, dev bool) (string, error) {
 		return ResolveVersion(cfg, true)
 	}
 
-	version, err := ReadBuildVersion()
+	version, err := ReadBuildVersionForConfig(cfg)
 	if err == nil {
 		return version, nil
 	}

@@ -165,6 +165,9 @@ Supported variables:
 
 - `OMNIDIST_VERSION`: used only when `version.source: env`; also expanded in `build.ldflags` templates (for example `${OMNIDIST_VERSION}`).
   `VERSION` is not used.
+- `OMNIDIST_CONFIG`: optional global config file path (same as `--config`).
+- `OMNIDIST_PROFILE`: optional config profile name (same as `--profile`).
+- `OMNIDIST_OMNIDIST_ROOT`: optional project root directory (same as `--omnidist-root`).
 - `OMNIDIST_GIT_COMMIT`: optional ldflags template variable for build metadata; populated automatically by `omnidist build` when git metadata is available.
 - `OMNIDIST_BUILD_DATE`: optional ldflags template variable for build metadata; populated automatically by `omnidist build` as UTC RFC3339.
 - `NPM_PUBLISH_TOKEN`: required for npm publish commands when not using `--dry-run`
@@ -174,6 +177,7 @@ Example `.env`:
 
 ```dotenv
 OMNIDIST_VERSION=1.2.3
+OMNIDIST_PROFILE=release
 NPM_PUBLISH_TOKEN=npm_xxx
 UV_PUBLISH_TOKEN=pypi-xxx
 ```
@@ -224,6 +228,49 @@ distributions:
     include-readme: true # include project README.md in staged wheels when present
 ```
 
+Profiles mode:
+
+```yaml
+profiles:
+  default:
+    tool:
+      name: omnidist
+      main: ./cmd/omnidist
+    version:
+      source: env
+    targets:
+      - os: linux
+        arch: amd64
+    build:
+      ldflags: -s -w
+      tags: []
+      cgo: false
+    distributions:
+      npm:
+        package: "@scope/mytool"
+      uv:
+        package: mytool
+
+  release:
+    tool:
+      name: omnidist
+      main: ./cmd/omnidist
+    version:
+      source: fixed
+      fixed: 1.0.0
+    targets:
+      - os: linux
+        arch: amd64
+    build:
+      ldflags: -s -w
+      tags: []
+      cgo: false
+```
+
+Select a profile with `--profile <name>` or `OMNIDIST_PROFILE`.
+If `profiles` is present and no profile is provided, `default` is used.
+Mixing top-level runtime fields and `profiles` in the same file is not supported.
+
 `targets` use Go values (`GOOS`/`GOARCH`). Distribution workflows map them as needed (for example `windows/amd64` -> npm `win32/x64`).
 
 For appkit version injection, configure `build.ldflags` in your project config:
@@ -245,6 +292,11 @@ With `version.source: env`, set `OMNIDIST_VERSION` (for example in `.env`) befor
 
 Use global `--omnidist-root <path>` to set the project root for a command. Omnidist resolves it to an absolute path at startup and changes working directory to it before loading `.env` and config.
 
+Workspace behavior:
+- Legacy config writes artifacts to `.omnidist/*`.
+- Profiles config writes artifacts to `.omnidist/<profile>/*`.
+- Isolation is by profile name. If different config files use the same profile name in the same repo, they share the same `.omnidist/<profile>` workspace.
+
 ## Command Reference
 
 Top-level:
@@ -259,6 +311,12 @@ Top-level:
 - `omnidist publish [--dry-run] [--only npm|uv|npm,uv]`
 - `omnidist npm`
 - `omnidist uv`
+
+Global flags:
+
+- `--config <path>`
+- `--profile <name>`
+- `--omnidist-root <path>`
 
 NPM subcommands:
 

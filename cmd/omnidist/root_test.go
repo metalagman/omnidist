@@ -179,6 +179,116 @@ func TestGlobalOmnidistRootWithRelativeConfigPath(t *testing.T) {
 	}
 }
 
+func TestGlobalConfigPathFromEnv(t *testing.T) {
+	projectDir := t.TempDir()
+	t.Chdir(projectDir)
+
+	customConfig := filepath.Join(projectDir, "configs", "custom.yaml")
+	if err := config.Save(config.DefaultConfig(), customConfig); err != nil {
+		t.Fatalf("config.Save(%q) error = %v", customConfig, err)
+	}
+	t.Setenv("OMNIDIST_CONFIG", customConfig)
+
+	output, err := executeCommand("quickstart")
+	if err != nil {
+		t.Fatalf("executeCommand(quickstart with OMNIDIST_CONFIG) error = %v, output=%s", err, output)
+	}
+	if !strings.Contains(output, "Config: "+customConfig) {
+		t.Fatalf("quickstart output missing env-config path %q: %s", customConfig, output)
+	}
+}
+
+func TestGetConfigPathUsesViperConfigFileUsed(t *testing.T) {
+	viper.Reset()
+	t.Cleanup(viper.Reset)
+
+	path := filepath.Join(t.TempDir(), "cfg.yaml")
+	if err := config.Save(config.DefaultConfig(), path); err != nil {
+		t.Fatalf("config.Save(%q) error = %v", path, err)
+	}
+	viper.SetConfigFile(path)
+	if err := viper.ReadInConfig(); err != nil {
+		t.Fatalf("viper.ReadInConfig() error = %v", err)
+	}
+
+	if got := getConfigPath(); got != path {
+		t.Fatalf("getConfigPath() = %q, want %q", got, path)
+	}
+}
+
+func TestGlobalOmnidistRootFromEnv(t *testing.T) {
+	projectDir := t.TempDir()
+	if err := config.Save(config.DefaultConfig(), filepath.Join(projectDir, ".omnidist", "omnidist.yaml")); err != nil {
+		t.Fatalf("config.Save() error = %v", err)
+	}
+
+	startDir := t.TempDir()
+	t.Chdir(startDir)
+	t.Setenv("OMNIDIST_OMNIDIST_ROOT", projectDir)
+
+	output, err := executeCommand("quickstart")
+	if err != nil {
+		t.Fatalf("executeCommand(quickstart with OMNIDIST_OMNIDIST_ROOT) error = %v, output=%s", err, output)
+	}
+	if !strings.Contains(output, "Config: .omnidist/omnidist.yaml") {
+		t.Fatalf("quickstart output missing root-resolved config path: %s", output)
+	}
+}
+
+func TestGlobalProfileFromEnv(t *testing.T) {
+	projectDir := t.TempDir()
+	t.Chdir(projectDir)
+	configPath := filepath.Join(projectDir, ".omnidist", "omnidist.yaml")
+	if err := os.MkdirAll(filepath.Dir(configPath), 0755); err != nil {
+		t.Fatalf("os.MkdirAll(%q) error = %v", filepath.Dir(configPath), err)
+	}
+	content := `profiles:
+  default:
+    tool:
+      name: app
+      main: ./cmd/app
+    version:
+      source: fixed
+      fixed: 1.0.0
+    targets:
+      - os: linux
+        arch: amd64
+    build:
+      ldflags: -s -w
+      tags: []
+      cgo: false
+  release:
+    tool:
+      name: app
+      main: ./cmd/app
+    version:
+      source: fixed
+      fixed: 2.0.0
+    targets:
+      - os: linux
+        arch: amd64
+    build:
+      ldflags: -s -w
+      tags: []
+      cgo: false
+`
+	if err := os.WriteFile(configPath, []byte(content), 0644); err != nil {
+		t.Fatalf("os.WriteFile(%q) error = %v", configPath, err)
+	}
+	t.Setenv("OMNIDIST_PROFILE", "release")
+
+	output, err := executeCommand("ci", "--dry-run")
+	if err != nil {
+		t.Fatalf("executeCommand(ci --dry-run with OMNIDIST_PROFILE) error = %v, output=%s", err, output)
+	}
+	if !strings.Contains(output, "path: .omnidist/release/dist/**/*") {
+		t.Fatalf("ci dry-run output missing release workspace path: %s", output)
+	}
+	if !strings.Contains(output, "omnidist --profile 'release' build") {
+		t.Fatalf("ci dry-run output missing profile-aware command: %s", output)
+	}
+}
+
 func TestGlobalOmnidistRootFlagInvalidPath(t *testing.T) {
 	output, err := executeCommand("quickstart", "--omnidist-root", filepath.Join(t.TempDir(), "missing-root"))
 	if err == nil {
@@ -213,6 +323,9 @@ func TestRootHelpContainsOmnidistRootFlag(t *testing.T) {
 	if !strings.Contains(output, "--omnidist-root") {
 		t.Fatalf("root help missing --omnidist-root: %s", output)
 	}
+	if !strings.Contains(output, "--profile") {
+		t.Fatalf("root help missing --profile: %s", output)
+	}
 }
 
 func executeCommand(args ...string) (string, error) {
@@ -225,6 +338,7 @@ func executeCommand(args ...string) (string, error) {
 	// Reset global state
 	cfgFile = ""
 	omnidistRoot = ""
+	profileName = ""
 	initRootErr = nil
 	viper.Reset()
 	rootCmd.SilenceUsage = true

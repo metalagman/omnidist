@@ -700,6 +700,11 @@ func TestHasLegacyFixedVersionKey(t *testing.T) {
 			yaml: "version:\n  source: fixed\n  fixed-version: 1.2.3\n",
 			want: true,
 		},
+		{
+			name: "profiles map with legacy key",
+			yaml: "profiles:\n  release:\n    version:\n      source: fixed\n      fixed-version: 1.2.3\n",
+			want: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -710,4 +715,288 @@ func TestHasLegacyFixedVersionKey(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestLoadWithProfileLegacyModeRuntimeDefaults(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, paths.ConfigPath)
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		t.Fatalf("os.MkdirAll() error = %v", err)
+	}
+
+	if err := configFile(path, `tool:
+  name: legacy
+  main: ./cmd/legacy
+version:
+  source: env
+targets:
+  - os: linux
+    arch: amd64
+build:
+  ldflags: -s -w
+  tags: []
+  cgo: false
+`); err != nil {
+		t.Fatalf("configFile() error = %v", err)
+	}
+
+	cfg, err := LoadWithProfile(path, "release")
+	if err != nil {
+		t.Fatalf("LoadWithProfile() error = %v", err)
+	}
+	if cfg.SelectedProfile() != DefaultProfileName {
+		t.Fatalf("SelectedProfile() = %q, want %q", cfg.SelectedProfile(), DefaultProfileName)
+	}
+	if cfg.IsProfilesMode() {
+		t.Fatalf("IsProfilesMode() = true, want false")
+	}
+	if got := cfg.EffectiveWorkspaceDir(); got != DefaultWorkspaceDir {
+		t.Fatalf("EffectiveWorkspaceDir() = %q, want %q", got, DefaultWorkspaceDir)
+	}
+}
+
+func TestLoadWithProfileProfilesModeSelection(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, paths.ConfigPath)
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		t.Fatalf("os.MkdirAll() error = %v", err)
+	}
+
+	if err := configFile(path, `profiles:
+  default:
+    tool:
+      name: app-default
+      main: ./cmd/app-default
+    version:
+      source: fixed
+      fixed: 1.0.0
+    targets:
+      - os: linux
+        arch: amd64
+    build:
+      ldflags: -s -w
+      tags: []
+      cgo: false
+  release:
+    tool:
+      name: app-release
+      main: ./cmd/app-release
+    version:
+      source: file
+      file: versions/release.txt
+    targets:
+      - os: linux
+        arch: amd64
+    build:
+      ldflags: -s -w
+      tags: []
+      cgo: false
+`); err != nil {
+		t.Fatalf("configFile() error = %v", err)
+	}
+
+	cfg, err := LoadWithProfile(path, "release")
+	if err != nil {
+		t.Fatalf("LoadWithProfile(release) error = %v", err)
+	}
+	if got := cfg.Tool.Name; got != "app-release" {
+		t.Fatalf("Tool.Name = %q, want %q", got, "app-release")
+	}
+	if got := cfg.SelectedProfile(); got != "release" {
+		t.Fatalf("SelectedProfile() = %q, want %q", got, "release")
+	}
+	if !cfg.IsProfilesMode() {
+		t.Fatalf("IsProfilesMode() = false, want true")
+	}
+	if got := cfg.EffectiveWorkspaceDir(); got != ".omnidist/release" {
+		t.Fatalf("EffectiveWorkspaceDir() = %q, want %q", got, ".omnidist/release")
+	}
+}
+
+func TestLoadWithProfileProfilesModeDefaultSelection(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, paths.ConfigPath)
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		t.Fatalf("os.MkdirAll() error = %v", err)
+	}
+
+	if err := configFile(path, `profiles:
+  default:
+    tool:
+      name: app-default
+      main: ./cmd/app-default
+    version:
+      source: fixed
+      fixed: 1.0.0
+    targets:
+      - os: linux
+        arch: amd64
+    build:
+      ldflags: -s -w
+      tags: []
+      cgo: false
+`); err != nil {
+		t.Fatalf("configFile() error = %v", err)
+	}
+
+	cfg, err := LoadWithProfile(path, "")
+	if err != nil {
+		t.Fatalf("LoadWithProfile(default) error = %v", err)
+	}
+	if got := cfg.SelectedProfile(); got != DefaultProfileName {
+		t.Fatalf("SelectedProfile() = %q, want %q", got, DefaultProfileName)
+	}
+	if got := cfg.EffectiveWorkspaceDir(); got != ".omnidist/default" {
+		t.Fatalf("EffectiveWorkspaceDir() = %q, want %q", got, ".omnidist/default")
+	}
+}
+
+func TestLoadWithProfileErrors(t *testing.T) {
+	t.Run("missing profile", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "cfg.yaml")
+		if err := configFile(path, `profiles:
+  default:
+    tool:
+      name: app
+      main: ./cmd/app
+    version:
+      source: fixed
+      fixed: 1.0.0
+    targets:
+      - os: linux
+        arch: amd64
+    build:
+      ldflags: -s -w
+      tags: []
+      cgo: false
+`); err != nil {
+			t.Fatalf("configFile() error = %v", err)
+		}
+
+		_, err := LoadWithProfile(path, "release")
+		if err == nil || !strings.Contains(err.Error(), "available profiles") {
+			t.Fatalf("LoadWithProfile(missing) error = %v, want available profiles message", err)
+		}
+	})
+
+	t.Run("mixed format", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "cfg.yaml")
+		if err := configFile(path, `tool:
+  name: app
+  main: ./cmd/app
+profiles:
+  default:
+    tool:
+      name: app
+      main: ./cmd/app
+`); err != nil {
+			t.Fatalf("configFile() error = %v", err)
+		}
+
+		_, err := LoadWithProfile(path, "")
+		if err == nil || !strings.Contains(err.Error(), "mixed format") {
+			t.Fatalf("LoadWithProfile(mixed) error = %v, want mixed format error", err)
+		}
+	})
+
+	t.Run("invalid selected profile", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "cfg.yaml")
+		if err := configFile(path, `profiles:
+  default:
+    tool:
+      name: app
+      main: ./cmd/app
+    version:
+      source: fixed
+      fixed: 1.0.0
+    targets:
+      - os: linux
+        arch: amd64
+    build:
+      ldflags: -s -w
+      tags: []
+      cgo: false
+`); err != nil {
+			t.Fatalf("configFile() error = %v", err)
+		}
+
+		_, err := LoadWithProfile(path, "bad/profile")
+		if err == nil || !strings.Contains(err.Error(), "invalid profile name") {
+			t.Fatalf("LoadWithProfile(invalid selected profile) error = %v, want invalid profile name", err)
+		}
+	})
+
+	t.Run("invalid configured profile key", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "cfg.yaml")
+		if err := configFile(path, `profiles:
+  bad/profile:
+    tool:
+      name: app
+      main: ./cmd/app
+    version:
+      source: fixed
+      fixed: 1.0.0
+    targets:
+      - os: linux
+        arch: amd64
+    build:
+      ldflags: -s -w
+      tags: []
+      cgo: false
+`); err != nil {
+			t.Fatalf("configFile() error = %v", err)
+		}
+
+		_, err := LoadWithProfile(path, "bad/profile")
+		if err == nil || !strings.Contains(err.Error(), "invalid profile name") {
+			t.Fatalf("LoadWithProfile(invalid configured profile) error = %v, want invalid profile name", err)
+		}
+	})
+}
+
+func TestRuntimeHelpersHandleNilConfig(t *testing.T) {
+	var cfg *Config
+	if got := cfg.EffectiveWorkspaceDir(); got != DefaultWorkspaceDir {
+		t.Fatalf("nil EffectiveWorkspaceDir() = %q, want %q", got, DefaultWorkspaceDir)
+	}
+	if got := cfg.SelectedProfile(); got != DefaultProfileName {
+		t.Fatalf("nil SelectedProfile() = %q, want %q", got, DefaultProfileName)
+	}
+	if cfg.IsProfilesMode() {
+		t.Fatalf("nil IsProfilesMode() = true, want false")
+	}
+}
+
+func TestValidateProfileNameReservedNames(t *testing.T) {
+	for _, name := range []string{".", ".."} {
+		err := validateProfileName(name)
+		if err == nil || !strings.Contains(err.Error(), "invalid profile name") {
+			t.Fatalf("validateProfileName(%q) error = %v, want invalid profile name", name, err)
+		}
+	}
+}
+
+func TestContainsLegacyFixedVersionKeyCoversCollections(t *testing.T) {
+	if !containsLegacyFixedVersionKey(map[interface{}]interface{}{
+		"version": map[interface{}]interface{}{
+			"fixed-version": "1.2.3",
+		},
+	}) {
+		t.Fatalf("containsLegacyFixedVersionKey(map[interface{}]interface{}) = false, want true")
+	}
+
+	if !containsLegacyFixedVersionKey([]interface{}{
+		map[string]interface{}{
+			"fixed-version": "1.2.3",
+		},
+	}) {
+		t.Fatalf("containsLegacyFixedVersionKey([]interface{}) = false, want true")
+	}
+}
+
+func configFile(path string, content string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return err
+	}
+	return os.WriteFile(path, []byte(content), 0644)
 }

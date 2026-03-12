@@ -551,7 +551,7 @@ func TestEnsureWorkspaceNPMRC(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)
 
-	npmrcPath, err := ensureWorkspaceNPMRC("https://registry.npmjs.org")
+	npmrcPath, err := ensureWorkspaceNPMRC(paths.NewLayout(config.DefaultWorkspaceDir), "https://registry.npmjs.org")
 	if err != nil {
 		t.Fatalf("ensureWorkspaceNPMRC() error = %v", err)
 	}
@@ -1075,6 +1075,26 @@ func TestStageRequiresBuildVersionFile(t *testing.T) {
 	err := Stage(cfg, StageOptions{})
 	if err == nil || !strings.Contains(err.Error(), "missing build version file") {
 		t.Fatalf("Stage() error = %v, want missing build version file", err)
+	}
+}
+
+func TestLayoutForConfigUsesWorkspaceDir(t *testing.T) {
+	defaultLayout := layoutForConfig(nil)
+	if got := defaultLayout.WorkspaceDir; got != config.DefaultWorkspaceDir {
+		t.Fatalf("layoutForConfig(nil).WorkspaceDir = %q, want %q", got, config.DefaultWorkspaceDir)
+	}
+
+	cfg := config.DefaultConfig()
+	cfg.Runtime.Profile = "release"
+	cfg.Runtime.ProfilesMode = true
+	cfg.Runtime.WorkspaceDir = ".omnidist/release"
+
+	layout := layoutForConfig(cfg)
+	if got := layout.WorkspaceDir; got != ".omnidist/release" {
+		t.Fatalf("layout.WorkspaceDir = %q, want %q", got, ".omnidist/release")
+	}
+	if got := layout.NPMDir; got != ".omnidist/release/npm" {
+		t.Fatalf("layout.NPMDir = %q, want %q", got, ".omnidist/release/npm")
 	}
 }
 

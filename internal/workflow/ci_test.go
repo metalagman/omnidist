@@ -74,6 +74,38 @@ func TestGenerateGitHubReleaseWorkflowDefaultsToLatest(t *testing.T) {
 	}
 }
 
+func TestGenerateGitHubReleaseWorkflowProfilesMode(t *testing.T) {
+	t.Parallel()
+
+	cfg := config.DefaultConfig()
+	cfg.Runtime.Profile = "release"
+	cfg.Runtime.ProfilesMode = true
+	cfg.Runtime.WorkspaceDir = ".omnidist/release"
+
+	content, err := GenerateGitHubReleaseWorkflow(cfg, CIWorkflowOptions{
+		NPXVersion: "0.2.0",
+	})
+	if err != nil {
+		t.Fatalf("GenerateGitHubReleaseWorkflow() error = %v", err)
+	}
+
+	for _, want := range []string{
+		`run: omnidist --profile 'release' build`,
+		`run: omnidist --profile 'release' stage`,
+		`run: omnidist --profile 'release' verify`,
+		`run: omnidist --profile 'release' npm publish`,
+		`run: omnidist --profile 'release' uv publish`,
+		`run: tar -czf omnidist-staged.tgz .omnidist/release`,
+		`path: .omnidist/release/dist/**/*`,
+		`path: .omnidist/release/dist`,
+		`find .omnidist/release/dist -type f ! -name VERSION -print0 | sort -z`,
+	} {
+		if !strings.Contains(content, want) {
+			t.Fatalf("workflow content missing %q\n---\n%s", want, content)
+		}
+	}
+}
+
 func TestGenerateGitHubReleaseWorkflowNilConfig(t *testing.T) {
 	t.Parallel()
 
