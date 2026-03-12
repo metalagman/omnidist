@@ -12,15 +12,16 @@ var initCmd = &cobra.Command{
 	Use:   "init",
 	Short: "Bootstrap omnidist workspace in existing Go repo",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if err := workflow.Init(paths.ConfigPath); err != nil {
+		cfgPath := getConfigPath()
+		if err := workflow.Init(cfgPath); err != nil {
 			return fmt.Errorf("initialize project: %w", err)
 		}
 
 		out := cmd.OutOrStdout()
-		fmt.Fprintf(out, "Created %s\n", paths.ConfigPath)
+		fmt.Fprintf(out, "Created %s\n", cfgPath)
 		fmt.Fprintf(out, "Created %s workspace and %s/.gitignore\n\n", paths.WorkspaceDir, paths.WorkspaceDir)
 		fmt.Fprintln(out, "Next steps:")
-		fmt.Fprintf(out, "1. Edit %s\n", paths.ConfigPath)
+		fmt.Fprintf(out, "1. Edit %s\n", cfgPath)
 		fmt.Fprintln(out, "2. Set environment variables in .env (loaded automatically by omnidist)")
 		fmt.Fprintln(out, "3. omnidist build")
 		fmt.Fprintln(out, "4. omnidist stage")

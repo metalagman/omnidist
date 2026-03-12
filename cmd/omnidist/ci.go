@@ -7,12 +7,12 @@ import (
 	"strings"
 
 	appversion "github.com/metalagman/appkit/version"
-	"github.com/metalagman/omnidist/internal/paths"
 	"github.com/metalagman/omnidist/internal/workflow"
 	"github.com/spf13/cobra"
 )
 
 var ciForceFlag bool
+var ciDryRunFlag bool
 
 var ciCmd = &cobra.Command{
 	Use:   "ci",
@@ -21,7 +21,7 @@ var ciCmd = &cobra.Command{
 		cfg, err := loadConfig()
 		if err != nil {
 			if errors.Is(err, os.ErrNotExist) {
-				return fmt.Errorf("config %s not found; run `omnidist init` first", paths.ConfigPath)
+				return fmt.Errorf("config %s not found; run `omnidist init` first", getConfigPath())
 			}
 			return fmt.Errorf("load config: %w", err)
 		}
@@ -32,6 +32,11 @@ var ciCmd = &cobra.Command{
 		})
 		if err != nil {
 			return fmt.Errorf("generate workflow: %w", err)
+		}
+
+		if ciDryRunFlag {
+			fmt.Fprint(cmd.OutOrStdout(), string(content))
+			return nil
 		}
 
 		if err := workflow.WriteGitHubReleaseWorkflow(workflow.DefaultCIWorkflowPath, content, ciForceFlag); err != nil {
@@ -57,5 +62,6 @@ func resolveCINPXVersion() (string, bool) {
 
 func init() {
 	ciCmd.Flags().BoolVar(&ciForceFlag, "force", false, "Overwrite existing workflow file if it already exists")
+	ciCmd.Flags().BoolVar(&ciDryRunFlag, "dry-run", false, "Print generated workflow YAML to stdout and do not write workflow files")
 	AddCommand(ciCmd)
 }

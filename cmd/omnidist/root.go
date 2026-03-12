@@ -9,7 +9,10 @@ import (
 	"github.com/metalagman/omnidist/cmd/omnidist/npm"
 	"github.com/metalagman/omnidist/cmd/omnidist/uv"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
+
+var cfgFile string
 
 var rootCmd = &cobra.Command{
 	Use:           "omnidist",
@@ -30,7 +33,8 @@ func AddCommand(cmd *cobra.Command) {
 }
 
 func init() {
-	cobra.OnInitialize(initDotEnv)
+	cobra.OnInitialize(initDotEnv, initConfig)
+	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is .omnidist/omnidist.yaml)")
 	rootCmd.AddCommand(npm.Cmd)
 	rootCmd.AddCommand(uv.Cmd)
 }
@@ -38,5 +42,11 @@ func init() {
 func initDotEnv() {
 	if err := godotenv.Load(); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		cobra.CheckErr(fmt.Errorf(".env load: %w", err))
+	}
+}
+
+func initConfig() {
+	if cfgFile != "" {
+		viper.SetConfigFile(cfgFile)
 	}
 }

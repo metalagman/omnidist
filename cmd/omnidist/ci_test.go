@@ -108,3 +108,36 @@ func TestCICommandForceOverwritesWorkflow(t *testing.T) {
 		t.Fatalf("workflow content not overwritten: %s", string(data))
 	}
 }
+
+func TestCICommandDryRunPrintsWorkflow(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+
+	cfg := config.DefaultConfig()
+	if err := config.Save(cfg, paths.ConfigPath); err != nil {
+		t.Fatalf("config.Save() error = %v", err)
+	}
+
+	output, err := executeCommand("ci", "--dry-run")
+	if err != nil {
+		t.Fatalf("executeCommand(ci --dry-run) error = %v, output=%s", err, output)
+	}
+
+	// Verify workflow file was NOT created
+	if _, err := os.Stat(workflow.DefaultCIWorkflowPath); !os.IsNotExist(err) {
+		t.Fatalf("workflow file created in dry-run mode")
+	}
+
+	// Verify output contains workflow content
+	for _, want := range []string{
+		`name: omnidist-release`,
+		`on:`,
+		`push:`,
+		`tags:`,
+		`- "v*"`,
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("dry-run output missing %q: %s", want, output)
+		}
+	}
+}

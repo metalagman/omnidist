@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/metalagman/omnidist/internal/config"
-	"github.com/metalagman/omnidist/internal/paths"
 	"github.com/metalagman/omnidist/internal/workflow/shared"
 	"github.com/spf13/cobra"
 )
@@ -46,7 +45,7 @@ func printQuickstart(cmd *cobra.Command, cfg *config.Config) {
 		return
 	}
 
-	fmt.Fprintf(out, "Config: %s\n\n", paths.ConfigPath)
+	fmt.Fprintf(out, "Config: %s\n\n", getConfigPath())
 	fmt.Fprintf(out, "1. Build artifacts:\n   omnidist build\n\n")
 	fmt.Fprintf(out, "2. Stage and verify:\n")
 	fmt.Fprintf(out, "   omnidist stage\n")
