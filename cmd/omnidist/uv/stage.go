@@ -2,7 +2,10 @@ package uv
 
 import (
 	"fmt"
+	"path/filepath"
 
+	"github.com/metalagman/omnidist/internal/paths"
+	"github.com/metalagman/omnidist/internal/workflow"
 	"github.com/metalagman/omnidist/internal/workflow/shared"
 	uvworkflow "github.com/metalagman/omnidist/internal/workflow/uv"
 	"github.com/spf13/cobra"
@@ -19,13 +22,15 @@ var stageCmd = &cobra.Command{
 	Use:   "stage",
 	Short: "Assemble uv wheel artifacts from built binaries",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if err := uvworkflow.CheckDependency(); err != nil {
-			return err
-		}
-
 		cfg, err := loadConfig()
 		if err != nil {
 			return fmt.Errorf("load config: %w", err)
+		}
+		if err := workflow.EnsureWorkspaceGitignore(filepath.Join(paths.WorkspaceDir, ".gitignore")); err != nil {
+			return fmt.Errorf("ensure workspace gitignore: %w", err)
+		}
+		if err := uvworkflow.CheckDependency(); err != nil {
+			return err
 		}
 
 		version, err := shared.ResolveStageVersion(cfg, stageDev)

@@ -2,7 +2,10 @@ package main
 
 import (
 	"fmt"
+	"path/filepath"
 
+	"github.com/metalagman/omnidist/internal/paths"
+	"github.com/metalagman/omnidist/internal/workflow"
 	npmworkflow "github.com/metalagman/omnidist/internal/workflow/npm"
 	uvworkflow "github.com/metalagman/omnidist/internal/workflow/uv"
 	"github.com/spf13/cobra"
@@ -20,6 +23,10 @@ var stageCmd = &cobra.Command{
 		cfg, err := loadConfig()
 		if err != nil {
 			return fmt.Errorf("load config: %w", err)
+		}
+
+		if err := workflow.EnsureWorkspaceGitignore(filepath.Join(paths.WorkspaceDir, ".gitignore")); err != nil {
+			return fmt.Errorf("ensure workspace gitignore: %w", err)
 		}
 
 		distributions, err := resolveDistributions(stageOnlyFlag)

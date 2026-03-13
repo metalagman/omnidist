@@ -3,7 +3,6 @@ package workflow
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/metalagman/omnidist/internal/config"
@@ -50,42 +49,30 @@ func TestEnsureWorkspaceGitignoreScenarios(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, ".gitignore")
 
-	// 1. Fresh file
 	if err := EnsureWorkspaceGitignore(path); err != nil {
 		t.Fatalf("EnsureWorkspaceGitignore(fresh) error = %v", err)
 	}
-	data, _ := os.ReadFile(path)
-	if !strings.Contains(string(data), "dist/") {
-		t.Fatalf("missing dist/")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("os.ReadFile(%q) error = %v", path, err)
+	}
+	if got := string(data); got != "*\n!.gitignore\n!omnidist.yaml\n" {
+		t.Fatalf("fresh workspace gitignore content = %q", got)
 	}
 
-	// 2. Existing file without newline
-	os.WriteFile(path, []byte("node_modules/"), 0644)
+	const existing = "node_modules/\n"
+	if err := os.WriteFile(path, []byte(existing), 0644); err != nil {
+		t.Fatalf("os.WriteFile(%q) error = %v", path, err)
+	}
 	if err := EnsureWorkspaceGitignore(path); err != nil {
-		t.Fatalf("EnsureWorkspaceGitignore(no newline) error = %v", err)
+		t.Fatalf("EnsureWorkspaceGitignore(existing) error = %v", err)
 	}
-	data, _ = os.ReadFile(path)
-	if !strings.HasPrefix(string(data), "node_modules/\n\n# omnidist") {
-		t.Fatalf("unexpected content after no-newline setup:\n%s", string(data))
+	data, err = os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("os.ReadFile(%q) error = %v", path, err)
 	}
-
-	// 3. Existing file WITH newline
-	os.WriteFile(path, []byte("node_modules/\n"), 0644)
-	if err := EnsureWorkspaceGitignore(path); err != nil {
-		t.Fatalf("EnsureWorkspaceGitignore(with newline) error = %v", err)
-	}
-	data, _ = os.ReadFile(path)
-	if !strings.HasPrefix(string(data), "node_modules/\n\n# omnidist") {
-		t.Fatalf("unexpected content after with-newline setup:\n%s", string(data))
-	}
-
-	// 4. Already has everything
-	if err := EnsureWorkspaceGitignore(path); err != nil {
-		t.Fatalf("EnsureWorkspaceGitignore(already has) error = %v", err)
-	}
-	dataAfter, _ := os.ReadFile(path)
-	if string(data) != string(dataAfter) {
-		t.Fatalf("gitignore changed unexpectedly when already complete")
+	if got := string(data); got != existing {
+		t.Fatalf("existing workspace gitignore should remain unchanged, got %q", got)
 	}
 }
 

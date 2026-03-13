@@ -94,6 +94,9 @@ func TestSubcommandsFailWhenUVDependencyMissing(t *testing.T) {
 	publishURL = ""
 	publishLegacyURL = ""
 	publishToken = ""
+	if err := config.Save(config.DefaultConfig(), paths.ConfigPath); err != nil {
+		t.Fatalf("config.Save(%q) error = %v", paths.ConfigPath, err)
+	}
 	t.Setenv("PATH", "")
 
 	tests := []struct {

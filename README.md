@@ -79,7 +79,8 @@ omnidist init
 This creates:
 - `.omnidist/omnidist.yaml`
 - `.omnidist/` workspace directories
-- `.omnidist/.gitignore` for generated artifacts
+
+`omnidist init` writes profiles-mode config with a `default` profile.
 
 3. Edit config and set environment variables (optional):
 
@@ -95,7 +96,8 @@ $EDITOR .omnidist/omnidist.yaml
 omnidist build
 ```
 
-This also writes the resolved build version to `.omnidist/dist/VERSION`.
+This also writes the resolved build version to `.omnidist/<profile>/dist/VERSION`
+(`.omnidist/default/dist/VERSION` with init defaults).
 
 5. Stage and verify artifacts:
 
@@ -105,8 +107,9 @@ omnidist verify
 ```
 
 `omnidist uv stage` converts the resolved version to PEP 440 and writes
-`.omnidist/uv/pyproject.toml` with that version.
-It also recreates `.omnidist/uv/dist` to prevent stale wheel artifacts from previous runs.
+`.omnidist/<profile>/uv/pyproject.toml` with that version.
+It also recreates `.omnidist/<profile>/uv/dist` to prevent stale wheel artifacts from previous runs.
+On first stage run, omnidist creates `.omnidist/.gitignore` (if missing).
 
 6. Publish when verification passes:
 
@@ -185,6 +188,9 @@ UV_PUBLISH_TOKEN=pypi-xxx
 ## Configuration
 
 `.omnidist/omnidist.yaml`:
+
+`omnidist init` now generates the profiles-mode shape (`profiles.default`) by default.
+Legacy top-level format remains supported when loading config files.
 
 ```yaml
 tool:

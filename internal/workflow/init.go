@@ -8,25 +8,27 @@ import (
 
 	"github.com/metalagman/omnidist/internal/config"
 	"github.com/metalagman/omnidist/internal/paths"
+	"gopkg.in/yaml.v3"
 )
 
 // Init writes a default config and creates initial staging directories.
 func Init(configPath string) error {
 	cfg := config.DefaultConfig()
 
-	if err := config.Save(cfg, configPath); err != nil {
+	if err := saveProfilesConfig(cfg, configPath); err != nil {
 		return fmt.Errorf("save config: %w", err)
 	}
 
-	if err := CreateNPMStructure(cfg); err != nil {
+	profileCfg, err := config.LoadWithProfile(configPath, config.DefaultProfileName)
+	if err != nil {
+		return fmt.Errorf("load generated profile config: %w", err)
+	}
+
+	if err := CreateNPMStructure(profileCfg); err != nil {
 		return err
 	}
 
-	if err := CreateUVStructure(cfg); err != nil {
-		return err
-	}
-
-	if err := EnsureWorkspaceGitignore(filepath.Join(paths.WorkspaceDir, ".gitignore")); err != nil {
+	if err := CreateUVStructure(profileCfg); err != nil {
 		return err
 	}
 
@@ -35,12 +37,16 @@ func Init(configPath string) error {
 
 // CreateNPMStructure creates the npm workspace directories for configured targets.
 func CreateNPMStructure(cfg *config.Config) error {
+	if cfg == nil {
+		return fmt.Errorf("config is nil")
+	}
 	dist, ok := cfg.Distributions["npm"]
 	if !ok || strings.TrimSpace(dist.Package) == "" {
 		return nil
 	}
 
-	baseDir := paths.NPMDir
+	layout := paths.NewLayout(cfg.EffectiveWorkspaceDir())
+	baseDir := layout.NPMDir
 
 	if err := os.MkdirAll(baseDir, 0755); err != nil {
 		return fmt.Errorf("create npm base directory %s: %w", baseDir, err)
@@ -66,63 +72,68 @@ func CreateNPMStructure(cfg *config.Config) error {
 
 // CreateUVStructure creates the uv staging directory when uv distribution is configured.
 func CreateUVStructure(cfg *config.Config) error {
+	if cfg == nil {
+		return fmt.Errorf("config is nil")
+	}
 	dist, ok := cfg.Distributions["uv"]
 	if !ok || strings.TrimSpace(dist.Package) == "" {
 		return nil
 	}
 
-	if err := os.MkdirAll(paths.UVDistDir, 0755); err != nil {
-		return fmt.Errorf("create uv dist directory %s: %w", paths.UVDistDir, err)
+	layout := paths.NewLayout(cfg.EffectiveWorkspaceDir())
+	if err := os.MkdirAll(layout.UVDistDir, 0755); err != nil {
+		return fmt.Errorf("create uv dist directory %s: %w", layout.UVDistDir, err)
 	}
 
 	return nil
 }
 
-// EnsureWorkspaceGitignore appends omnidist artifact paths to the workspace `.gitignore`.
+// EnsureWorkspaceGitignore creates `.gitignore` for workspace layout control when missing.
 func EnsureWorkspaceGitignore(path string) error {
-	required := []string{
-		"dist/",
-		"npm/",
-		"uv/",
-	}
-
-	existing := ""
-	if data, err := os.ReadFile(path); err == nil {
-		existing = string(data)
+	if info, err := os.Stat(path); err == nil {
+		if info.IsDir() {
+			return fmt.Errorf("gitignore path %s is a directory", path)
+		}
+		return nil
 	} else if !os.IsNotExist(err) {
-		return fmt.Errorf("read gitignore %s: %w", path, err)
+		return fmt.Errorf("stat gitignore %s: %w", path, err)
 	}
 
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		return fmt.Errorf("create gitignore directory %s: %w", filepath.Dir(path), err)
 	}
 
-	var missing []string
-	for _, line := range required {
-		if !strings.Contains(existing, line) {
-			missing = append(missing, line)
-		}
-	}
-	if len(missing) == 0 {
-		return nil
-	}
-
-	var builder strings.Builder
-	builder.WriteString(existing)
-	if existing != "" && !strings.HasSuffix(existing, "\n") {
-		builder.WriteString("\n")
-	}
-	if existing != "" {
-		builder.WriteString("\n")
-	}
-	builder.WriteString("# omnidist generated artifacts\n")
-	for _, line := range missing {
-		builder.WriteString(line)
-		builder.WriteString("\n")
-	}
-
-	if err := os.WriteFile(path, []byte(builder.String()), 0644); err != nil {
+	content := "*\n!.gitignore\n!omnidist.yaml\n"
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
 		return fmt.Errorf("write gitignore %s: %w", path, err)
+	}
+	return nil
+}
+
+func saveProfilesConfig(cfg *config.Config, configPath string) error {
+	if cfg == nil {
+		return fmt.Errorf("config is nil")
+	}
+
+	var file struct {
+		Profiles map[string]config.Config `yaml:"profiles"`
+	}
+	file.Profiles = map[string]config.Config{
+		config.DefaultProfileName: *cfg,
+	}
+
+	data, err := yaml.Marshal(file)
+	if err != nil {
+		return fmt.Errorf("marshal profile config: %w", err)
+	}
+
+	dir := filepath.Dir(configPath)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("create config directory %s: %w", dir, err)
+	}
+
+	if err := os.WriteFile(configPath, data, 0644); err != nil {
+		return fmt.Errorf("write config file %s: %w", configPath, err)
 	}
 	return nil
 }

@@ -132,8 +132,8 @@ func TestEnsureWorkspaceGitignoreErrors(t *testing.T) {
 			t.Fatalf("os.MkdirAll(%q) error = %v", path, err)
 		}
 		err := EnsureWorkspaceGitignore(path)
-		if err == nil || !strings.Contains(err.Error(), "read gitignore") {
-			t.Fatalf("EnsureWorkspaceGitignore(read fail) error = %v, want read error", err)
+		if err == nil || !strings.Contains(err.Error(), "is a directory") {
+			t.Fatalf("EnsureWorkspaceGitignore(read fail) error = %v, want directory error", err)
 		}
 	})
 
@@ -147,8 +147,8 @@ func TestEnsureWorkspaceGitignoreErrors(t *testing.T) {
 		gitignorePath := filepath.Join(path, ".gitignore")
 
 		err := EnsureWorkspaceGitignore(gitignorePath)
-		if err == nil || !strings.Contains(err.Error(), "read gitignore") {
-			t.Fatalf("EnsureWorkspaceGitignore(read fail) error = %v, want read error", err)
+		if err == nil || !strings.Contains(err.Error(), "stat gitignore") {
+			t.Fatalf("EnsureWorkspaceGitignore(read fail) error = %v, want stat error", err)
 		}
 	})
 
@@ -161,7 +161,7 @@ func TestEnsureWorkspaceGitignoreErrors(t *testing.T) {
 		}
 		// Since we already have a dir, os.ReadFile might fail (covered above)
 		// or if we make it unreadable?
-		
+
 		// Actually, let's trigger it by making the directory unwriteable.
 		parent := filepath.Join(dir, "readonly")
 		if err := os.MkdirAll(parent, 0555); err != nil {
@@ -208,11 +208,12 @@ func TestInitErrors(t *testing.T) {
 	t.Run("npm_fail", func(t *testing.T) {
 		dir := t.TempDir()
 		t.Chdir(dir)
-		if err := os.MkdirAll(paths.WorkspaceDir, 0755); err != nil {
-			t.Fatalf("os.MkdirAll(%q) error = %v", paths.WorkspaceDir, err)
+		if err := os.MkdirAll(filepath.Join(paths.WorkspaceDir, "default"), 0755); err != nil {
+			t.Fatalf("os.MkdirAll(%q) error = %v", filepath.Join(paths.WorkspaceDir, "default"), err)
 		}
-		if err := os.WriteFile(paths.NPMDir, []byte("file"), 0644); err != nil {
-			t.Fatalf("os.WriteFile(%q) error = %v", paths.NPMDir, err)
+		npmBase := filepath.Join(paths.WorkspaceDir, "default", "npm")
+		if err := os.WriteFile(npmBase, []byte("file"), 0644); err != nil {
+			t.Fatalf("os.WriteFile(%q) error = %v", npmBase, err)
 		}
 		err := Init(paths.ConfigPath)
 		if err == nil {
@@ -223,35 +224,18 @@ func TestInitErrors(t *testing.T) {
 	t.Run("uv_fail", func(t *testing.T) {
 		dir := t.TempDir()
 		t.Chdir(dir)
-		if err := os.MkdirAll(paths.WorkspaceDir, 0755); err != nil {
-			t.Fatalf("os.MkdirAll(%q) error = %v", paths.WorkspaceDir, err)
+		if err := os.MkdirAll(filepath.Join(paths.WorkspaceDir, "default"), 0755); err != nil {
+			t.Fatalf("os.MkdirAll(%q) error = %v", filepath.Join(paths.WorkspaceDir, "default"), err)
 		}
 		// Create uv directory as a file to trigger error in CreateUVStructure
-		// CreateUVStructure uses paths.UVDistDir which is WorkspaceDir + "/uv/dist"
-		uvDir := filepath.Join(paths.WorkspaceDir, "uv")
+		// CreateUVStructure uses profile workspace path .omnidist/default/uv/dist.
+		uvDir := filepath.Join(paths.WorkspaceDir, "default", "uv")
 		if err := os.WriteFile(uvDir, []byte("file"), 0644); err != nil {
 			t.Fatalf("os.WriteFile(%q) error = %v", uvDir, err)
 		}
 		err := Init(paths.ConfigPath)
 		if err == nil {
 			t.Fatalf("Init(uv fail) error = nil, want error")
-		}
-	})
-
-	t.Run("gitignore_fail", func(t *testing.T) {
-		dir := t.TempDir()
-		t.Chdir(dir)
-		if err := os.MkdirAll(paths.WorkspaceDir, 0755); err != nil {
-			t.Fatalf("os.MkdirAll(%q) error = %v", paths.WorkspaceDir, err)
-		}
-		// Create .gitignore as a directory to trigger error in EnsureWorkspaceGitignore
-		gitignorePath := filepath.Join(paths.WorkspaceDir, ".gitignore")
-		if err := os.MkdirAll(gitignorePath, 0755); err != nil {
-			t.Fatalf("os.MkdirAll(%q) error = %v", gitignorePath, err)
-		}
-		err := Init(paths.ConfigPath)
-		if err == nil {
-			t.Fatalf("Init(gitignore fail) error = nil, want error")
 		}
 	})
 }

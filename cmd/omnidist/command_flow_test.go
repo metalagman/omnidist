@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/metalagman/omnidist/internal/config"
@@ -29,6 +30,7 @@ func TestNPMCommandFlow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("executeCommand(stage --only npm) error = %v", err)
 	}
+	assertWorkspaceGitignoreContent(t, "*\n!.gitignore\n!omnidist.yaml\n")
 
 	_, err = executeCommand("verify", "--only", "npm")
 	if err != nil {
@@ -59,6 +61,7 @@ func TestUVCommandFlow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("executeCommand(stage --only uv) error = %v", err)
 	}
+	assertWorkspaceGitignoreContent(t, "*\n!.gitignore\n!omnidist.yaml\n")
 
 	_, err = executeCommand("verify", "--only", "uv")
 	if err != nil {
@@ -105,4 +108,56 @@ func installFakeTool(t *testing.T, dir string, name string, script string) error
 	}
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	return nil
+}
+
+func assertWorkspaceGitignoreContent(t *testing.T, want string) {
+	t.Helper()
+
+	data, err := os.ReadFile(filepath.Join(paths.WorkspaceDir, ".gitignore"))
+	if err != nil {
+		t.Fatalf("os.ReadFile(.omnidist/.gitignore) error = %v", err)
+	}
+	if got := string(data); got != want {
+		t.Fatalf(".omnidist/.gitignore content = %q, want %q", got, want)
+	}
+}
+
+func TestStagePreservesExistingWorkspaceGitignore(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell script based npm shim test")
+	}
+
+	dir := t.TempDir()
+	t.Chdir(dir)
+	if err := setupCommandFlowProject(); err != nil {
+		t.Fatalf("setupCommandFlowProject() error = %v", err)
+	}
+	if err := installFakeTool(t, dir, "npm", "#!/bin/sh\ncase \"$1\" in\n  whoami) exit 0 ;;\n  publish) exit 0 ;;\n  *) exit 1 ;;\nesac\n"); err != nil {
+		t.Fatalf("installFakeTool(npm) error = %v", err)
+	}
+
+	if err := os.MkdirAll(paths.WorkspaceDir, 0755); err != nil {
+		t.Fatalf("os.MkdirAll(%q) error = %v", paths.WorkspaceDir, err)
+	}
+	const existing = "node_modules/\n"
+	gitignorePath := filepath.Join(paths.WorkspaceDir, ".gitignore")
+	if err := os.WriteFile(gitignorePath, []byte(existing), 0644); err != nil {
+		t.Fatalf("os.WriteFile(%q) error = %v", gitignorePath, err)
+	}
+
+	_, err := executeCommand("stage", "--only", "npm")
+	if err != nil {
+		t.Fatalf("executeCommand(stage --only npm) error = %v", err)
+	}
+
+	data, err := os.ReadFile(gitignorePath)
+	if err != nil {
+		t.Fatalf("os.ReadFile(%q) error = %v", gitignorePath, err)
+	}
+	if got := string(data); got != existing {
+		t.Fatalf("workspace .gitignore changed unexpectedly: got %q, want %q", got, existing)
+	}
+	if strings.Contains(string(data), "omnidist.yaml") {
+		t.Fatalf("workspace .gitignore should remain untouched")
+	}
 }

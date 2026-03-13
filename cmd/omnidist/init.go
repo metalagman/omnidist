@@ -19,7 +19,7 @@ var initCmd = &cobra.Command{
 
 		out := cmd.OutOrStdout()
 		fmt.Fprintf(out, "Created %s\n", cfgPath)
-		fmt.Fprintf(out, "Created %s workspace and %s/.gitignore\n\n", paths.WorkspaceDir, paths.WorkspaceDir)
+		fmt.Fprintf(out, "Created %s workspace\n\n", paths.WorkspaceDir)
 		fmt.Fprintln(out, "Next steps:")
 		fmt.Fprintf(out, "1. Edit %s\n", cfgPath)
 		fmt.Fprintln(out, "2. Set environment variables in .env as needed (version.source: env, publish tokens)")
