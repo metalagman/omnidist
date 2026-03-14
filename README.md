@@ -81,6 +81,8 @@ This creates:
 - `.omnidist/` workspace directories
 
 `omnidist init` writes profiles-mode config with a `default` profile.
+It also derives default `distributions.npm.package` / `distributions.uv.package`
+from the current directory name (slugified).
 
 3. Edit config and set environment variables (optional):
 
@@ -202,6 +204,8 @@ version:
   file: VERSION # optional; used when source is file (default VERSION)
   fixed: 1.2.3 # required when source is fixed
 
+readme-path: docs/README.md # optional shared README source for staging
+
 targets:
   - os: darwin
     arch: amd64
@@ -225,12 +229,14 @@ distributions:
     registry: https://registry.npmjs.org
     access: public # public | restricted
     license: MIT # optional override for package.json license; omit to use SEE LICENSE IN <file>
+    readme-path: docs/npm-readme.md # optional npm-specific README source
     include-readme: true # include project README.md in staged packages when present
 
   uv:
     package: omnidist
     index-url: https://upload.pypi.org/legacy/
     linux-tag: manylinux2014 # manylinux2014 | musllinux_1_2
+    readme-path: docs/uv-readme.md # optional uv-specific README source
     include-readme: true # include project README.md in staged wheels when present
 ```
 
@@ -244,6 +250,7 @@ profiles:
       main: ./cmd/omnidist
     version:
       source: env
+    readme-path: docs/README.md
     targets:
       - os: linux
         arch: amd64
@@ -254,8 +261,10 @@ profiles:
     distributions:
       npm:
         package: "@scope/mytool"
+        readme-path: docs/npm-readme.md
       uv:
         package: mytool
+        readme-path: docs/uv-readme.md
 
   release:
     tool:
@@ -279,12 +288,19 @@ Mixing top-level runtime fields and `profiles` in the same file is not supported
 
 `targets` use Go values (`GOOS`/`GOARCH`). Distribution workflows map them as needed (for example `windows/amd64` -> npm `win32/x64`).
 
+README source precedence during staging:
+`distributions.<name>.readme-path` -> `readme-path` -> `README.md`.
+If a configured readme-path is set and cannot be read, staging fails.
+
 For appkit version injection, configure `build.ldflags` in your project config:
 
 ```yaml
 build:
   ldflags: -s -w -X github.com/metalagman/appkit/version.version=${OMNIDIST_VERSION} -X github.com/metalagman/appkit/version.gitCommit=${OMNIDIST_GIT_COMMIT} -X github.com/metalagman/appkit/version.buildDate=${OMNIDIST_BUILD_DATE}
 ```
+
+`build.ldflags` values are expanded with `os.ExpandEnv` during `omnidist build`.
+Both `${VAR}` and `$VAR` are supported; unset vars expand to empty strings.
 
 With `version.source: git-tag`, release workflows require `HEAD` to be on an exact SemVer tag (`vX.Y.Z` or `X.Y.Z`).
 

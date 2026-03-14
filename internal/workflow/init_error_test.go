@@ -1,6 +1,7 @@
 package workflow
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -86,5 +87,41 @@ func TestInitErrorMkdirAll(t *testing.T) {
 	err := Init(paths.ConfigPath)
 	if err == nil {
 		t.Fatalf("Init() error = nil, want error (mkdir fail)")
+	}
+}
+
+func TestInitGetWorkingDirError(t *testing.T) {
+	orig := getWorkingDir
+	t.Cleanup(func() {
+		getWorkingDir = orig
+	})
+	getWorkingDir = func() (string, error) {
+		return "", fmt.Errorf("boom")
+	}
+
+	err := Init(paths.ConfigPath)
+	if err == nil || err.Error() != "get current working directory: boom" {
+		t.Fatalf("Init() error = %v, want getwd wrapped error", err)
+	}
+}
+
+func TestSlugifyName(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{name: "alnum", input: "my-tool", want: "my-tool"},
+		{name: "lowercase", input: "My.Tool", want: "my-tool"},
+		{name: "collapse", input: "a___b", want: "a-b"},
+		{name: "trim", input: "---abc---", want: "abc"},
+		{name: "fallback", input: "___", want: "omnidist"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := slugifyName(tc.input); got != tc.want {
+				t.Fatalf("slugifyName(%q) = %q, want %q", tc.input, got, tc.want)
+			}
+		})
 	}
 }

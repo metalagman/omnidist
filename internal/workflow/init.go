@@ -11,9 +11,14 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+var getWorkingDir = os.Getwd
+
 // Init writes a default config and creates initial staging directories.
 func Init(configPath string) error {
-	cfg := config.DefaultConfig()
+	cfg, err := defaultInitConfigFromCWD()
+	if err != nil {
+		return err
+	}
 
 	if err := saveProfilesConfig(cfg, configPath); err != nil {
 		return fmt.Errorf("save config: %w", err)
@@ -33,6 +38,51 @@ func Init(configPath string) error {
 	}
 
 	return nil
+}
+
+func defaultInitConfigFromCWD() (*config.Config, error) {
+	cfg := config.DefaultConfig()
+
+	wd, err := getWorkingDir()
+	if err != nil {
+		return nil, fmt.Errorf("get current working directory: %w", err)
+	}
+	slug := slugifyName(filepath.Base(wd))
+
+	npmDist := cfg.Distributions["npm"]
+	npmDist.Package = fmt.Sprintf("@%s/%s", slug, slug)
+	cfg.Distributions["npm"] = npmDist
+
+	uvDist := cfg.Distributions["uv"]
+	uvDist.Package = slug
+	cfg.Distributions["uv"] = uvDist
+
+	return cfg, nil
+}
+
+func slugifyName(value string) string {
+	input := strings.ToLower(strings.TrimSpace(value))
+	var b strings.Builder
+	lastDash := false
+
+	for _, r := range input {
+		isAlphaNum := (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9')
+		if isAlphaNum {
+			b.WriteRune(r)
+			lastDash = false
+			continue
+		}
+		if !lastDash {
+			b.WriteByte('-')
+			lastDash = true
+		}
+	}
+
+	slug := strings.Trim(b.String(), "-")
+	if slug == "" {
+		return "omnidist"
+	}
+	return slug
 }
 
 // CreateNPMStructure creates the npm workspace directories for configured targets.

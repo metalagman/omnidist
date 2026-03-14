@@ -145,6 +145,111 @@ func TestStageSkipsProjectREADMEWhenDisabled(t *testing.T) {
 	}
 }
 
+func TestStageUsesConfiguredDistributionReadmePath(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	t.Setenv(shared.EnvVersionName, "1.2.3")
+
+	cfg := testConfig()
+	uvDist := cfg.Distributions["uv"]
+	uvDist.ReadmePath = "docs/uv-readme.md"
+	cfg.Distributions["uv"] = uvDist
+
+	if err := createDistArtifacts(cfg); err != nil {
+		t.Fatalf("createDistArtifacts() error = %v", err)
+	}
+	if err := os.MkdirAll("docs", 0755); err != nil {
+		t.Fatalf("os.MkdirAll(docs) error = %v", err)
+	}
+	if err := os.WriteFile("docs/uv-readme.md", []byte("uv docs"), 0644); err != nil {
+		t.Fatalf("os.WriteFile(docs/uv-readme.md) error = %v", err)
+	}
+
+	if err := Stage(cfg, StageOptions{}); err != nil {
+		t.Fatalf("Stage() error = %v", err)
+	}
+
+	wheelPath, err := wheelPathForTarget(cfg.Distributions["uv"], cfg.Targets[0], "1.2.3")
+	if err != nil {
+		t.Fatalf("wheelPathForTarget() error = %v", err)
+	}
+	metadata := string(wheelFileData(t, wheelPath, metadataFilePath(t, cfg, "1.2.3")))
+	if !strings.Contains(metadata, "\n\nuv docs\n") {
+		t.Fatalf("wheel METADATA missing configured readme content, got:\n%s", metadata)
+	}
+}
+
+func TestStageUsesGlobalReadmePathWhenDistributionReadmePathUnset(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	t.Setenv(shared.EnvVersionName, "1.2.3")
+
+	cfg := testConfig()
+	cfg.ReadmePath = "docs/global.md"
+	if err := createDistArtifacts(cfg); err != nil {
+		t.Fatalf("createDistArtifacts() error = %v", err)
+	}
+	if err := os.MkdirAll("docs", 0755); err != nil {
+		t.Fatalf("os.MkdirAll(docs) error = %v", err)
+	}
+	if err := os.WriteFile("docs/global.md", []byte("global docs"), 0644); err != nil {
+		t.Fatalf("os.WriteFile(docs/global.md) error = %v", err)
+	}
+
+	if err := Stage(cfg, StageOptions{}); err != nil {
+		t.Fatalf("Stage() error = %v", err)
+	}
+
+	wheelPath, err := wheelPathForTarget(cfg.Distributions["uv"], cfg.Targets[0], "1.2.3")
+	if err != nil {
+		t.Fatalf("wheelPathForTarget() error = %v", err)
+	}
+	metadata := string(wheelFileData(t, wheelPath, metadataFilePath(t, cfg, "1.2.3")))
+	if !strings.Contains(metadata, "\n\nglobal docs\n") {
+		t.Fatalf("wheel METADATA missing global readme content, got:\n%s", metadata)
+	}
+}
+
+func TestStageFailsWhenConfiguredReadmePathMissing(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	t.Setenv(shared.EnvVersionName, "1.2.3")
+
+	cfg := testConfig()
+	uvDist := cfg.Distributions["uv"]
+	uvDist.ReadmePath = "docs/missing.md"
+	cfg.Distributions["uv"] = uvDist
+
+	if err := createDistArtifacts(cfg); err != nil {
+		t.Fatalf("createDistArtifacts() error = %v", err)
+	}
+
+	err := Stage(cfg, StageOptions{})
+	if err == nil || !strings.Contains(err.Error(), "docs/missing.md") {
+		t.Fatalf("Stage() error = %v, want missing readme-path error", err)
+	}
+}
+
+func TestStageSkipsConfiguredReadmePathWhenIncludeReadmeDisabled(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	t.Setenv(shared.EnvVersionName, "1.2.3")
+
+	cfg := testConfig()
+	uvDist := cfg.Distributions["uv"]
+	uvDist.IncludeREADME = boolPtr(false)
+	uvDist.ReadmePath = "docs/missing.md"
+	cfg.Distributions["uv"] = uvDist
+
+	if err := createDistArtifacts(cfg); err != nil {
+		t.Fatalf("createDistArtifacts() error = %v", err)
+	}
+
+	if err := Stage(cfg, StageOptions{}); err != nil {
+		t.Fatalf("Stage() error = %v, want success when include-readme=false", err)
+	}
+}
+
 func TestVerifyDetectsMissingBinary(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)

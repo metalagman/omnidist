@@ -335,12 +335,17 @@ func copyFileWithMode(src, dst string, mode os.FileMode) error {
 	return os.WriteFile(dst, data, mode)
 }
 
-func stageProjectREADME(dstDir string, enabled bool) (bool, error) {
+func stageProjectREADME(cfg *config.Config, dist config.DistributionConfig, dstDir string, enabled bool) (bool, error) {
 	if !enabled {
 		return false, nil
 	}
 
-	data, exists, err := shared.ReadOptionalProjectREADME()
+	readmePath := ""
+	if cfg != nil {
+		readmePath = cfg.ReadmePath
+	}
+	resolvedPath, required := shared.ResolveProjectREADMEPath(readmePath, dist.ReadmePath)
+	data, exists, err := shared.ReadProjectREADME(resolvedPath, required)
 	if err != nil {
 		return false, err
 	}
@@ -434,7 +439,7 @@ func stagePlatformPackage(layout paths.Layout, cfg *config.Config, npmDist confi
 	}
 
 	files := []string{"bin"}
-	if included, err := stageProjectREADME(pkgDir, npmDist.IncludeREADMEEnabled()); err != nil {
+	if included, err := stageProjectREADME(cfg, npmDist, pkgDir, npmDist.IncludeREADMEEnabled()); err != nil {
 		return err
 	} else if included {
 		files = append(files, shared.ProjectREADMEPath)
@@ -473,7 +478,7 @@ func stageMetaPackage(layout paths.Layout, cfg *config.Config, npmDist config.Di
 	}
 
 	files := []string{cfg.Tool.Name + ".js"}
-	if included, err := stageProjectREADME(metaDir, npmDist.IncludeREADMEEnabled()); err != nil {
+	if included, err := stageProjectREADME(cfg, npmDist, metaDir, npmDist.IncludeREADMEEnabled()); err != nil {
 		return err
 	} else if included {
 		files = append(files, shared.ProjectREADMEPath)

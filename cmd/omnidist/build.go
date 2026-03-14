@@ -23,6 +23,22 @@ const (
 var buildCmd = &cobra.Command{
 	Use:   "build",
 	Short: "Compile Go binaries for configured targets",
+	Long: `Compile Go binaries for configured targets.
+
+build.ldflags supports environment variable expansion via os.ExpandEnv.
+Both $VAR and ${VAR} syntax are supported. Variables not set in the
+environment expand to an empty string.
+
+During omnidist build:
+- OMNIDIST_VERSION is exported when version can be resolved
+- OMNIDIST_GIT_COMMIT is exported from git metadata when available
+- OMNIDIST_BUILD_DATE is exported as UTC RFC3339 timestamp`,
+	Example: `  omnidist build
+  OMNIDIST_VERSION=1.2.3 omnidist build
+  # Example build.ldflags:
+  # -X pkg/version.version=${OMNIDIST_VERSION}
+  # -X pkg/version.gitCommit=${OMNIDIST_GIT_COMMIT}
+  # -X pkg/version.buildDate=${OMNIDIST_BUILD_DATE}`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := loadConfig()
 		if err != nil {

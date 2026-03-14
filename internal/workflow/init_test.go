@@ -19,10 +19,24 @@ func TestInitCreatesNPMAndUVStructure(t *testing.T) {
 		t.Fatalf("Init() error = %v", err)
 	}
 
+	cfg, err := config.LoadWithProfile(paths.ConfigPath, config.DefaultProfileName)
+	if err != nil {
+		t.Fatalf("config.LoadWithProfile(default) error = %v", err)
+	}
+	slug := slugifyName(filepath.Base(dir))
+	wantNPMPackage := "@" + slug + "/" + slug
+	wantUVPackage := slug
+	if got := cfg.Distributions["npm"].Package; got != wantNPMPackage {
+		t.Fatalf("npm package = %q, want %q", got, wantNPMPackage)
+	}
+	if got := cfg.Distributions["uv"].Package; got != wantUVPackage {
+		t.Fatalf("uv package = %q, want %q", got, wantUVPackage)
+	}
+
 	requiredPaths := []string{
 		paths.ConfigPath,
-		filepath.Join(paths.WorkspaceDir, "default", "npm", "@omnidist", "omnidist"),
-		filepath.Join(paths.WorkspaceDir, "default", "npm", "@omnidist", "omnidist-linux-x64", "bin"),
+		filepath.Join(paths.WorkspaceDir, "default", "npm", wantNPMPackage),
+		filepath.Join(paths.WorkspaceDir, "default", "npm", wantNPMPackage+"-linux-x64", "bin"),
 		filepath.Join(paths.WorkspaceDir, "default", "uv", "dist"),
 	}
 
@@ -45,11 +59,6 @@ func TestInitCreatesNPMAndUVStructure(t *testing.T) {
 	}
 	if strings.Contains(configContent, "\ntool:\n") {
 		t.Fatalf("generated config should not use legacy top-level fields, got:\n%s", configContent)
-	}
-
-	cfg, err := config.LoadWithProfile(paths.ConfigPath, config.DefaultProfileName)
-	if err != nil {
-		t.Fatalf("config.LoadWithProfile(default) error = %v", err)
 	}
 	if !cfg.IsProfilesMode() {
 		t.Fatalf("cfg.IsProfilesMode() = false, want true")

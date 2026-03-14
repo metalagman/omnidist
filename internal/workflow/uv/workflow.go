@@ -537,7 +537,12 @@ func writeWheelArchive(w io.Writer, platformTag string, cfg *config.Config, uvDi
 	var readmeData []byte
 	var hasReadme bool
 	if uvDist.IncludeREADMEEnabled() {
-		data, exists, err := shared.ReadOptionalProjectREADME()
+		readmePath := ""
+		if cfg != nil {
+			readmePath = cfg.ReadmePath
+		}
+		resolvedPath, required := shared.ResolveProjectREADMEPath(readmePath, uvDist.ReadmePath)
+		data, exists, err := shared.ReadProjectREADME(resolvedPath, required)
 		if err != nil {
 			return err
 		}

@@ -307,6 +307,50 @@ func TestReadOptionalProjectREADMEError(t *testing.T) {
 	}
 }
 
+func TestResolveProjectREADMEPath(t *testing.T) {
+	path, required := ResolveProjectREADMEPath("docs/root.md", "docs/dist.md")
+	if path != filepath.Clean("docs/dist.md") || !required {
+		t.Fatalf("ResolveProjectREADMEPath(dist) = (%q, %v)", path, required)
+	}
+
+	path, required = ResolveProjectREADMEPath(" docs/root.md ", "")
+	if path != filepath.Clean("docs/root.md") || !required {
+		t.Fatalf("ResolveProjectREADMEPath(global) = (%q, %v)", path, required)
+	}
+
+	path, required = ResolveProjectREADMEPath("", "")
+	if path != ProjectREADMEPath || required {
+		t.Fatalf("ResolveProjectREADMEPath(default) = (%q, %v)", path, required)
+	}
+}
+
+func TestReadProjectREADMERequired(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+
+	_, exists, err := ReadProjectREADME("docs/missing.md", true)
+	if err == nil || !strings.Contains(err.Error(), "read project README") {
+		t.Fatalf("ReadProjectREADME(required missing) error = %v, want read error", err)
+	}
+	if exists {
+		t.Fatalf("ReadProjectREADME(required missing) exists = true, want false")
+	}
+
+	if err := os.MkdirAll("docs", 0755); err != nil {
+		t.Fatalf("os.MkdirAll(docs) error = %v", err)
+	}
+	if err := os.WriteFile("docs/custom.md", []byte("hello"), 0644); err != nil {
+		t.Fatalf("os.WriteFile(custom.md) error = %v", err)
+	}
+	data, exists, err := ReadProjectREADME("docs/custom.md", true)
+	if err != nil {
+		t.Fatalf("ReadProjectREADME(required) error = %v", err)
+	}
+	if !exists || string(data) != "hello" {
+		t.Fatalf("ReadProjectREADME(required) = (%q, %v), want (%q, true)", string(data), exists, "hello")
+	}
+}
+
 func TestWheelPlatformTagUnsupported(t *testing.T) {
 	tests := []struct {
 		name   string

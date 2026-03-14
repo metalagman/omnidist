@@ -97,6 +97,23 @@ func TestPublishHelpFlags(t *testing.T) {
 	}
 }
 
+func TestBuildHelpDocumentsLDFLagsTemplating(t *testing.T) {
+	output, err := executeCommand("build", "--help")
+	if err != nil {
+		t.Fatalf("executeCommand(build --help) error = %v", err)
+	}
+	for _, want := range []string{
+		"os.ExpandEnv",
+		"${OMNIDIST_VERSION}",
+		"OMNIDIST_GIT_COMMIT",
+		"OMNIDIST_BUILD_DATE",
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("build help missing %q: %s", want, output)
+		}
+	}
+}
+
 func TestCIHelpFlags(t *testing.T) {
 	output, err := executeCommand("ci", "--help")
 	if err != nil {

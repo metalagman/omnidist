@@ -27,6 +27,7 @@ var profileNamePattern = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
 type Config struct {
 	Tool          ToolConfig                    `yaml:"tool"`
 	Version       VersionConfig                 `yaml:"version"`
+	ReadmePath    string                        `yaml:"readme-path,omitempty"`
 	Targets       []Target                      `yaml:"targets"`
 	Build         BuildConfig                   `yaml:"build"`
 	Distributions map[string]DistributionConfig `yaml:"distributions"`
@@ -66,6 +67,7 @@ type DistributionConfig struct {
 	Registry      string `yaml:"registry,omitempty"`
 	Access        string `yaml:"access,omitempty"`
 	License       string `yaml:"license,omitempty"`
+	ReadmePath    string `yaml:"readme-path,omitempty"`
 	IndexURL      string `yaml:"index-url,omitempty"`
 	LinuxTag      string `yaml:"linux-tag,omitempty"`
 	IncludeREADME *bool  `yaml:"include-readme,omitempty"`
@@ -294,12 +296,14 @@ func applyDistributionDefaults(cfg *Config) {
 	if cfg.Distributions == nil {
 		cfg.Distributions = map[string]DistributionConfig{}
 	}
+	cfg.ReadmePath = strings.TrimSpace(cfg.ReadmePath)
 
 	npmDist := cfg.Distributions["npm"]
 	npmDist.Package = strings.TrimSpace(npmDist.Package)
 	npmDist.Registry = strings.TrimSpace(npmDist.Registry)
 	npmDist.Access = strings.TrimSpace(npmDist.Access)
 	npmDist.License = npmDist.LicenseValue()
+	npmDist.ReadmePath = strings.TrimSpace(npmDist.ReadmePath)
 	if npmDist.Registry == "" {
 		npmDist.Registry = "https://registry.npmjs.org"
 	}
@@ -316,6 +320,7 @@ func applyDistributionDefaults(cfg *Config) {
 
 	uvDist := cfg.Distributions["uv"]
 	uvDist.Package = strings.TrimSpace(uvDist.Package)
+	uvDist.ReadmePath = strings.TrimSpace(uvDist.ReadmePath)
 	uvDist.IndexURL = strings.TrimSpace(uvDist.IndexURL)
 	uvDist.LinuxTag = strings.TrimSpace(uvDist.LinuxTag)
 	if uvDist.Package == "" {
@@ -354,7 +359,7 @@ func hasRootKey(root map[string]interface{}, key string) bool {
 }
 
 func hasTopLevelLegacyFields(root map[string]interface{}) bool {
-	for _, key := range []string{"tool", "version", "targets", "build", "distributions"} {
+	for _, key := range []string{"tool", "version", "readme-path", "targets", "build", "distributions"} {
 		if hasRootKey(root, key) {
 			return true
 		}

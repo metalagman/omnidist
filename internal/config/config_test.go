@@ -134,6 +134,55 @@ distributions:
 	}
 }
 
+func TestLoadTrimsReadmePaths(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, paths.ConfigPath)
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		t.Fatalf("os.MkdirAll() error = %v", err)
+	}
+
+	yaml := `tool:
+  name: omnidist
+  main: ./cmd/omnidist
+version:
+  source: env
+readme-path: " docs/README.md "
+targets:
+  - os: linux
+    arch: amd64
+build:
+  ldflags: -s -w
+  tags: []
+  cgo: false
+distributions:
+  npm:
+    package: "@scope/tool"
+    readme-path: " docs/npm.md "
+  uv:
+    package: "tool"
+    readme-path: " docs/uv.md "
+`
+
+	if err := os.WriteFile(path, []byte(yaml), 0644); err != nil {
+		t.Fatalf("os.WriteFile() error = %v", err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if got := cfg.ReadmePath; got != "docs/README.md" {
+		t.Fatalf("readme-path = %q, want %q", got, "docs/README.md")
+	}
+	if got := cfg.Distributions["npm"].ReadmePath; got != "docs/npm.md" {
+		t.Fatalf("distributions.npm.readme-path = %q, want %q", got, "docs/npm.md")
+	}
+	if got := cfg.Distributions["uv"].ReadmePath; got != "docs/uv.md" {
+		t.Fatalf("distributions.uv.readme-path = %q, want %q", got, "docs/uv.md")
+	}
+}
+
 func TestLoadTrimsNPMLicense(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, paths.ConfigPath)

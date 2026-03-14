@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -159,14 +160,44 @@ func readBuildVersionForLayout(layout paths.Layout) (string, error) {
 
 // ReadOptionalProjectREADME reads README.md from the project root if it exists.
 func ReadOptionalProjectREADME() ([]byte, bool, error) {
-	data, err := os.ReadFile(ProjectREADMEPath)
+	return ReadProjectREADME(ProjectREADMEPath, false)
+}
+
+// ResolveProjectREADMEPath chooses the README source path with precedence:
+// distribution readme-path, then config readme-path, then README.md.
+func ResolveProjectREADMEPath(configPath string, distributionPath string) (string, bool) {
+	if distPath := strings.TrimSpace(distributionPath); distPath != "" {
+		return normalizeProjectPath(distPath), true
+	}
+	if cfgPath := strings.TrimSpace(configPath); cfgPath != "" {
+		return normalizeProjectPath(cfgPath), true
+	}
+	return ProjectREADMEPath, false
+}
+
+// ReadProjectREADME reads README content from path.
+// When required is false and file is missing, it returns exists=false without error.
+func ReadProjectREADME(path string, required bool) ([]byte, bool, error) {
+	resolvedPath := normalizeProjectPath(path)
+	data, err := os.ReadFile(resolvedPath)
 	if err == nil {
 		return data, true, nil
 	}
-	if errors.Is(err, os.ErrNotExist) {
+	if errors.Is(err, os.ErrNotExist) && !required {
 		return nil, false, nil
 	}
-	return nil, false, fmt.Errorf("read project README %s: %w", ProjectREADMEPath, err)
+	return nil, false, fmt.Errorf("read project README %s: %w", resolvedPath, err)
+}
+
+func normalizeProjectPath(pathValue string) string {
+	trimmed := strings.TrimSpace(pathValue)
+	if trimmed == "" {
+		return ProjectREADMEPath
+	}
+	if filepath.IsAbs(trimmed) {
+		return filepath.Clean(trimmed)
+	}
+	return filepath.Clean(filepath.Join(".", trimmed))
 }
 
 // ResolveStageVersion resolves the version used for staging artifacts.

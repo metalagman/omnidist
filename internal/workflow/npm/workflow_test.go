@@ -874,6 +874,123 @@ func TestStageSkipsProjectREADMEWhenDisabled(t *testing.T) {
 	}
 }
 
+func TestStageUsesConfiguredDistributionReadmePath(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	t.Setenv(shared.EnvVersionName, "1.2.3")
+
+	cfg := testConfig()
+	npmDist := cfg.Distributions["npm"]
+	npmDist.ReadmePath = "docs/npm-readme.md"
+	cfg.Distributions["npm"] = npmDist
+
+	if err := createDistArtifacts(cfg); err != nil {
+		t.Fatalf("createDistArtifacts() error = %v", err)
+	}
+	if err := os.MkdirAll("docs", 0755); err != nil {
+		t.Fatalf("os.MkdirAll(docs) error = %v", err)
+	}
+	if err := os.WriteFile("docs/npm-readme.md", []byte("npm docs"), 0644); err != nil {
+		t.Fatalf("os.WriteFile(docs/npm-readme.md) error = %v", err)
+	}
+	if err := shared.WriteBuildVersion("1.2.3"); err != nil {
+		t.Fatalf("shared.WriteBuildVersion() error = %v", err)
+	}
+
+	if err := Stage(cfg, StageOptions{}); err != nil {
+		t.Fatalf("Stage() error = %v", err)
+	}
+
+	metaDir := filepath.Join(paths.NPMDir, cfg.Distributions["npm"].Package)
+	readme, err := os.ReadFile(filepath.Join(metaDir, "README.md"))
+	if err != nil {
+		t.Fatalf("os.ReadFile(meta README) error = %v", err)
+	}
+	if got := string(readme); got != "npm docs" {
+		t.Fatalf("meta README content = %q, want %q", got, "npm docs")
+	}
+}
+
+func TestStageUsesGlobalReadmePathWhenDistributionReadmePathUnset(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	t.Setenv(shared.EnvVersionName, "1.2.3")
+
+	cfg := testConfig()
+	cfg.ReadmePath = "docs/global.md"
+	if err := createDistArtifacts(cfg); err != nil {
+		t.Fatalf("createDistArtifacts() error = %v", err)
+	}
+	if err := os.MkdirAll("docs", 0755); err != nil {
+		t.Fatalf("os.MkdirAll(docs) error = %v", err)
+	}
+	if err := os.WriteFile("docs/global.md", []byte("global docs"), 0644); err != nil {
+		t.Fatalf("os.WriteFile(docs/global.md) error = %v", err)
+	}
+	if err := shared.WriteBuildVersion("1.2.3"); err != nil {
+		t.Fatalf("shared.WriteBuildVersion() error = %v", err)
+	}
+
+	if err := Stage(cfg, StageOptions{}); err != nil {
+		t.Fatalf("Stage() error = %v", err)
+	}
+
+	metaDir := filepath.Join(paths.NPMDir, cfg.Distributions["npm"].Package)
+	readme, err := os.ReadFile(filepath.Join(metaDir, "README.md"))
+	if err != nil {
+		t.Fatalf("os.ReadFile(meta README) error = %v", err)
+	}
+	if got := string(readme); got != "global docs" {
+		t.Fatalf("meta README content = %q, want %q", got, "global docs")
+	}
+}
+
+func TestStageFailsWhenConfiguredReadmePathMissing(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	t.Setenv(shared.EnvVersionName, "1.2.3")
+
+	cfg := testConfig()
+	npmDist := cfg.Distributions["npm"]
+	npmDist.ReadmePath = "docs/missing.md"
+	cfg.Distributions["npm"] = npmDist
+
+	if err := createDistArtifacts(cfg); err != nil {
+		t.Fatalf("createDistArtifacts() error = %v", err)
+	}
+	if err := shared.WriteBuildVersion("1.2.3"); err != nil {
+		t.Fatalf("shared.WriteBuildVersion() error = %v", err)
+	}
+
+	err := Stage(cfg, StageOptions{})
+	if err == nil || !strings.Contains(err.Error(), "docs/missing.md") {
+		t.Fatalf("Stage() error = %v, want missing readme-path error", err)
+	}
+}
+
+func TestStageSkipsConfiguredReadmePathWhenIncludeReadmeDisabled(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	t.Setenv(shared.EnvVersionName, "1.2.3")
+
+	cfg := testConfig()
+	npmDist := cfg.Distributions["npm"]
+	npmDist.IncludeREADME = boolPtr(false)
+	npmDist.ReadmePath = "docs/missing.md"
+	cfg.Distributions["npm"] = npmDist
+
+	if err := createDistArtifacts(cfg); err != nil {
+		t.Fatalf("createDistArtifacts() error = %v", err)
+	}
+	if err := shared.WriteBuildVersion("1.2.3"); err != nil {
+		t.Fatalf("shared.WriteBuildVersion() error = %v", err)
+	}
+
+	if err := Stage(cfg, StageOptions{}); err != nil {
+		t.Fatalf("Stage() error = %v, want success when include-readme=false", err)
+	}
+}
+
 func TestStageIncludesProjectLicenseAndMetadata(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)
