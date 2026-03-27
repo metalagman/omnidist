@@ -63,14 +63,15 @@ type Target struct {
 
 // DistributionConfig stores distribution-specific packaging settings.
 type DistributionConfig struct {
-	Package       string `yaml:"package"`
-	Registry      string `yaml:"registry,omitempty"`
-	Access        string `yaml:"access,omitempty"`
-	License       string `yaml:"license,omitempty"`
-	ReadmePath    string `yaml:"readme-path,omitempty"`
-	IndexURL      string `yaml:"index-url,omitempty"`
-	LinuxTag      string `yaml:"linux-tag,omitempty"`
-	IncludeREADME *bool  `yaml:"include-readme,omitempty"`
+	Package       string   `yaml:"package"`
+	Registry      string   `yaml:"registry,omitempty"`
+	Access        string   `yaml:"access,omitempty"`
+	License       string   `yaml:"license,omitempty"`
+	Keywords      []string `yaml:"keywords,omitempty"`
+	ReadmePath    string   `yaml:"readme-path,omitempty"`
+	IndexURL      string   `yaml:"index-url,omitempty"`
+	LinuxTag      string   `yaml:"linux-tag,omitempty"`
+	IncludeREADME *bool    `yaml:"include-readme,omitempty"`
 }
 
 // IncludeREADMEEnabled reports whether README.md should be included in staged artifacts.
@@ -303,6 +304,7 @@ func applyDistributionDefaults(cfg *Config) {
 	npmDist.Registry = strings.TrimSpace(npmDist.Registry)
 	npmDist.Access = strings.TrimSpace(npmDist.Access)
 	npmDist.License = npmDist.LicenseValue()
+	npmDist.Keywords = normalizeKeywords(npmDist.Keywords)
 	npmDist.ReadmePath = strings.TrimSpace(npmDist.ReadmePath)
 	if npmDist.Registry == "" {
 		npmDist.Registry = "https://registry.npmjs.org"
@@ -340,6 +342,29 @@ func applyDistributionDefaults(cfg *Config) {
 
 func boolPtr(v bool) *bool {
 	return &v
+}
+
+func normalizeKeywords(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(values))
+	keywords := make([]string, 0, len(values))
+	for _, raw := range values {
+		keyword := strings.TrimSpace(raw)
+		if keyword == "" {
+			continue
+		}
+		if _, ok := seen[keyword]; ok {
+			continue
+		}
+		seen[keyword] = struct{}{}
+		keywords = append(keywords, keyword)
+	}
+	if len(keywords) == 0 {
+		return nil
+	}
+	return keywords
 }
 
 func parseRootMap(data []byte, path string) (map[string]interface{}, error) {

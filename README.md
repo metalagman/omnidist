@@ -229,6 +229,7 @@ distributions:
     registry: https://registry.npmjs.org
     access: public # public | restricted
     license: MIT # optional override for package.json license; omit to use SEE LICENSE IN <file>
+    keywords: [cli, ai, llm] # optional npm meta-package keywords
     readme-path: docs/npm-readme.md # optional npm-specific README source
     include-readme: true # include project README.md in staged packages when present
 
@@ -261,6 +262,7 @@ profiles:
     distributions:
       npm:
         package: "@scope/mytool"
+        keywords: [cli, ai, llm]
         readme-path: docs/npm-readme.md
       uv:
         package: mytool
@@ -291,6 +293,8 @@ Mixing top-level runtime fields and `profiles` in the same file is not supported
 README source precedence during staging:
 `distributions.<name>.readme-path` -> `readme-path` -> `README.md`.
 If a configured readme-path is set and cannot be read, staging fails.
+
+When `distributions.npm.keywords` is set, omnidist writes those values to the staged npm meta package `package.json`.
 
 For appkit version injection, configure `build.ldflags` in your project config:
 

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -219,6 +220,52 @@ distributions:
 
 	if got := cfg.Distributions["npm"].License; got != "Apache-2.0" {
 		t.Fatalf("npm license = %q, want %q", got, "Apache-2.0")
+	}
+}
+
+func TestLoadNormalizesNPMKeywords(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, paths.ConfigPath)
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		t.Fatalf("os.MkdirAll() error = %v", err)
+	}
+
+	yaml := `tool:
+  name: omnidist
+  main: ./cmd/omnidist
+version:
+  source: env
+targets:
+  - os: linux
+    arch: amd64
+build:
+  ldflags: -s -w
+  tags: []
+  cgo: false
+distributions:
+  npm:
+    package: "@scope/tool"
+    keywords:
+      - " ai "
+      - "llm"
+      - ""
+      - "llm"
+      - "  "
+      - "cli"
+`
+
+	if err := os.WriteFile(path, []byte(yaml), 0644); err != nil {
+		t.Fatalf("os.WriteFile() error = %v", err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	want := []string{"ai", "llm", "cli"}
+	if got := cfg.Distributions["npm"].Keywords; !reflect.DeepEqual(got, want) {
+		t.Fatalf("npm keywords = %#v, want %#v", got, want)
 	}
 }
 

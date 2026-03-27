@@ -509,6 +509,9 @@ func stageMetaPackage(layout paths.Layout, cfg *config.Config, npmDist config.Di
 	if license, ok := packageLicenseValue(npmDist, licenseName, licenseIncluded); ok {
 		pkgJSON["license"] = license
 	}
+	if len(npmDist.Keywords) > 0 {
+		pkgJSON["keywords"] = npmDist.Keywords
+	}
 
 	if err := writePackageJSON(metaDir, pkgJSON); err != nil {
 		return err
@@ -610,6 +613,16 @@ func verifyMetaPackage(layout paths.Layout, cfg *config.Config, npmDist config.D
 	if expectedLicense := npmDist.LicenseValue(); expectedLicense != "" {
 		if pkgJSON["license"] != expectedLicense {
 			result.Errors = append(result.Errors, fmt.Sprintf("Meta package license mismatch: got %v, expected %s", pkgJSON["license"], expectedLicense))
+			result.Valid = false
+		}
+	}
+	if len(npmDist.Keywords) > 0 {
+		keywords, ok := packageStringList(pkgJSON["keywords"])
+		if !ok {
+			result.Errors = append(result.Errors, "Missing keywords in meta package")
+			result.Valid = false
+		} else if !equalStringLists(keywords, npmDist.Keywords) {
+			result.Errors = append(result.Errors, fmt.Sprintf("Meta package keywords mismatch: got %v, expected %v", keywords, npmDist.Keywords))
 			result.Valid = false
 		}
 	}
@@ -856,6 +869,34 @@ func commandOutputWriter(w io.Writer) io.Writer {
 		return io.Discard
 	}
 	return w
+}
+
+func packageStringList(raw interface{}) ([]string, bool) {
+	items, ok := raw.([]interface{})
+	if !ok {
+		return nil, false
+	}
+	values := make([]string, 0, len(items))
+	for _, item := range items {
+		value, ok := item.(string)
+		if !ok {
+			return nil, false
+		}
+		values = append(values, value)
+	}
+	return values, true
+}
+
+func equalStringLists(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }
 
 func writeProgressf(w io.Writer, format string, args ...interface{}) {

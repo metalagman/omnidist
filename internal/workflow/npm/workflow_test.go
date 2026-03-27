@@ -991,6 +991,36 @@ func TestStageSkipsConfiguredReadmePathWhenIncludeReadmeDisabled(t *testing.T) {
 	}
 }
 
+func TestStageIncludesConfiguredKeywordsInMetaPackage(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	t.Setenv(shared.EnvVersionName, "1.2.3")
+
+	cfg := testConfig()
+	npmDist := cfg.Distributions["npm"]
+	npmDist.Keywords = []string{"ai", "llm", "cli"}
+	cfg.Distributions["npm"] = npmDist
+
+	if err := createDistArtifacts(cfg); err != nil {
+		t.Fatalf("createDistArtifacts() error = %v", err)
+	}
+	if err := shared.WriteBuildVersion("1.2.3"); err != nil {
+		t.Fatalf("shared.WriteBuildVersion() error = %v", err)
+	}
+
+	if err := Stage(cfg, StageOptions{}); err != nil {
+		t.Fatalf("Stage() error = %v", err)
+	}
+
+	metaDir := filepath.Join(paths.NPMDir, cfg.Distributions["npm"].Package)
+	assertNPMPackageKeywordsEquals(t, metaDir, []string{"ai", "llm", "cli"})
+
+	target := cfg.Targets[0]
+	pkgName := platformPackageName(cfg.Distributions["npm"].Package, target)
+	pkgDir := filepath.Join(paths.NPMDir, pkgName)
+	assertNPMPackageFieldAbsent(t, pkgDir, "keywords")
+}
+
 func TestStageIncludesProjectLicenseAndMetadata(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)
@@ -1286,6 +1316,45 @@ func assertNPMPackageLicenseEquals(t *testing.T, dir string, want string) {
 	got, _ := pkgJSON["license"].(string)
 	if got != want {
 		t.Fatalf("package %s license = %q, want %q", dir, got, want)
+	}
+}
+
+func assertNPMPackageKeywordsEquals(t *testing.T, dir string, want []string) {
+	t.Helper()
+
+	pkgJSON, err := readPackageJSON(dir)
+	if err != nil {
+		t.Fatalf("readPackageJSON(%q) error = %v", dir, err)
+	}
+
+	rawKeywords, ok := pkgJSON["keywords"].([]interface{})
+	if !ok {
+		t.Fatalf("package %s keywords field missing/invalid: %#v", dir, pkgJSON["keywords"])
+	}
+	if len(rawKeywords) != len(want) {
+		t.Fatalf("package %s keywords length = %d, want %d", dir, len(rawKeywords), len(want))
+	}
+	for i, raw := range rawKeywords {
+		got, ok := raw.(string)
+		if !ok {
+			t.Fatalf("package %s keywords[%d] = %#v, want string", dir, i, raw)
+		}
+		if got != want[i] {
+			t.Fatalf("package %s keywords[%d] = %q, want %q", dir, i, got, want[i])
+		}
+	}
+}
+
+func assertNPMPackageFieldAbsent(t *testing.T, dir string, field string) {
+	t.Helper()
+
+	pkgJSON, err := readPackageJSON(dir)
+	if err != nil {
+		t.Fatalf("readPackageJSON(%q) error = %v", dir, err)
+	}
+
+	if _, ok := pkgJSON[field]; ok {
+		t.Fatalf("package %s unexpectedly contains field %q", dir, field)
 	}
 }
 

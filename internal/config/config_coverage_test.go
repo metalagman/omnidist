@@ -47,7 +47,7 @@ func TestSaveErrors(t *testing.T) {
 			t.Fatalf("os.MkdirAll() error = %v", err)
 		}
 		defer os.Chmod(path, 0755)
-		
+
 		configPath := filepath.Join(path, "omnidist.yaml")
 		err := Save(DefaultConfig(), configPath)
 		if err == nil || !strings.Contains(err.Error(), "write config file") {
@@ -80,5 +80,43 @@ func TestApplyDistributionDefaultsNilDistributions(t *testing.T) {
 	}
 	if _, ok := cfg.Distributions["uv"]; !ok {
 		t.Fatalf("applyDistributionDefaults() missing uv default")
+	}
+}
+
+func TestNormalizeKeywords(t *testing.T) {
+	tests := []struct {
+		name string
+		in   []string
+		want []string
+	}{
+		{
+			name: "nil input",
+			in:   nil,
+			want: nil,
+		},
+		{
+			name: "drops empty and duplicates",
+			in:   []string{" ai ", "", "llm", "ai", "  ", "cli"},
+			want: []string{"ai", "llm", "cli"},
+		},
+		{
+			name: "all empty",
+			in:   []string{"", "  "},
+			want: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := normalizeKeywords(tt.in)
+			if len(got) != len(tt.want) {
+				t.Fatalf("normalizeKeywords(%#v) = %#v, want %#v", tt.in, got, tt.want)
+			}
+			for i := range got {
+				if got[i] != tt.want[i] {
+					t.Fatalf("normalizeKeywords(%#v) = %#v, want %#v", tt.in, got, tt.want)
+				}
+			}
+		})
 	}
 }

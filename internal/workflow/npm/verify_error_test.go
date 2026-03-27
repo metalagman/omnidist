@@ -179,6 +179,30 @@ func TestVerifyErrors(t *testing.T) {
 		assertContainsError(t, result.Errors, "Scripts.postinstall found in meta package")
 	})
 
+	t.Run("meta_keywords_mismatch", func(t *testing.T) {
+		dir := t.TempDir()
+		t.Chdir(dir)
+		t.Setenv(shared.EnvVersionName, "1.0.0")
+		cfg := testConfig()
+		npmDist := cfg.Distributions["npm"]
+		npmDist.Keywords = []string{"ai", "llm", "cli"}
+		cfg.Distributions["npm"] = npmDist
+		createDistArtifacts(cfg)
+		shared.WriteBuildVersion("1.0.0")
+		Stage(cfg, StageOptions{})
+
+		metaDir := filepath.Join(paths.NPMDir, cfg.Distributions["npm"].Package)
+		pkgJSON, _ := readPackageJSON(metaDir)
+		pkgJSON["keywords"] = []interface{}{"ai"}
+		writePackageJSON(metaDir, pkgJSON)
+
+		result := Verify(cfg)
+		if result.Valid {
+			t.Fatalf("Verify() = valid, want invalid")
+		}
+		assertContainsError(t, result.Errors, "Meta package keywords mismatch")
+	})
+
 	t.Run("configured_license_mismatch", func(t *testing.T) {
 		dir := t.TempDir()
 		t.Chdir(dir)
