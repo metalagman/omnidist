@@ -24,6 +24,7 @@ func TestGenerateGitHubReleaseWorkflow(t *testing.T) {
 		`name: omnidist-release`,
 		`tags:`,
 		`- "v*"`,
+		`FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"`,
 		`prepare:`,
 		`publish_npm:`,
 		`publish_uv:`,

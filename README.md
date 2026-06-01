@@ -404,6 +404,7 @@ omnidist ci
 The generated workflow triggers on `v*` tag pushes and runs:
 `build -> stage -> verify -> publish`, then publishes the built binaries and
 checksums to the GitHub release.
+It also opts JavaScript-based GitHub Actions into Node 24 with `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true`.
 
 If workflow already exists:
 

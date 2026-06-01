@@ -72,6 +72,8 @@ on:
   push:
     tags:
       - "v*"
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 jobs:
   prepare:
     runs-on: ubuntu-latest

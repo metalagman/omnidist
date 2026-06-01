@@ -35,6 +35,7 @@ func TestCICommandCreatesWorkflow(t *testing.T) {
 	for _, want := range []string{
 		`tags:`,
 		`- "v*"`,
+		`FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"`,
 		`prepare:`,
 		`publish_npm:`,
 		`publish_uv:`,
