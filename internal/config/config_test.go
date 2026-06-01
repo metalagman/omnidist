@@ -23,6 +23,9 @@ func TestDefaultConfigIncludesUV(t *testing.T) {
 	if npmDist.PublishAuth != "token" {
 		t.Fatalf("npm publish-auth = %q, want %q", npmDist.PublishAuth, "token")
 	}
+	if npmDist.RepositoryURL != "" {
+		t.Fatalf("npm repository-url = %q, want empty default", npmDist.RepositoryURL)
+	}
 	if npmDist.License != "" {
 		t.Fatalf("npm license = %q, want empty default", npmDist.License)
 	}
@@ -252,6 +255,7 @@ distributions:
   npm:
     package: "@scope/tool"
     publish-auth: " trusted "
+    repository-url: " git+https://github.com/example/tool.git "
 `
 
 	if err := os.WriteFile(path, []byte(yaml), 0644); err != nil {
@@ -265,6 +269,49 @@ distributions:
 
 	if got := cfg.Distributions["npm"].PublishAuth; got != "trusted" {
 		t.Fatalf("npm publish-auth = %q, want %q", got, "trusted")
+	}
+	if got := cfg.Distributions["npm"].RepositoryURL; got != "git+https://github.com/example/tool.git" {
+		t.Fatalf("npm repository-url = %q, want %q", got, "git+https://github.com/example/tool.git")
+	}
+}
+
+func TestLoadTrimsNPMRepositoryURL(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, paths.ConfigPath)
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		t.Fatalf("os.MkdirAll() error = %v", err)
+	}
+
+	yaml := `tool:
+  name: omnidist
+  main: ./cmd/omnidist
+version:
+  source: env
+targets:
+  - os: linux
+    arch: amd64
+build:
+  ldflags: -s -w
+  tags: []
+  cgo: false
+distributions:
+  npm:
+    package: "@scope/tool"
+    publish-auth: trusted
+    repository-url: " git+https://github.com/example/tool.git "
+`
+
+	if err := os.WriteFile(path, []byte(yaml), 0644); err != nil {
+		t.Fatalf("os.WriteFile() error = %v", err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if got := cfg.Distributions["npm"].RepositoryURL; got != "git+https://github.com/example/tool.git" {
+		t.Fatalf("npm repository-url = %q, want %q", got, "git+https://github.com/example/tool.git")
 	}
 }
 
@@ -670,6 +717,16 @@ func TestValidate(t *testing.T) {
 				},
 			},
 			wantErr: "invalid distributions.npm.publish-auth \"oidc\"",
+		},
+		{
+			name: "trusted npm publish missing repository url",
+			cfg: &Config{
+				Targets: []Target{{OS: "linux", Arch: "amd64"}},
+				Distributions: map[string]DistributionConfig{
+					"npm": {PublishAuth: "trusted"},
+				},
+			},
+			wantErr: "distributions.npm.repository-url is required",
 		},
 		{
 			name: "invalid version source",

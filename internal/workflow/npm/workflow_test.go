@@ -1067,6 +1067,32 @@ func TestStageIncludesConfiguredKeywordsInMetaPackage(t *testing.T) {
 	assertNPMPackageFieldAbsent(t, pkgDir, "keywords")
 }
 
+func TestStageIncludesConfiguredRepositoryURL(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	t.Setenv(shared.EnvVersionName, "1.2.3")
+
+	cfg := testConfig()
+	if err := createDistArtifacts(cfg); err != nil {
+		t.Fatalf("createDistArtifacts() error = %v", err)
+	}
+	if err := shared.WriteBuildVersion("1.2.3"); err != nil {
+		t.Fatalf("shared.WriteBuildVersion() error = %v", err)
+	}
+
+	if err := Stage(cfg, StageOptions{}); err != nil {
+		t.Fatalf("Stage() error = %v", err)
+	}
+
+	metaDir := filepath.Join(paths.NPMDir, cfg.Distributions["npm"].Package)
+	assertNPMPackageRepositoryURLEquals(t, metaDir, "git+https://github.com/metalagman/omnidist.git")
+
+	target := cfg.Targets[0]
+	pkgName := platformPackageName(cfg.Distributions["npm"].Package, target)
+	pkgDir := filepath.Join(paths.NPMDir, pkgName)
+	assertNPMPackageRepositoryURLEquals(t, pkgDir, "git+https://github.com/metalagman/omnidist.git")
+}
+
 func TestStageIncludesProjectLicenseAndMetadata(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)
@@ -1271,6 +1297,52 @@ func TestStageRequiresBuildVersionFile(t *testing.T) {
 	}
 }
 
+func TestVerifyDetectsMissingRepositoryURLForTrustedPublishing(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	t.Setenv(shared.EnvVersionName, "1.2.3")
+
+	cfg := testConfig()
+	npmDist := cfg.Distributions["npm"]
+	npmDist.PublishAuth = npmPublishAuthTrusted
+	cfg.Distributions["npm"] = npmDist
+
+	if err := createDistArtifacts(cfg); err != nil {
+		t.Fatalf("createDistArtifacts() error = %v", err)
+	}
+	if err := shared.WriteBuildVersion("1.2.3"); err != nil {
+		t.Fatalf("shared.WriteBuildVersion() error = %v", err)
+	}
+	if err := Stage(cfg, StageOptions{}); err != nil {
+		t.Fatalf("Stage() error = %v", err)
+	}
+
+	metaDir := filepath.Join(paths.NPMDir, cfg.Distributions["npm"].Package)
+	pkgJSON, err := readPackageJSON(metaDir)
+	if err != nil {
+		t.Fatalf("readPackageJSON(%q) error = %v", metaDir, err)
+	}
+	delete(pkgJSON, "repository")
+	if err := writePackageJSON(metaDir, pkgJSON); err != nil {
+		t.Fatalf("writePackageJSON(%q) error = %v", metaDir, err)
+	}
+
+	result := Verify(cfg)
+	if result.Valid {
+		t.Fatalf("Verify().Valid = true, want false")
+	}
+	found := false
+	for _, errMsg := range result.Errors {
+		if strings.Contains(errMsg, "Missing repository.url in meta package") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("Verify() errors = %v, want missing repository.url", result.Errors)
+	}
+}
+
 func TestPublishTrustedPublishingDoesNotForceUserConfig(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("shell script test")
@@ -1350,9 +1422,10 @@ func testConfig() *config.Config {
 		},
 		Distributions: map[string]config.DistributionConfig{
 			"npm": {
-				Package:  "@omnidist/omnidist",
-				Registry: "https://registry.npmjs.org",
-				Access:   "public",
+				Package:       "@omnidist/omnidist",
+				Registry:      "https://registry.npmjs.org",
+				Access:        "public",
+				RepositoryURL: "git+https://github.com/metalagman/omnidist.git",
 			},
 		},
 	}
@@ -1433,6 +1506,23 @@ func assertNPMPackageKeywordsEquals(t *testing.T, dir string, want []string) {
 		if got != want[i] {
 			t.Fatalf("package %s keywords[%d] = %q, want %q", dir, i, got, want[i])
 		}
+	}
+}
+
+func assertNPMPackageRepositoryURLEquals(t *testing.T, dir string, want string) {
+	t.Helper()
+
+	pkgJSON, err := readPackageJSON(dir)
+	if err != nil {
+		t.Fatalf("readPackageJSON(%q) error = %v", dir, err)
+	}
+
+	got, ok := packageRepositoryURL(pkgJSON)
+	if !ok {
+		t.Fatalf("package %s repository.url missing/invalid: %#v", dir, pkgJSON["repository"])
+	}
+	if got != want {
+		t.Fatalf("package %s repository.url = %q, want %q", dir, got, want)
 	}
 }
 

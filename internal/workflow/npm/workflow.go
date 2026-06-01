@@ -224,14 +224,14 @@ func Publish(cfg *config.Config, opts PublishOptions) error {
 	for _, pkgName := range platformPackages {
 		pkgDir := filepath.Join(layout.NPMDir, pkgName)
 		if err := publishPackage(pkgDir, npmDist.Registry, access, publishOpts, npmrcPath, token, version); err != nil {
-			return fmt.Errorf("failed to publish %s: %w", pkgName, err)
+			return wrapPublishError(pkgName, err, usesTrustedPublishing(npmDist))
 		}
 		writeProgressf(opts.Progress, "Published: %s\n", pkgName)
 	}
 
 	writeProgressf(opts.Progress, "Publishing meta package...\n")
 	if err := publishPackage(metaDir, npmDist.Registry, access, publishOpts, npmrcPath, token, version); err != nil {
-		return fmt.Errorf("failed to publish meta package: %w", err)
+		return wrapPublishError("meta package", err, usesTrustedPublishing(npmDist))
 	}
 	writeProgressf(opts.Progress, "Published: %s\n", npmDist.Package)
 
@@ -484,6 +484,9 @@ func stagePlatformPackage(layout paths.Layout, cfg *config.Config, npmDist confi
 	if license, ok := packageLicenseValue(npmDist, licenseName, licenseIncluded); ok {
 		pkgJSON["license"] = license
 	}
+	if repository := npmPackageRepository(npmDist); repository != nil {
+		pkgJSON["repository"] = repository
+	}
 
 	return writePackageJSON(pkgDir, pkgJSON)
 }
@@ -530,6 +533,9 @@ func stageMetaPackage(layout paths.Layout, cfg *config.Config, npmDist config.Di
 	if len(npmDist.Keywords) > 0 {
 		pkgJSON["keywords"] = npmDist.Keywords
 	}
+	if repository := npmPackageRepository(npmDist); repository != nil {
+		pkgJSON["repository"] = repository
+	}
 
 	if err := writePackageJSON(metaDir, pkgJSON); err != nil {
 		return err
@@ -544,6 +550,7 @@ func stageMetaPackage(layout paths.Layout, cfg *config.Config, npmDist config.Di
 }
 
 func verifyPlatformPackages(layout paths.Layout, cfg *config.Config, npmDist config.DistributionConfig, version string, result *VerificationResult) error {
+	expectedRepositoryURL := npmDist.RepositoryURLValue()
 	for _, target := range cfg.Targets {
 		pkgName := platformPackageName(npmDist.Package, target)
 		pkgDir := filepath.Join(layout.NPMDir, pkgName)
@@ -594,6 +601,15 @@ func verifyPlatformPackages(layout paths.Layout, cfg *config.Config, npmDist con
 				result.Valid = false
 			}
 		}
+		if expectedRepositoryURL != "" {
+			if actualRepositoryURL, ok := packageRepositoryURL(pkgJSON); !ok {
+				result.Errors = append(result.Errors, fmt.Sprintf("Missing repository.url in %s", pkgName))
+				result.Valid = false
+			} else if actualRepositoryURL != expectedRepositoryURL {
+				result.Errors = append(result.Errors, fmt.Sprintf("repository.url mismatch in %s: got %s, expected %s", pkgName, actualRepositoryURL, expectedRepositoryURL))
+				result.Valid = false
+			}
+		}
 
 		if expectedLicense := npmDist.LicenseValue(); expectedLicense != "" {
 			if pkgJSON["license"] != expectedLicense {
@@ -608,6 +624,7 @@ func verifyPlatformPackages(layout paths.Layout, cfg *config.Config, npmDist con
 
 func verifyMetaPackage(layout paths.Layout, cfg *config.Config, npmDist config.DistributionConfig, version string, result *VerificationResult) error {
 	metaDir := filepath.Join(layout.NPMDir, npmDist.Package)
+	expectedRepositoryURL := npmDist.RepositoryURLValue()
 
 	pkgJSON, err := readPackageJSON(metaDir)
 	if err != nil {
@@ -641,6 +658,15 @@ func verifyMetaPackage(layout paths.Layout, cfg *config.Config, npmDist config.D
 			result.Valid = false
 		} else if !equalStringLists(keywords, npmDist.Keywords) {
 			result.Errors = append(result.Errors, fmt.Sprintf("Meta package keywords mismatch: got %v, expected %v", keywords, npmDist.Keywords))
+			result.Valid = false
+		}
+	}
+	if expectedRepositoryURL != "" {
+		if actualRepositoryURL, ok := packageRepositoryURL(pkgJSON); !ok {
+			result.Errors = append(result.Errors, "Missing repository.url in meta package")
+			result.Valid = false
+		} else if actualRepositoryURL != expectedRepositoryURL {
+			result.Errors = append(result.Errors, fmt.Sprintf("Meta package repository.url mismatch: got %s, expected %s", actualRepositoryURL, expectedRepositoryURL))
 			result.Valid = false
 		}
 	}
@@ -889,6 +915,17 @@ func publishPackage(dir, defaultRegistry, defaultAccess string, opts PublishOpti
 	return execCmd.Run()
 }
 
+func wrapPublishError(name string, err error, trusted bool) error {
+	if !trusted {
+		return fmt.Errorf("failed to publish %s: %w", name, err)
+	}
+	return fmt.Errorf(
+		"failed to publish %s: %w; trusted publishing also requires a configured trusted publisher for this package name on npm, a matching workflow filename, and a matching package.json repository.url",
+		name,
+		err,
+	)
+}
+
 func commandOutputWriter(w io.Writer) io.Writer {
 	if w == nil {
 		return io.Discard
@@ -922,6 +959,33 @@ func equalStringLists(a, b []string) bool {
 		}
 	}
 	return true
+}
+
+func npmPackageRepository(npmDist config.DistributionConfig) map[string]string {
+	repositoryURL := npmDist.RepositoryURLValue()
+	if repositoryURL == "" {
+		return nil
+	}
+	return map[string]string{
+		"type": "git",
+		"url":  repositoryURL,
+	}
+}
+
+func packageRepositoryURL(pkgJSON map[string]interface{}) (string, bool) {
+	repository, ok := pkgJSON["repository"].(map[string]interface{})
+	if !ok {
+		return "", false
+	}
+	rawURL, ok := repository["url"].(string)
+	if !ok {
+		return "", false
+	}
+	url := strings.TrimSpace(rawURL)
+	if url == "" {
+		return "", false
+	}
+	return url, true
 }
 
 func writeProgressf(w io.Writer, format string, args ...interface{}) {

@@ -67,6 +67,7 @@ type DistributionConfig struct {
 	Registry      string   `yaml:"registry,omitempty"`
 	Access        string   `yaml:"access,omitempty"`
 	PublishAuth   string   `yaml:"publish-auth,omitempty"`
+	RepositoryURL string   `yaml:"repository-url,omitempty"`
 	License       string   `yaml:"license,omitempty"`
 	Keywords      []string `yaml:"keywords,omitempty"`
 	ReadmePath    string   `yaml:"readme-path,omitempty"`
@@ -86,6 +87,11 @@ func (d DistributionConfig) IncludeREADMEEnabled() bool {
 // LicenseValue reports the configured package license value after trimming whitespace.
 func (d DistributionConfig) LicenseValue() string {
 	return strings.TrimSpace(d.License)
+}
+
+// RepositoryURLValue reports the configured repository URL after trimming whitespace.
+func (d DistributionConfig) RepositoryURLValue() string {
+	return strings.TrimSpace(d.RepositoryURL)
 }
 
 // MapGoArchToNPM converts a Go GOARCH value to the corresponding npm cpu value.
@@ -306,6 +312,7 @@ func applyDistributionDefaults(cfg *Config) {
 	npmDist.Registry = strings.TrimSpace(npmDist.Registry)
 	npmDist.Access = strings.TrimSpace(npmDist.Access)
 	npmDist.PublishAuth = strings.TrimSpace(npmDist.PublishAuth)
+	npmDist.RepositoryURL = npmDist.RepositoryURLValue()
 	npmDist.License = npmDist.LicenseValue()
 	npmDist.Keywords = normalizeKeywords(npmDist.Keywords)
 	npmDist.ReadmePath = strings.TrimSpace(npmDist.ReadmePath)
@@ -511,6 +518,9 @@ func validate(cfg *Config) error {
 		case "", "token", "trusted":
 		default:
 			return fmt.Errorf("invalid distributions.npm.publish-auth %q: expected token or trusted", npmDist.PublishAuth)
+		}
+		if npmDist.PublishAuth == "trusted" && npmDist.RepositoryURLValue() == "" {
+			return fmt.Errorf("distributions.npm.repository-url is required when distributions.npm.publish-auth is %q", "trusted")
 		}
 	}
 

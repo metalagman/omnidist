@@ -29,20 +29,23 @@ func TestGenerateGitHubReleaseWorkflow(t *testing.T) {
 		`publish_uv:`,
 		`release:`,
 		`needs: prepare`,
+		`run: go run ./cmd/omnidist build`,
+		`run: go run ./cmd/omnidist stage`,
+		`run: go run ./cmd/omnidist verify`,
+		`run: go run ./cmd/omnidist npm publish`,
+		`run: go run ./cmd/omnidist uv publish`,
 		`NPM_PUBLISH_TOKEN: ${{ secrets.NPM_PUBLISH_TOKEN }}`,
 		`UV_PUBLISH_TOKEN: ${{ secrets.UV_PUBLISH_TOKEN }}`,
-		`run: npm install -g '@omnidist/omnidist@0.1.9'`,
-		`run: omnidist build`,
-		`run: omnidist stage`,
-		`run: omnidist verify`,
+		`actions/setup-node@v6`,
+		`node-version: '24'`,
+		`registry-url: 'https://registry.npmjs.org'`,
+		`package-manager-cache: false`,
 		`run: tar -czf omnidist-staged.tgz .omnidist`,
 		`name: dist`,
 		`path: .omnidist/dist/**/*`,
 		`if-no-files-found: error`,
 		`uses: actions/upload-artifact@v4`,
 		`uses: actions/download-artifact@v4`,
-		`run: omnidist npm publish`,
-		`run: omnidist uv publish`,
 		`permissions:`,
 		`contents: write`,
 		`path: .omnidist/dist`,
@@ -64,6 +67,8 @@ func TestGenerateGitHubReleaseWorkflowDefaultsToLatest(t *testing.T) {
 	t.Parallel()
 
 	cfg := config.DefaultConfig()
+	cfg.Tool.Name = "mytool"
+	cfg.Tool.Main = "./cmd/mytool"
 	content, err := GenerateGitHubReleaseWorkflow(cfg, CIWorkflowOptions{})
 	if err != nil {
 		t.Fatalf("GenerateGitHubReleaseWorkflow() error = %v", err)
@@ -90,11 +95,11 @@ func TestGenerateGitHubReleaseWorkflowProfilesMode(t *testing.T) {
 	}
 
 	for _, want := range []string{
-		`run: omnidist --profile 'release' build`,
-		`run: omnidist --profile 'release' stage`,
-		`run: omnidist --profile 'release' verify`,
-		`run: omnidist --profile 'release' npm publish`,
-		`run: omnidist --profile 'release' uv publish`,
+		`run: go run ./cmd/omnidist --profile 'release' build`,
+		`run: go run ./cmd/omnidist --profile 'release' stage`,
+		`run: go run ./cmd/omnidist --profile 'release' verify`,
+		`run: go run ./cmd/omnidist --profile 'release' npm publish`,
+		`run: go run ./cmd/omnidist --profile 'release' uv publish`,
 		`run: tar -czf omnidist-staged.tgz .omnidist/release`,
 		`path: .omnidist/release/dist/**/*`,
 		`path: .omnidist/release/dist`,
@@ -103,6 +108,32 @@ func TestGenerateGitHubReleaseWorkflowProfilesMode(t *testing.T) {
 		if !strings.Contains(content, want) {
 			t.Fatalf("workflow content missing %q\n---\n%s", want, content)
 		}
+	}
+}
+
+func TestGenerateGitHubReleaseWorkflowTrustedPublishUsesOIDC(t *testing.T) {
+	t.Parallel()
+
+	cfg := config.DefaultConfig()
+	npmDist := cfg.Distributions["npm"]
+	npmDist.PublishAuth = "trusted"
+	cfg.Distributions["npm"] = npmDist
+
+	content, err := GenerateGitHubReleaseWorkflow(cfg, CIWorkflowOptions{})
+	if err != nil {
+		t.Fatalf("GenerateGitHubReleaseWorkflow() error = %v", err)
+	}
+
+	for _, want := range []string{
+		`id-token: write`,
+		`run: go run ./cmd/omnidist npm publish`,
+	} {
+		if !strings.Contains(content, want) {
+			t.Fatalf("workflow content missing %q\n---\n%s", want, content)
+		}
+	}
+	if strings.Contains(content, `NPM_PUBLISH_TOKEN: ${{ secrets.NPM_PUBLISH_TOKEN }}`) {
+		t.Fatalf("workflow content unexpectedly requires NPM_PUBLISH_TOKEN\n---\n%s", content)
 	}
 }
 
@@ -118,6 +149,8 @@ func TestGenerateGitHubReleaseWorkflowQuotesVersionRange(t *testing.T) {
 	t.Parallel()
 
 	cfg := config.DefaultConfig()
+	cfg.Tool.Name = "mytool"
+	cfg.Tool.Main = "./cmd/mytool"
 	content, err := GenerateGitHubReleaseWorkflow(cfg, CIWorkflowOptions{
 		NPXVersion: ">=0.1.0 <2.0.0 || 3.0.0",
 	})
@@ -150,6 +183,8 @@ func TestGenerateGitHubReleaseWorkflowRejectsInvalidNPXVersion(t *testing.T) {
 	t.Parallel()
 
 	cfg := config.DefaultConfig()
+	cfg.Tool.Name = "mytool"
+	cfg.Tool.Main = "./cmd/mytool"
 	_, err := GenerateGitHubReleaseWorkflow(cfg, CIWorkflowOptions{
 		NPXVersion: "latest; echo pwned",
 	})

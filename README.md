@@ -177,6 +177,7 @@ Supported variables:
 - `OMNIDIST_BUILD_DATE`: optional ldflags template variable for build metadata; populated automatically by `omnidist build` as UTC RFC3339.
 - `NPM_PUBLISH_TOKEN`: required for npm publish commands in `token` auth mode when not using `--dry-run`
 - `distributions.npm.publish-auth`: npm publish auth mode; `token` uses `NPM_PUBLISH_TOKEN`, `trusted` uses ambient trusted publishing/OIDC
+- `distributions.npm.repository-url`: repository URL written to staged package.json `repository.url`; required for trusted npm publishing
 - `UV_PUBLISH_TOKEN`: used by uv publish when `--token` is not provided
 
 Example `.env`:
@@ -230,6 +231,7 @@ distributions:
     registry: https://registry.npmjs.org
     access: public # public | restricted
     publish-auth: token # token | trusted
+    repository-url: git+https://github.com/your-org/your-repo.git # required for trusted publish
     license: MIT # optional override for package.json license; omit to use SEE LICENSE IN <file>
     keywords: [cli, ai, llm] # optional npm meta-package keywords
     readme-path: docs/npm-readme.md # optional npm-specific README source
@@ -425,9 +427,16 @@ To publish through npm trusted publishing, set:
 distributions:
   npm:
     publish-auth: trusted
+    repository-url: git+https://github.com/your-org/your-repo.git
 ```
 
-In trusted mode, omnidist skips token-only auth preflight and does not force a workspace `.npmrc`; `npm publish` uses the ambient CI credentials instead. For GitHub Actions, that typically means configuring npm trusted publishing and granting `id-token: write` to the publish job. `omnidist ci` remains token-based by default.
+In trusted mode, omnidist skips token-only auth preflight and does not force a workspace `.npmrc`; `npm publish` uses the ambient CI credentials instead. For GitHub Actions, that means:
+- the workflow must grant `id-token: write`
+- the job must use a supported Node/npm toolchain for OIDC
+- each published npm package must have its own trusted publisher configured on npm
+- each staged package must include a `repository.url` that exactly matches the GitHub repository
+
+`omnidist ci` emits the required GitHub Actions OIDC permissions and Node setup when `publish-auth: trusted` is configured.
 
 If your npm account requires 2FA for publish operations:
 

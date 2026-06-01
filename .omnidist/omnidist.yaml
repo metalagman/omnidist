@@ -24,6 +24,7 @@ distributions:
         registry: https://registry.npmjs.org
         access: public
         publish-auth: trusted
+        repository-url: git+https://github.com/metalagman/omnidist.git
     uv:
         package: omnidist
         # Used as default publish endpoint for `omnidist uv publish`.

@@ -60,6 +60,7 @@ func TestNPMCommandFlowTrustedPublishingProfile(t *testing.T) {
 	}
 	npmDist := cfg.Distributions["npm"]
 	npmDist.PublishAuth = "trusted"
+	npmDist.RepositoryURL = "git+https://github.com/metalagman/omnidist.git"
 	cfg.Distributions["npm"] = npmDist
 	if err := config.Save(cfg, paths.ConfigPath); err != nil {
 		t.Fatalf("config.Save(%q) error = %v", paths.ConfigPath, err)
