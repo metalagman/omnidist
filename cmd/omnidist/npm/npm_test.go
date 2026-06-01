@@ -281,8 +281,8 @@ func TestTrustCommandPrintsAllPackages(t *testing.T) {
 
 	output := stdout.String()
 	for _, want := range []string{
-		"npm trust github @omnidist/omnidist --repo metalagman/omnidist --file omnidist-release.yml --allow-publish --yes",
-		"npm trust github @omnidist/omnidist-linux-x64 --repo metalagman/omnidist --file omnidist-release.yml --allow-publish --yes",
+		"npx -y npm@11.16.0 trust github @omnidist/omnidist --repo metalagman/omnidist --file omnidist-release.yml --allow-publish --yes",
+		"npx -y npm@11.16.0 trust github @omnidist/omnidist-linux-x64 --repo metalagman/omnidist --file omnidist-release.yml --allow-publish --yes",
 		"Printed 6 npm trust command(s)",
 	} {
 		if !strings.Contains(output, want) {
@@ -315,12 +315,12 @@ func TestTrustCommandApplyRunsNPMTrust(t *testing.T) {
 	if err := os.MkdirAll(binDir, 0755); err != nil {
 		t.Fatalf("os.MkdirAll(%q) error = %v", binDir, err)
 	}
-	npmPath := filepath.Join(binDir, "npm")
+	npmPath := filepath.Join(binDir, "npx")
 	logPath := filepath.Join(dir, "npm-trust.log")
 	script := "#!/bin/sh\n" +
 		"printf '%s\\n' \"$*\" >> " + shellScriptQuote(logPath) + "\n" +
 		"case \"$1\" in\n" +
-		"  trust)\n" +
+		"  -y)\n" +
 		"    exit 0\n" +
 		"    ;;\n" +
 		"  *)\n" +
@@ -347,7 +347,7 @@ func TestTrustCommandApplyRunsNPMTrust(t *testing.T) {
 		t.Fatalf("os.ReadFile(%q) error = %v", logPath, err)
 	}
 	logText := string(logData)
-	if !strings.Contains(logText, "trust github @omnidist/omnidist --repo metalagman/omnidist --file publish.yml --env release --allow-publish --allow-stage-publish --yes") {
+	if !strings.Contains(logText, "-y npm@11.16.0 trust github @omnidist/omnidist --repo metalagman/omnidist --file publish.yml --env release --allow-publish --allow-stage-publish --yes") {
 		t.Fatalf("npm trust log missing expected command\n---\n%s", logText)
 	}
 	if !strings.Contains(stdout.String(), "Configured npm trusted publishing for 6 package(s)") {

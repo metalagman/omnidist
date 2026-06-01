@@ -444,7 +444,7 @@ To configure npm trusted publishers for the meta package and all platform packag
 omnidist npm trust
 ```
 
-That prints the exact `npm trust github ...` commands derived from your config and target matrix. To apply them directly with an npm account that has write access and 2FA enabled:
+That prints the exact `npx -y npm@11.16.0 trust github ...` commands derived from your config and target matrix, so you do not have to rely on the host npm version. To apply them directly with an npm account that has write access and 2FA enabled:
 
 ```bash
 omnidist npm trust --apply

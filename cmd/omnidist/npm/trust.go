@@ -9,6 +9,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const npmTrustCLISpec = "npm@11.16.0"
+
 var (
 	flagTrustWorkflowFile string
 	flagTrustRepo         string
@@ -47,15 +49,16 @@ var trustCmd = &cobra.Command{
 
 		if !flagTrustApply {
 			for _, args := range plan.CommandArgs() {
-				fmt.Fprintln(cmd.OutOrStdout(), shellQuoteArgs("npm", args))
+				fmt.Fprintln(cmd.OutOrStdout(), shellQuoteArgs("npx", append([]string{"-y", npmTrustCLISpec}, args...)))
 			}
 			fmt.Fprintf(cmd.OutOrStdout(), "\nPrinted %d npm trust command(s)\n", len(plan.Packages))
 			return nil
 		}
 
 		for _, args := range plan.CommandArgs() {
-			fmt.Fprintf(cmd.OutOrStdout(), "Running: %s\n", shellQuoteArgs("npm", args))
-			execCmd := exec.Command("npm", args...)
+			npxArgs := append([]string{"-y", npmTrustCLISpec}, args...)
+			fmt.Fprintf(cmd.OutOrStdout(), "Running: %s\n", shellQuoteArgs("npx", npxArgs))
+			execCmd := exec.Command("npx", npxArgs...)
 			execCmd.Stdout = cmd.OutOrStdout()
 			execCmd.Stderr = cmd.ErrOrStderr()
 			if err := execCmd.Run(); err != nil {
