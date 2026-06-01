@@ -438,6 +438,24 @@ In trusted mode, omnidist skips token-only auth preflight and does not force a w
 
 `omnidist ci` emits the required GitHub Actions OIDC permissions and Node setup when `publish-auth: trusted` is configured.
 
+To configure npm trusted publishers for the meta package and all platform packages:
+
+```bash
+omnidist npm trust
+```
+
+That prints the exact `npm trust github ...` commands derived from your config and target matrix. To apply them directly with an npm account that has write access and 2FA enabled:
+
+```bash
+omnidist npm trust --apply
+```
+
+Useful overrides:
+- `--workflow-file publish.yml` when your workflow filename differs from `omnidist-release.yml`
+- `--repo your-org/your-repo` when you want to override `distributions.npm.repository-url`
+- `--environment production` when your trusted publisher is restricted to a GitHub Actions environment
+- `--allow-stage-publish` to also allow `npm stage publish`
+
 If your npm account requires 2FA for publish operations:
 
 ```bash

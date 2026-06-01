@@ -1,6 +1,7 @@
 package npm
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -153,6 +154,7 @@ func TestSubcommandsReturnConfigLoadErrorWhenMissingConfig(t *testing.T) {
 		{name: "stage", cmd: func() error { return stageCmd.RunE(stageCmd, nil) }},
 		{name: "verify", cmd: func() error { return verifyCmd.RunE(verifyCmd, nil) }},
 		{name: "publish", cmd: func() error { return publishCmd.RunE(publishCmd, nil) }},
+		{name: "trust", cmd: func() error { return trustCmd.RunE(trustCmd, nil) }},
 	}
 
 	for _, tc := range tests {
@@ -175,6 +177,7 @@ func TestCmdIncludesExpectedSubcommands(t *testing.T) {
 		"stage":   false,
 		"verify":  false,
 		"publish": false,
+		"trust":   false,
 	}
 
 	for _, sub := range Cmd.Commands() {
@@ -244,6 +247,116 @@ func TestStageVerifyPublishCommandsSucceed(t *testing.T) {
 	if err := publishCmd.RunE(publishCmd, nil); err != nil {
 		t.Fatalf("publishCmd.RunE() error = %v", err)
 	}
+}
+
+func TestTrustCommandPrintsAllPackages(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	viper.Reset()
+	t.Cleanup(viper.Reset)
+	flagTrustWorkflowFile = ""
+	flagTrustRepo = ""
+	flagTrustEnvironment = ""
+	flagTrustStagePublish = false
+	flagTrustApply = false
+
+	cfg := config.DefaultConfig()
+	npmDist := cfg.Distributions["npm"]
+	npmDist.PublishAuth = "trusted"
+	npmDist.RepositoryURL = "git+https://github.com/metalagman/omnidist.git"
+	cfg.Distributions["npm"] = npmDist
+	if err := config.Save(cfg, paths.ConfigPath); err != nil {
+		t.Fatalf("config.Save(%q) error = %v", paths.ConfigPath, err)
+	}
+
+	var stdout bytes.Buffer
+	trustCmd.SetOut(&stdout)
+	trustCmd.SetErr(&stdout)
+	defer trustCmd.SetOut(nil)
+	defer trustCmd.SetErr(nil)
+
+	if err := trustCmd.RunE(trustCmd, nil); err != nil {
+		t.Fatalf("trustCmd.RunE() error = %v", err)
+	}
+
+	output := stdout.String()
+	for _, want := range []string{
+		"npm trust github @omnidist/omnidist --repo metalagman/omnidist --file omnidist-release.yml --allow-publish --yes",
+		"npm trust github @omnidist/omnidist-linux-x64 --repo metalagman/omnidist --file omnidist-release.yml --allow-publish --yes",
+		"Printed 6 npm trust command(s)",
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("trust output missing %q\n---\n%s", want, output)
+		}
+	}
+}
+
+func TestTrustCommandApplyRunsNPMTrust(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell script based npm shim test")
+	}
+
+	dir := t.TempDir()
+	t.Chdir(dir)
+	viper.Reset()
+	t.Cleanup(viper.Reset)
+	flagTrustWorkflowFile = "publish.yml"
+	flagTrustRepo = "metalagman/omnidist"
+	flagTrustEnvironment = "release"
+	flagTrustStagePublish = true
+	flagTrustApply = true
+
+	cfg := config.DefaultConfig()
+	if err := config.Save(cfg, paths.ConfigPath); err != nil {
+		t.Fatalf("config.Save(%q) error = %v", paths.ConfigPath, err)
+	}
+
+	binDir := filepath.Join(dir, "bin")
+	if err := os.MkdirAll(binDir, 0755); err != nil {
+		t.Fatalf("os.MkdirAll(%q) error = %v", binDir, err)
+	}
+	npmPath := filepath.Join(binDir, "npm")
+	logPath := filepath.Join(dir, "npm-trust.log")
+	script := "#!/bin/sh\n" +
+		"printf '%s\\n' \"$*\" >> " + shellScriptQuote(logPath) + "\n" +
+		"case \"$1\" in\n" +
+		"  trust)\n" +
+		"    exit 0\n" +
+		"    ;;\n" +
+		"  *)\n" +
+		"    exit 1\n" +
+		"    ;;\n" +
+		"esac\n"
+	if err := os.WriteFile(npmPath, []byte(script), 0755); err != nil {
+		t.Fatalf("os.WriteFile(%q) error = %v", npmPath, err)
+	}
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	var stdout bytes.Buffer
+	trustCmd.SetOut(&stdout)
+	trustCmd.SetErr(&stdout)
+	defer trustCmd.SetOut(nil)
+	defer trustCmd.SetErr(nil)
+
+	if err := trustCmd.RunE(trustCmd, nil); err != nil {
+		t.Fatalf("trustCmd.RunE() error = %v", err)
+	}
+
+	logData, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatalf("os.ReadFile(%q) error = %v", logPath, err)
+	}
+	logText := string(logData)
+	if !strings.Contains(logText, "trust github @omnidist/omnidist --repo metalagman/omnidist --file publish.yml --env release --allow-publish --allow-stage-publish --yes") {
+		t.Fatalf("npm trust log missing expected command\n---\n%s", logText)
+	}
+	if !strings.Contains(stdout.String(), "Configured npm trusted publishing for 6 package(s)") {
+		t.Fatalf("stdout missing completion message\n---\n%s", stdout.String())
+	}
+}
+
+func shellScriptQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", `'"'"'`) + "'"
 }
 
 func installFakeNPM(t *testing.T, dir string) error {
