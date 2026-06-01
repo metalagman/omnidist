@@ -16,14 +16,12 @@ jobs:
           go-version-file: "go.mod"
       - uses: actions/setup-node@v4
       - uses: astral-sh/setup-uv@v6
-      - name: Install omnidist
-        run: npm install -g '@omnidist/omnidist@latest'
       - name: Build artifacts
-        run: omnidist build
+        run: go run ./cmd/omnidist build
       - name: Stage artifacts
-        run: omnidist stage
+        run: go run ./cmd/omnidist stage
       - name: Verify artifacts
-        run: omnidist verify
+        run: go run ./cmd/omnidist verify
       - name: Pack staged artifacts
         run: tar -czf omnidist-staged.tgz .omnidist
       - name: Upload staged artifacts
@@ -43,13 +41,13 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    env:
-      NPM_PUBLISH_TOKEN: ${{ secrets.NPM_PUBLISH_TOKEN }}
+      id-token: write
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: "go.mod"
       - uses: actions/setup-node@v4
-      - name: Install omnidist
-        run: npm install -g '@omnidist/omnidist@latest'
       - name: Download staged artifacts
         uses: actions/download-artifact@v4
         with:
@@ -57,7 +55,7 @@ jobs:
       - name: Restore staged artifacts
         run: tar -xzf omnidist-staged.tgz
       - name: Publish npm artifacts
-        run: omnidist npm publish
+        run: go run ./cmd/omnidist npm publish
 
   publish_uv:
     needs: prepare
@@ -68,10 +66,11 @@ jobs:
       UV_PUBLISH_TOKEN: ${{ secrets.UV_PUBLISH_TOKEN }}
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: "go.mod"
       - uses: actions/setup-node@v4
       - uses: astral-sh/setup-uv@v6
-      - name: Install omnidist
-        run: npm install -g '@omnidist/omnidist@latest'
       - name: Download staged artifacts
         uses: actions/download-artifact@v4
         with:
@@ -79,7 +78,7 @@ jobs:
       - name: Restore staged artifacts
         run: tar -xzf omnidist-staged.tgz
       - name: Publish uv artifacts
-        run: omnidist uv publish
+        run: go run ./cmd/omnidist uv publish
 
   release:
     needs: prepare
