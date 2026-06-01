@@ -35,7 +35,9 @@ type PublishOptions struct {
 }
 
 const (
-	npmPublishTokenEnv = "NPM_PUBLISH_TOKEN"
+	npmPublishAuthToken   = "token"
+	npmPublishAuthTrusted = "trusted"
+	npmPublishTokenEnv    = "NPM_PUBLISH_TOKEN"
 )
 
 var projectLicenseCandidates = []string{"LICENSE", "LICENSE.md", "LICENSE.txt"}
@@ -53,6 +55,9 @@ func CheckAuth(cfg *config.Config, registryOverride string, dryRun bool) error {
 	npmDist, err := npmDistribution(cfg)
 	if err != nil {
 		return err
+	}
+	if dryRun || usesTrustedPublishing(npmDist) {
+		return nil
 	}
 	layout := layoutForConfig(cfg)
 	token, err := resolvePublishToken(dryRun)
@@ -177,14 +182,20 @@ func Publish(cfg *config.Config, opts PublishOptions) error {
 		return err
 	}
 	layout := layoutForConfig(cfg)
-	token, err := resolvePublishToken(opts.DryRun)
-	if err != nil {
-		return err
-	}
+	var (
+		npmrcPath string
+		token     string
+	)
+	if !usesTrustedPublishing(npmDist) {
+		token, err = resolvePublishToken(opts.DryRun)
+		if err != nil {
+			return err
+		}
 
-	npmrcPath, err := ensureWorkspaceNPMRC(layout, resolveRegistry(npmDist.Registry, opts.Registry))
-	if err != nil {
-		return fmt.Errorf("prepare npmrc: %w", err)
+		npmrcPath, err = ensureWorkspaceNPMRC(layout, resolveRegistry(npmDist.Registry, opts.Registry))
+		if err != nil {
+			return fmt.Errorf("prepare npmrc: %w", err)
+		}
 	}
 
 	metaDir := filepath.Join(layout.NPMDir, npmDist.Package)
@@ -239,11 +250,18 @@ func npmDistribution(cfg *config.Config) (config.DistributionConfig, error) {
 	dist.Package = strings.TrimSpace(dist.Package)
 	dist.Registry = strings.TrimSpace(dist.Registry)
 	dist.Access = strings.TrimSpace(dist.Access)
+	dist.PublishAuth = strings.TrimSpace(dist.PublishAuth)
 	if dist.Package == "" {
 		return config.DistributionConfig{}, fmt.Errorf("npm distribution package is required")
 	}
 	if dist.Access != "" && dist.Access != "public" && dist.Access != "restricted" {
 		return config.DistributionConfig{}, fmt.Errorf("invalid npm access %q: expected public or restricted", dist.Access)
+	}
+	if dist.PublishAuth == "" {
+		dist.PublishAuth = npmPublishAuthToken
+	}
+	if dist.PublishAuth != npmPublishAuthToken && dist.PublishAuth != npmPublishAuthTrusted {
+		return config.DistributionConfig{}, fmt.Errorf("invalid npm publish-auth %q: expected token or trusted", dist.PublishAuth)
 	}
 	return dist, nil
 }
@@ -834,17 +852,24 @@ func resolveNPMVersion(cfg *config.Config, metaDir string) (string, error) {
 func resolvePublishToken(dryRun bool) (string, error) {
 	token := strings.TrimSpace(os.Getenv(npmPublishTokenEnv))
 	if token == "" && !dryRun {
-		return "", fmt.Errorf("npm publish requires token auth: set %s", npmPublishTokenEnv)
+		return "", fmt.Errorf("npm publish requires token auth: set %s or configure distributions.npm.publish-auth: trusted for OIDC/trusted publishing", npmPublishTokenEnv)
 	}
 	return token, nil
 }
 
 func npmCommandEnv(npmrcPath string, token string) []string {
-	env := append(os.Environ(), "NPM_CONFIG_USERCONFIG="+npmrcPath)
+	env := append([]string{}, os.Environ()...)
+	if npmrcPath != "" {
+		env = append(env, "NPM_CONFIG_USERCONFIG="+npmrcPath)
+	}
 	if token != "" {
 		env = append(env, npmPublishTokenEnv+"="+token)
 	}
 	return env
+}
+
+func usesTrustedPublishing(dist config.DistributionConfig) bool {
+	return strings.TrimSpace(dist.PublishAuth) == npmPublishAuthTrusted
 }
 
 func publishPackage(dir, defaultRegistry, defaultAccess string, opts PublishOptions, npmrcPath string, token string, version string) error {

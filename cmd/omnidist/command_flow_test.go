@@ -43,6 +43,43 @@ func TestNPMCommandFlow(t *testing.T) {
 	}
 }
 
+func TestNPMCommandFlowTrustedPublishingProfile(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell script based npm shim test")
+	}
+
+	dir := t.TempDir()
+	t.Chdir(dir)
+	if err := setupCommandFlowProject(); err != nil {
+		t.Fatalf("setupCommandFlowProject() error = %v", err)
+	}
+
+	cfg, err := config.Load(paths.ConfigPath)
+	if err != nil {
+		t.Fatalf("config.Load(%q) error = %v", paths.ConfigPath, err)
+	}
+	npmDist := cfg.Distributions["npm"]
+	npmDist.PublishAuth = "trusted"
+	cfg.Distributions["npm"] = npmDist
+	if err := config.Save(cfg, paths.ConfigPath); err != nil {
+		t.Fatalf("config.Save(%q) error = %v", paths.ConfigPath, err)
+	}
+
+	if err := installFakeTool(t, dir, "npm", "#!/bin/sh\ncase \"$1\" in\n  publish) exit 0 ;;\n  *) echo unsupported command: $1 >&2; exit 1 ;;\nesac\n"); err != nil {
+		t.Fatalf("installFakeTool(npm) error = %v", err)
+	}
+
+	_, err = executeCommand("stage", "--only", "npm")
+	if err != nil {
+		t.Fatalf("executeCommand(stage --only npm) error = %v", err)
+	}
+
+	_, err = executeCommand("publish", "--only", "npm", "--dry-run")
+	if err != nil {
+		t.Fatalf("executeCommand(publish --only npm --dry-run) error = %v", err)
+	}
+}
+
 func TestUVCommandFlow(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("shell script based uv shim test")

@@ -66,6 +66,7 @@ type DistributionConfig struct {
 	Package       string   `yaml:"package"`
 	Registry      string   `yaml:"registry,omitempty"`
 	Access        string   `yaml:"access,omitempty"`
+	PublishAuth   string   `yaml:"publish-auth,omitempty"`
 	License       string   `yaml:"license,omitempty"`
 	Keywords      []string `yaml:"keywords,omitempty"`
 	ReadmePath    string   `yaml:"readme-path,omitempty"`
@@ -145,6 +146,7 @@ func DefaultConfig() *Config {
 				Package:       "@omnidist/omnidist",
 				Registry:      "https://registry.npmjs.org",
 				Access:        "public",
+				PublishAuth:   "token",
 				IncludeREADME: boolPtr(true),
 			},
 			"uv": {
@@ -303,6 +305,7 @@ func applyDistributionDefaults(cfg *Config) {
 	npmDist.Package = strings.TrimSpace(npmDist.Package)
 	npmDist.Registry = strings.TrimSpace(npmDist.Registry)
 	npmDist.Access = strings.TrimSpace(npmDist.Access)
+	npmDist.PublishAuth = strings.TrimSpace(npmDist.PublishAuth)
 	npmDist.License = npmDist.LicenseValue()
 	npmDist.Keywords = normalizeKeywords(npmDist.Keywords)
 	npmDist.ReadmePath = strings.TrimSpace(npmDist.ReadmePath)
@@ -311,6 +314,9 @@ func applyDistributionDefaults(cfg *Config) {
 	}
 	if npmDist.Access == "" {
 		npmDist.Access = "public"
+	}
+	if npmDist.PublishAuth == "" {
+		npmDist.PublishAuth = "token"
 	}
 	if npmDist.Package == "" {
 		npmDist.Package = "@omnidist/omnidist"
@@ -500,6 +506,11 @@ func validate(cfg *Config) error {
 		case "", "public", "restricted":
 		default:
 			return fmt.Errorf("invalid distributions.npm.access %q: expected public or restricted", npmDist.Access)
+		}
+		switch npmDist.PublishAuth {
+		case "", "token", "trusted":
+		default:
+			return fmt.Errorf("invalid distributions.npm.publish-auth %q: expected token or trusted", npmDist.PublishAuth)
 		}
 	}
 

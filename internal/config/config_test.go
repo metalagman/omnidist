@@ -20,6 +20,9 @@ func TestDefaultConfigIncludesUV(t *testing.T) {
 	if !npmDist.IncludeREADMEEnabled() {
 		t.Fatalf("npm include-readme default = false, want true")
 	}
+	if npmDist.PublishAuth != "token" {
+		t.Fatalf("npm publish-auth = %q, want %q", npmDist.PublishAuth, "token")
+	}
 	if npmDist.License != "" {
 		t.Fatalf("npm license = %q, want empty default", npmDist.License)
 	}
@@ -87,6 +90,9 @@ distributions:
 	npmDist := cfg.Distributions["npm"]
 	if !npmDist.IncludeREADMEEnabled() {
 		t.Fatalf("npm include-readme = false, want default true")
+	}
+	if npmDist.PublishAuth != "token" {
+		t.Fatalf("npm publish-auth = %q, want default %q", npmDist.PublishAuth, "token")
 	}
 }
 
@@ -220,6 +226,45 @@ distributions:
 
 	if got := cfg.Distributions["npm"].License; got != "Apache-2.0" {
 		t.Fatalf("npm license = %q, want %q", got, "Apache-2.0")
+	}
+}
+
+func TestLoadTrimsNPMPublishAuth(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, paths.ConfigPath)
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		t.Fatalf("os.MkdirAll() error = %v", err)
+	}
+
+	yaml := `tool:
+  name: omnidist
+  main: ./cmd/omnidist
+version:
+  source: env
+targets:
+  - os: linux
+    arch: amd64
+build:
+  ldflags: -s -w
+  tags: []
+  cgo: false
+distributions:
+  npm:
+    package: "@scope/tool"
+    publish-auth: " trusted "
+`
+
+	if err := os.WriteFile(path, []byte(yaml), 0644); err != nil {
+		t.Fatalf("os.WriteFile() error = %v", err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if got := cfg.Distributions["npm"].PublishAuth; got != "trusted" {
+		t.Fatalf("npm publish-auth = %q, want %q", got, "trusted")
 	}
 }
 
@@ -615,6 +660,16 @@ func TestValidate(t *testing.T) {
 				},
 			},
 			wantErr: "invalid distributions.npm.access \"invalid\"",
+		},
+		{
+			name: "invalid npm publish auth",
+			cfg: &Config{
+				Targets: []Target{{OS: "linux", Arch: "amd64"}},
+				Distributions: map[string]DistributionConfig{
+					"npm": {PublishAuth: "oidc"},
+				},
+			},
+			wantErr: "invalid distributions.npm.publish-auth \"oidc\"",
 		},
 		{
 			name: "invalid version source",

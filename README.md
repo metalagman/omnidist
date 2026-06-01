@@ -23,7 +23,7 @@ For project background, packaging model details, migration notes, and contributo
 - Node.js + npm (for npm distribution commands)
 - `uv` (for uv distribution commands)
 - `git` (when `version.source: git-tag`)
-- `NPM_PUBLISH_TOKEN` for npm publish (unless `--dry-run`)
+- `NPM_PUBLISH_TOKEN` for npm publish when `distributions.npm.publish-auth: token` (default) and not `--dry-run`
 - `UV_PUBLISH_TOKEN` (or `--token`) for uv publish (unless `--dry-run`)
 
 ## Installation
@@ -175,7 +175,8 @@ Supported variables:
 - `OMNIDIST_OMNIDIST_ROOT`: optional project root directory (same as `--omnidist-root`).
 - `OMNIDIST_GIT_COMMIT`: optional ldflags template variable for build metadata; populated automatically by `omnidist build` when git metadata is available.
 - `OMNIDIST_BUILD_DATE`: optional ldflags template variable for build metadata; populated automatically by `omnidist build` as UTC RFC3339.
-- `NPM_PUBLISH_TOKEN`: required for npm publish commands when not using `--dry-run`
+- `NPM_PUBLISH_TOKEN`: required for npm publish commands in `token` auth mode when not using `--dry-run`
+- `distributions.npm.publish-auth`: npm publish auth mode; `token` uses `NPM_PUBLISH_TOKEN`, `trusted` uses ambient trusted publishing/OIDC
 - `UV_PUBLISH_TOKEN`: used by uv publish when `--token` is not provided
 
 Example `.env`:
@@ -228,6 +229,7 @@ distributions:
     package: "@omnidist/omnidist"
     registry: https://registry.npmjs.org
     access: public # public | restricted
+    publish-auth: token # token | trusted
     license: MIT # optional override for package.json license; omit to use SEE LICENSE IN <file>
     keywords: [cli, ai, llm] # optional npm meta-package keywords
     readme-path: docs/npm-readme.md # optional npm-specific README source
@@ -416,6 +418,16 @@ omnidist npm publish --dry-run --tag next --registry https://registry.npmjs.org
 Before npm commands run, omnidist writes `.omnidist/.npmrc` from `distributions.npm.registry` using:
 `//<registry>/:_authToken=${NPM_PUBLISH_TOKEN}`.
 If staged package version contains a `-dev` prerelease and `--tag` is not provided, omnidist auto-publishes with `--tag dev`.
+
+To publish through npm trusted publishing, set:
+
+```yaml
+distributions:
+  npm:
+    publish-auth: trusted
+```
+
+In trusted mode, omnidist skips token-only auth preflight and does not force a workspace `.npmrc`; `npm publish` uses the ambient CI credentials instead. For GitHub Actions, that typically means configuring npm trusted publishing and granting `id-token: write` to the publish job. `omnidist ci` remains token-based by default.
 
 If your npm account requires 2FA for publish operations:
 

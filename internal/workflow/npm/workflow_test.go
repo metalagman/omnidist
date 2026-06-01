@@ -101,9 +101,10 @@ func TestNPMDistributionTrimsFields(t *testing.T) {
 	cfg := &config.Config{
 		Distributions: map[string]config.DistributionConfig{
 			"npm": {
-				Package:  " @omnidist/omnidist ",
-				Registry: " https://registry.npmjs.org ",
-				Access:   " public ",
+				Package:     " @omnidist/omnidist ",
+				Registry:    " https://registry.npmjs.org ",
+				Access:      " public ",
+				PublishAuth: " trusted ",
 			},
 		},
 	}
@@ -121,6 +122,9 @@ func TestNPMDistributionTrimsFields(t *testing.T) {
 	}
 	if dist.Access != "public" {
 		t.Fatalf("dist.Access = %q, want %q", dist.Access, "public")
+	}
+	if dist.PublishAuth != "trusted" {
+		t.Fatalf("dist.PublishAuth = %q, want %q", dist.PublishAuth, "trusted")
 	}
 }
 
@@ -146,9 +150,10 @@ func TestCheckAuthPreservesExitErrorAndStderr(t *testing.T) {
 	}
 
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("NPM_PUBLISH_TOKEN", "secret")
 
 	cfg := config.DefaultConfig()
-	err := CheckAuth(cfg, "", true)
+	err := CheckAuth(cfg, "", false)
 	if err == nil {
 		t.Fatalf("CheckAuth() error = nil, want error")
 	}
@@ -162,6 +167,36 @@ func TestCheckAuthPreservesExitErrorAndStderr(t *testing.T) {
 	var exitErr *exec.ExitError
 	if !errors.As(err, &exitErr) {
 		t.Fatalf("CheckAuth() error = %T %v, want wrapped *exec.ExitError", err, err)
+	}
+}
+
+func TestCheckAuthTrustedPublishingSkipsWhoami(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell script test")
+	}
+
+	dir := t.TempDir()
+	t.Chdir(dir)
+
+	binDir := filepath.Join(dir, "bin")
+	if err := os.MkdirAll(binDir, 0755); err != nil {
+		t.Fatalf("os.MkdirAll(%q) error = %v", binDir, err)
+	}
+
+	npmPath := filepath.Join(binDir, "npm")
+	if err := os.WriteFile(npmPath, []byte("#!/bin/sh\nexit 99\n"), 0755); err != nil {
+		t.Fatalf("os.WriteFile(%q) error = %v", npmPath, err)
+	}
+
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	cfg := config.DefaultConfig()
+	npmDist := cfg.Distributions["npm"]
+	npmDist.PublishAuth = npmPublishAuthTrusted
+	cfg.Distributions["npm"] = npmDist
+
+	if err := CheckAuth(cfg, "", false); err != nil {
+		t.Fatalf("CheckAuth(trusted) error = %v", err)
 	}
 }
 
@@ -383,6 +418,17 @@ func TestBuildPublishArgsFlagOverrides(t *testing.T) {
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("buildPublishArgs() = %#v, want %#v", got, want)
+	}
+}
+
+func TestNPMCommandEnvSkipsUserConfigWhenUnset(t *testing.T) {
+	t.Parallel()
+
+	env := npmCommandEnv("", "")
+	for _, entry := range env {
+		if strings.HasPrefix(entry, "NPM_CONFIG_USERCONFIG=") {
+			t.Fatalf("npmCommandEnv() unexpectedly forced userconfig: %q", entry)
+		}
 	}
 }
 
@@ -1222,6 +1268,51 @@ func TestStageRequiresBuildVersionFile(t *testing.T) {
 	err := Stage(cfg, StageOptions{})
 	if err == nil || !strings.Contains(err.Error(), "missing build version file") {
 		t.Fatalf("Stage() error = %v, want missing build version file", err)
+	}
+}
+
+func TestPublishTrustedPublishingDoesNotForceUserConfig(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell script test")
+	}
+
+	dir := t.TempDir()
+	t.Chdir(dir)
+	t.Setenv(shared.EnvVersionName, "1.2.3")
+
+	cfg := testConfig()
+	npmDist := cfg.Distributions["npm"]
+	npmDist.PublishAuth = npmPublishAuthTrusted
+	cfg.Distributions["npm"] = npmDist
+
+	if err := createDistArtifacts(cfg); err != nil {
+		t.Fatalf("createDistArtifacts() error = %v", err)
+	}
+	if err := shared.WriteBuildVersion("1.2.3"); err != nil {
+		t.Fatalf("shared.WriteBuildVersion() error = %v", err)
+	}
+	if err := Stage(cfg, StageOptions{}); err != nil {
+		t.Fatalf("Stage() error = %v", err)
+	}
+
+	binDir := filepath.Join(dir, "bin")
+	if err := os.MkdirAll(binDir, 0755); err != nil {
+		t.Fatalf("os.MkdirAll(%q) error = %v", binDir, err)
+	}
+	npmPath := filepath.Join(binDir, "npm")
+	script := "#!/bin/sh\n" +
+		"if [ -n \"$NPM_CONFIG_USERCONFIG\" ]; then\n" +
+		"  echo \"unexpected userconfig\" >&2\n" +
+		"  exit 12\n" +
+		"fi\n" +
+		"exit 0\n"
+	if err := os.WriteFile(npmPath, []byte(script), 0755); err != nil {
+		t.Fatalf("os.WriteFile(%q) error = %v", npmPath, err)
+	}
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	if err := Publish(cfg, PublishOptions{DryRun: true}); err != nil {
+		t.Fatalf("Publish(trusted, dry-run) error = %v", err)
 	}
 }
 

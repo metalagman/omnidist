@@ -23,6 +23,7 @@ distributions:
         package: '@omnidist/omnidist'
         registry: https://registry.npmjs.org
         access: public
+        publish-auth: trusted
     uv:
         package: omnidist
         # Used as default publish endpoint for `omnidist uv publish`.

@@ -42,7 +42,7 @@ var publishCmd = &cobra.Command{
 		}
 
 		if err := npmworkflow.CheckAuth(cfg, opts.Registry, opts.DryRun); err != nil {
-			return fmt.Errorf("npm authentication failed: %w\nSet NPM_PUBLISH_TOKEN in environment for .npmrc substitution, or run 'npm login'", err)
+			return fmt.Errorf("npm authentication failed: %w", err)
 		}
 
 		if err := npmworkflow.Publish(cfg, opts); err != nil {
