@@ -84,13 +84,13 @@ This creates:
 It also derives default `distributions.npm.package` / `distributions.uv.package`
 from the current directory name (slugified).
 
-3. Edit config and set environment variables (optional):
+3. Edit config and set optional `.env` values:
 
 ```bash
 $EDITOR .omnidist/omnidist.yaml
 ```
 
-`omnidist` loads `.env` automatically when present, so you can keep values like `OMNIDIST_VERSION`, `NPM_PUBLISH_TOKEN`, and `UV_PUBLISH_TOKEN` there.
+`omnidist` loads `.env` automatically when present, so you can keep runtime environment variables like `OMNIDIST_VERSION`, `NPM_PUBLISH_TOKEN`, and `UV_PUBLISH_TOKEN` there.
 
 4. Build binaries for configured targets:
 
@@ -162,23 +162,30 @@ omnidist npm publish --tag next --otp <6-digit-code>
 omnidist uv publish --publish-url https://test.pypi.org/legacy/ --token <pypi-token>
 ```
 
-## Environment Variables and .env
+## Environment Variables, Build Variables, and Config Settings
 
 `omnidist` loads `.env` automatically at startup (via `godotenv`) if present.
 
-Supported variables:
+Environment variables loaded from the process environment (including `.env`):
 
-- `OMNIDIST_VERSION`: used only when `version.source: env`; also expanded in `build.ldflags` templates (for example `${OMNIDIST_VERSION}`).
+- `OMNIDIST_VERSION`: used only when `version.source: env`.
   `VERSION` is not used.
 - `OMNIDIST_CONFIG`: optional global config file path (same as `--config`).
 - `OMNIDIST_PROFILE`: optional config profile name (same as `--profile`).
 - `OMNIDIST_OMNIDIST_ROOT`: optional project root directory (same as `--omnidist-root`).
-- `OMNIDIST_GIT_COMMIT`: optional ldflags template variable for build metadata; populated automatically by `omnidist build` when git metadata is available.
-- `OMNIDIST_BUILD_DATE`: optional ldflags template variable for build metadata; populated automatically by `omnidist build` as UTC RFC3339.
-- `NPM_PUBLISH_TOKEN`: required for npm publish commands in `token` auth mode when not using `--dry-run`
-- `distributions.npm.publish-auth`: npm publish auth mode; `token` uses `NPM_PUBLISH_TOKEN`, `trusted` uses ambient trusted publishing/OIDC
-- `distributions.npm.repository-url`: repository URL written to staged package.json `repository.url`; required for trusted npm publishing
-- `UV_PUBLISH_TOKEN`: used by uv publish when `--token` is not provided
+- `NPM_PUBLISH_TOKEN`: required for npm publish commands in `token` auth mode when not using `--dry-run`.
+- `UV_PUBLISH_TOKEN`: used by uv publish when `--token` is not provided.
+
+Build `ldflags` template variables:
+
+- `OMNIDIST_VERSION`: also expanded in `build.ldflags` templates (for example `${OMNIDIST_VERSION}`).
+- `OMNIDIST_GIT_COMMIT`: optional build metadata variable; populated automatically by `omnidist build` when git metadata is available.
+- `OMNIDIST_BUILD_DATE`: optional build metadata variable; populated automatically by `omnidist build` as UTC RFC3339.
+
+Related config settings (not environment variables):
+
+- `distributions.npm.publish-auth`: npm publish auth mode; `token` uses `NPM_PUBLISH_TOKEN`, `trusted` uses ambient trusted publishing/OIDC.
+- `distributions.npm.repository-url`: repository URL written to staged package.json `repository.url`; required for trusted npm publishing.
 
 Example `.env`:
 

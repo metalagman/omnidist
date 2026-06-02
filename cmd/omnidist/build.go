@@ -25,14 +25,15 @@ var buildCmd = &cobra.Command{
 	Short: "Compile Go binaries for configured targets",
 	Long: `Compile Go binaries for configured targets.
 
-build.ldflags supports environment variable expansion via os.ExpandEnv.
-Both $VAR and ${VAR} syntax are supported. Variables not set in the
-environment expand to an empty string.
+build.ldflags templates are expanded with os.ExpandEnv. Both $VAR and
+${VAR} syntax are supported. Variables not set in the environment expand
+to an empty string.
 
-During omnidist build:
-- OMNIDIST_VERSION is exported when version can be resolved
-- OMNIDIST_GIT_COMMIT is exported from git metadata when available
-- OMNIDIST_BUILD_DATE is exported as UTC RFC3339 timestamp`,
+During omnidist build, omnidist populates these template variables when
+available:
+- OMNIDIST_VERSION when the build version can be resolved
+- OMNIDIST_GIT_COMMIT from git metadata
+- OMNIDIST_BUILD_DATE as a UTC RFC3339 timestamp`,
 	Example: `  omnidist build
   OMNIDIST_VERSION=1.2.3 omnidist build
   # Example build.ldflags:
