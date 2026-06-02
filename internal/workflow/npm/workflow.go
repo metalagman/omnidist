@@ -557,69 +557,101 @@ func verifyPlatformPackages(layout paths.Layout, cfg *config.Config, npmDist con
 
 		pkgJSON, err := readPackageJSON(pkgDir)
 		if err != nil {
-			result.Errors = append(result.Errors, fmt.Sprintf("Missing package.json for %s", pkgName))
-			result.Valid = false
+			addVerificationErrorf(result, "Missing package.json for %s", pkgName)
 			continue
 		}
 
-		if pkgJSON["version"] != version {
-			result.Errors = append(result.Errors, fmt.Sprintf("Version mismatch in %s: got %s, expected %s", pkgName, pkgJSON["version"], version))
-			result.Valid = false
-		}
-
-		osList, ok := pkgJSON["os"].([]interface{})
-		if !ok || len(osList) == 0 {
-			result.Errors = append(result.Errors, fmt.Sprintf("Missing os field in %s", pkgName))
-			result.Valid = false
-		} else if osList[0] != config.MapGoOSToNPM(target.OS) {
-			result.Errors = append(result.Errors, fmt.Sprintf("os mismatch in %s: got %v, expected %s", pkgName, osList, config.MapGoOSToNPM(target.OS)))
-			result.Valid = false
-		}
-
-		cpuList, ok := pkgJSON["cpu"].([]interface{})
-		if !ok || len(cpuList) == 0 {
-			result.Errors = append(result.Errors, fmt.Sprintf("Missing cpu field in %s", pkgName))
-			result.Valid = false
-		} else if cpuList[0] != config.MapGoArchToNPM(target.Arch) {
-			result.Errors = append(result.Errors, fmt.Sprintf("cpu mismatch in %s: got %v, expected %s", pkgName, cpuList, config.MapGoArchToNPM(target.Arch)))
-			result.Valid = false
-		}
-
-		binaryName := cfg.Tool.Name
-		if target.OS == "windows" {
-			binaryName += ".exe"
-		}
-		binaryPath := filepath.Join(pkgDir, "bin", binaryName)
-		if _, err := os.Stat(binaryPath); os.IsNotExist(err) {
-			result.Errors = append(result.Errors, fmt.Sprintf("Missing binary %s in %s", binaryName, pkgName))
-			result.Valid = false
-		}
-
-		if scripts, ok := pkgJSON["scripts"].(map[string]interface{}); ok {
-			if _, hasPostinstall := scripts["postinstall"]; hasPostinstall {
-				result.Errors = append(result.Errors, fmt.Sprintf("Scripts.postinstall found in %s (not allowed)", pkgName))
-				result.Valid = false
-			}
-		}
-		if expectedRepositoryURL != "" {
-			if actualRepositoryURL, ok := packageRepositoryURL(pkgJSON); !ok {
-				result.Errors = append(result.Errors, fmt.Sprintf("Missing repository.url in %s", pkgName))
-				result.Valid = false
-			} else if actualRepositoryURL != expectedRepositoryURL {
-				result.Errors = append(result.Errors, fmt.Sprintf("repository.url mismatch in %s: got %s, expected %s", pkgName, actualRepositoryURL, expectedRepositoryURL))
-				result.Valid = false
-			}
-		}
-
-		if expectedLicense := npmDist.LicenseValue(); expectedLicense != "" {
-			if pkgJSON["license"] != expectedLicense {
-				result.Errors = append(result.Errors, fmt.Sprintf("license mismatch in %s: got %v, expected %s", pkgName, pkgJSON["license"], expectedLicense))
-				result.Valid = false
-			}
-		}
+		verifyPlatformPackageVersion(result, pkgName, pkgJSON, version)
+		verifyPlatformPackageOS(result, pkgName, pkgJSON, target.OS)
+		verifyPlatformPackageCPU(result, pkgName, pkgJSON, target.Arch)
+		verifyPlatformPackageBinary(result, pkgName, pkgDir, cfg.Tool.Name, target.OS)
+		verifyPlatformPackageScripts(result, pkgName, pkgJSON)
+		verifyPlatformPackageRepository(result, pkgName, pkgJSON, expectedRepositoryURL)
+		verifyPlatformPackageLicense(result, pkgName, pkgJSON, npmDist.LicenseValue())
 	}
 
 	return nil
+}
+
+func verifyPlatformPackageVersion(result *VerificationResult, pkgName string, pkgJSON map[string]interface{}, version string) {
+	if pkgJSON["version"] != version {
+		addVerificationErrorf(result, "Version mismatch in %s: got %s, expected %s", pkgName, pkgJSON["version"], version)
+	}
+}
+
+func verifyPlatformPackageOS(result *VerificationResult, pkgName string, pkgJSON map[string]interface{}, goos string) {
+	osList, ok := pkgJSON["os"].([]interface{})
+	if !ok || len(osList) == 0 {
+		addVerificationErrorf(result, "Missing os field in %s", pkgName)
+		return
+	}
+
+	expectedOS := config.MapGoOSToNPM(goos)
+	if osList[0] != expectedOS {
+		addVerificationErrorf(result, "os mismatch in %s: got %v, expected %s", pkgName, osList, expectedOS)
+	}
+}
+
+func verifyPlatformPackageCPU(result *VerificationResult, pkgName string, pkgJSON map[string]interface{}, arch string) {
+	cpuList, ok := pkgJSON["cpu"].([]interface{})
+	if !ok || len(cpuList) == 0 {
+		addVerificationErrorf(result, "Missing cpu field in %s", pkgName)
+		return
+	}
+
+	expectedCPU := config.MapGoArchToNPM(arch)
+	if cpuList[0] != expectedCPU {
+		addVerificationErrorf(result, "cpu mismatch in %s: got %v, expected %s", pkgName, cpuList, expectedCPU)
+	}
+}
+
+func verifyPlatformPackageBinary(result *VerificationResult, pkgName string, pkgDir string, toolName string, goos string) {
+	binaryName := toolName
+	if goos == "windows" {
+		binaryName += ".exe"
+	}
+	if _, err := os.Stat(filepath.Join(pkgDir, "bin", binaryName)); os.IsNotExist(err) {
+		addVerificationErrorf(result, "Missing binary %s in %s", binaryName, pkgName)
+	}
+}
+
+func verifyPlatformPackageScripts(result *VerificationResult, pkgName string, pkgJSON map[string]interface{}) {
+	scripts, ok := pkgJSON["scripts"].(map[string]interface{})
+	if !ok {
+		return
+	}
+	if _, hasPostinstall := scripts["postinstall"]; hasPostinstall {
+		addVerificationErrorf(result, "Scripts.postinstall found in %s (not allowed)", pkgName)
+	}
+}
+
+func verifyPlatformPackageRepository(result *VerificationResult, pkgName string, pkgJSON map[string]interface{}, expectedRepositoryURL string) {
+	if expectedRepositoryURL == "" {
+		return
+	}
+
+	actualRepositoryURL, ok := packageRepositoryURL(pkgJSON)
+	if !ok {
+		addVerificationErrorf(result, "Missing repository.url in %s", pkgName)
+		return
+	}
+	if actualRepositoryURL != expectedRepositoryURL {
+		addVerificationErrorf(result, "repository.url mismatch in %s: got %s, expected %s", pkgName, actualRepositoryURL, expectedRepositoryURL)
+	}
+}
+
+func verifyPlatformPackageLicense(result *VerificationResult, pkgName string, pkgJSON map[string]interface{}, expectedLicense string) {
+	if expectedLicense == "" {
+		return
+	}
+	if pkgJSON["license"] != expectedLicense {
+		addVerificationErrorf(result, "license mismatch in %s: got %v, expected %s", pkgName, pkgJSON["license"], expectedLicense)
+	}
+}
+
+func addVerificationErrorf(result *VerificationResult, format string, args ...interface{}) {
+	result.Errors = append(result.Errors, fmt.Sprintf(format, args...))
+	result.Valid = false
 }
 
 func verifyMetaPackage(layout paths.Layout, cfg *config.Config, npmDist config.DistributionConfig, version string, result *VerificationResult) error {
