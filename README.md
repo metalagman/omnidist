@@ -9,54 +9,53 @@
 [![PyPI](https://img.shields.io/pypi/v/omnidist)](https://pypi.org/project/omnidist/)
 [![license](https://img.shields.io/github/license/metalagman/omnidist)](LICENSE)
 
-Run your Go CLI everywhere with `npx` and `uvx`, without requiring Go on end-user machines.
+Package and publish a Go CLI as npm and uv installable tools with prebuilt
+cross-platform binaries.
 
-`omnidist` turns one Go project into cross-platform npm and uv distributions with prebuilt binaries, then stages, verifies, and publishes them in a deterministic release flow.
+`omnidist` gives Go CLI maintainers one repeatable release flow:
 
-Release flow: `build -> stage -> verify -> publish` so users can run your tool from JavaScript and Python ecosystems out of the box.
+```text
+build -> stage -> verify -> publish
+```
 
-For project background, packaging model details, migration notes, and contributor-oriented repo layout, see [CONTRIBUTING.md](CONTRIBUTING.md).
+The generated npm packages use platform-specific optional dependencies, so users
+can run your CLI with `npx` without install-time downloader scripts. The uv
+distribution stages wheel artifacts so users can run the same CLI from Python
+tooling with `uvx`.
 
 ## Requirements
 
 - Go 1.25+
-- Node.js + npm (for npm distribution commands)
-- `uv` (for uv distribution commands)
-- `git` (when `version.source: git-tag`)
-- `NPM_PUBLISH_TOKEN` for npm publish when `distributions.npm.publish-auth: token` (default) and not `--dry-run`
-- `UV_PUBLISH_TOKEN` (or `--token`) for uv publish (unless `--dry-run`)
+- Node.js and npm for npm staging, verification, and publishing
+- `uv` for uv staging, verification, and publishing
+- `git` when `version.source: git-tag`
+- `NPM_PUBLISH_TOKEN` for npm token publishing, unless using `--dry-run` or trusted publishing
+- `UV_PUBLISH_TOKEN` or `omnidist uv publish --token` for uv publishing, unless using `--dry-run`
 
-## Installation
+## Install
 
-Run without installation first:
+Run without installing:
 
 ```bash
-npx @omnidist/omnidist --help
+npx -y @omnidist/omnidist@latest --help
 uvx omnidist --help
 ```
 
-Install globally with npm:
+Install with npm:
 
 ```bash
 npm i -g @omnidist/omnidist
 omnidist --help
 ```
 
-Install with Go toolchain:
+Install with Go:
 
 ```bash
 go install github.com/metalagman/omnidist/cmd/omnidist@latest
 omnidist --help
 ```
 
-Build locally from source:
-
-```bash
-go build -o ./bin/omnidist ./cmd/omnidist
-./bin/omnidist --help
-```
-
-Or run directly:
+Run from a checkout:
 
 ```bash
 go run ./cmd/omnidist --help
@@ -64,372 +63,193 @@ go run ./cmd/omnidist --help
 
 ## Quick Start
 
-1. Print repo-tailored onboarding/release commands:
-
-```bash
-omnidist quickstart
-```
-
-2. Initialize config and distribution folder structure:
+Initialize an existing Go CLI repository:
 
 ```bash
 omnidist init
 ```
 
-This creates:
-- `.omnidist/omnidist.yaml`
-- `.omnidist/` workspace directories
+This creates `.omnidist/omnidist.yaml` and initial workspace directories under
+`.omnidist/default/`. The generated config uses `profiles.default`.
 
-`omnidist init` writes profiles-mode config with a `default` profile.
-It also derives default `distributions.npm.package` / `distributions.uv.package`
-from the current directory name (slugified).
-
-3. Edit config and set optional `.env` values:
+Edit the generated config before building:
 
 ```bash
 $EDITOR .omnidist/omnidist.yaml
 ```
 
-`omnidist` loads `.env` automatically when present, so you can keep runtime environment variables like `OMNIDIST_VERSION`, `NPM_PUBLISH_TOKEN`, and `UV_PUBLISH_TOKEN` there.
+At minimum, check these fields:
 
-4. Build binaries for configured targets:
+- `tool.name`: the binary name users will run.
+- `tool.main`: the Go main package, for example `./cmd/mytool`.
+- `distributions.npm.package`: the npm package, for example `@my-org/mytool`.
+- `distributions.uv.package`: the uv/PyPI package, for example `mytool`.
+- `version.source`: usually `git-tag`, `file`, `env`, or `fixed`.
+
+Then run the local release pipeline:
 
 ```bash
 omnidist build
-```
-
-This also writes the resolved build version to `.omnidist/<profile>/dist/VERSION`
-(`.omnidist/default/dist/VERSION` with init defaults).
-
-5. Stage and verify artifacts:
-
-```bash
 omnidist stage
 omnidist verify
 ```
 
-`omnidist uv stage` converts the resolved version to PEP 440 and writes
-`.omnidist/<profile>/uv/pyproject.toml` with that version.
-It also recreates `.omnidist/<profile>/uv/dist` to prevent stale wheel artifacts from previous runs.
-On first stage run, omnidist creates `.omnidist/.gitignore` (if missing).
-
-6. Publish when verification passes:
+Publish only after verification passes:
 
 ```bash
 omnidist publish
 ```
 
-7. Generate tag-triggered release workflow:
+Generate a GitHub Actions release workflow:
 
 ```bash
 omnidist ci
 ```
 
-The generated workflow publishes npm and uv artifacts and also creates a GitHub
-release with the built cross-platform binaries plus `checksums.txt`.
-
-## Common Commands
-
-```bash
-# Build binaries for configured targets and persist build version
-omnidist build
-
-# Print a quickstart command sequence for this repo
-omnidist quickstart
-
-# Show runtime version/build metadata
-omnidist version
-
-# Stage and verify both distributions (npm -> uv)
-omnidist stage
-omnidist verify
-
-# Stage dev/pre-release artifacts
-omnidist stage --dev
-
-# Publish both distributions (fail-fast, npm -> uv)
-omnidist publish
-
-# Generate GitHub Actions workflow for tagged releases
-omnidist ci
-
-# Limit orchestration to one distribution
-omnidist stage --only npm
-omnidist verify --only uv
-
-# Distribution-specific publishing options
-omnidist npm publish --tag next --otp <6-digit-code>
-omnidist uv publish --publish-url https://test.pypi.org/legacy/ --token <pypi-token>
-```
-
-## Environment Variables, Build Variables, and Config Settings
-
-`omnidist` loads `.env` automatically at startup (via `godotenv`) if present.
-
-Environment variables loaded from the process environment (including `.env`):
-
-- `OMNIDIST_VERSION`: used only when `version.source: env`.
-  `VERSION` is not used.
-- `OMNIDIST_CONFIG`: optional global config file path (same as `--config`).
-- `OMNIDIST_PROFILE`: optional config profile name (same as `--profile`).
-- `OMNIDIST_OMNIDIST_ROOT`: optional project root directory (same as `--omnidist-root`).
-- `NPM_PUBLISH_TOKEN`: required for npm publish commands in `token` auth mode when not using `--dry-run`.
-- `UV_PUBLISH_TOKEN`: used by uv publish when `--token` is not provided.
-
-Build `ldflags` template variables:
-
-- `OMNIDIST_VERSION`: also expanded in `build.ldflags` templates (for example `${OMNIDIST_VERSION}`).
-- `OMNIDIST_GIT_COMMIT`: optional build metadata variable; populated automatically by `omnidist build` when git metadata is available.
-- `OMNIDIST_BUILD_DATE`: optional build metadata variable; populated automatically by `omnidist build` as UTC RFC3339.
-
-Related config settings (not environment variables):
-
-- `distributions.npm.publish-auth`: npm publish auth mode; `token` uses `NPM_PUBLISH_TOKEN`, `trusted` uses ambient trusted publishing/OIDC.
-- `distributions.npm.repository-url`: repository URL written to staged package.json `repository.url`; required for trusted npm publishing.
-
-Example `.env`:
-
-```dotenv
-OMNIDIST_VERSION=1.2.3
-OMNIDIST_PROFILE=release
-NPM_PUBLISH_TOKEN=npm_xxx
-UV_PUBLISH_TOKEN=pypi-xxx
-```
+The generated workflow is written to `.github/workflows/omnidist-release.yml`.
+It runs on `v*` tag pushes, builds once, stages and verifies artifacts, publishes
+npm and uv distributions, then uploads the built binaries and `checksums.txt` to
+the GitHub release.
 
 ## Configuration
 
-`.omnidist/omnidist.yaml`:
-
-`omnidist init` now generates the profiles-mode shape (`profiles.default`) by default.
-Legacy top-level format remains supported when loading config files.
-
-```yaml
-tool:
-  name: omnidist
-  main: ./cmd/omnidist
-
-version:
-  source: git-tag # git-tag | file | env | fixed
-  file: VERSION # optional; used when source is file (default VERSION)
-  fixed: 1.2.3 # required when source is fixed
-
-readme-path: docs/README.md # optional shared README source for staging
-
-targets:
-  - os: darwin
-    arch: amd64
-  - os: darwin
-    arch: arm64
-  - os: linux
-    arch: amd64
-  - os: linux
-    arch: arm64
-  - os: windows
-    arch: amd64
-
-build:
-  ldflags: -s -w
-  tags: []
-  cgo: false
-
-distributions:
-  npm:
-    package: "@omnidist/omnidist"
-    registry: https://registry.npmjs.org
-    access: public # public | restricted
-    publish-auth: token # token | trusted
-    repository-url: git+https://github.com/your-org/your-repo.git # required for trusted publish
-    license: MIT # optional override for package.json license; omit to use SEE LICENSE IN <file>
-    keywords: [cli, ai, llm] # optional npm meta-package keywords
-    readme-path: docs/npm-readme.md # optional npm-specific README source
-    include-readme: true # include project README.md in staged packages when present
-
-  uv:
-    package: omnidist
-    index-url: https://upload.pypi.org/legacy/
-    linux-tag: manylinux2014 # manylinux2014 | musllinux_1_2
-    readme-path: docs/uv-readme.md # optional uv-specific README source
-    include-readme: true # include project README.md in staged wheels when present
-```
-
-Profiles mode:
+`omnidist init` writes profiles-mode config by default:
 
 ```yaml
 profiles:
   default:
     tool:
-      name: omnidist
-      main: ./cmd/omnidist
+      name: mytool
+      main: ./cmd/mytool
+
     version:
-      source: env
-    readme-path: docs/README.md
+      source: git-tag # git-tag | file | env | fixed
+      file: VERSION # used only when source is file
+      fixed: 1.2.3 # required only when source is fixed
+
     targets:
+      - os: darwin
+        arch: amd64
+      - os: darwin
+        arch: arm64
       - os: linux
         arch: amd64
+      - os: linux
+        arch: arm64
+      - os: windows
+        arch: amd64
+
     build:
       ldflags: -s -w
       tags: []
       cgo: false
+
     distributions:
       npm:
-        package: "@scope/mytool"
-        keywords: [cli, ai, llm]
-        readme-path: docs/npm-readme.md
+        package: "@my-org/mytool"
+        registry: https://registry.npmjs.org
+        access: public # public | restricted
+        publish-auth: token # token | trusted
+        include-readme: true
+
       uv:
         package: mytool
-        readme-path: docs/uv-readme.md
-
-  release:
-    tool:
-      name: omnidist
-      main: ./cmd/omnidist
-    version:
-      source: fixed
-      fixed: 1.0.0
-    targets:
-      - os: linux
-        arch: amd64
-    build:
-      ldflags: -s -w
-      tags: []
-      cgo: false
+        index-url: https://upload.pypi.org/legacy/
+        linux-tag: manylinux2014 # manylinux2014 | musllinux_1_2
+        include-readme: true
 ```
 
-Select a profile with `--profile <name>` or `OMNIDIST_PROFILE`.
-If `profiles` is present and no profile is provided, `default` is used.
-Mixing top-level runtime fields and `profiles` in the same file is not supported.
+Select a profile with `--profile <name>` or `OMNIDIST_PROFILE`. If `profiles`
+is present and no profile is selected, `default` is used. Profiles write
+artifacts to `.omnidist/<profile>/`.
 
-`targets` use Go values (`GOOS`/`GOARCH`). Distribution workflows map them as needed (for example `windows/amd64` -> npm `win32/x64`).
+Legacy top-level config is still accepted when loading existing config files,
+but do not mix top-level runtime fields with a `profiles` map in the same file.
 
-README source precedence during staging:
-`distributions.<name>.readme-path` -> `readme-path` -> `README.md`.
-If a configured readme-path is set and cannot be read, staging fails.
+Targets use Go values: `os` is `GOOS`, and `arch` is `GOARCH`. Distribution
+workflows map them as needed, for example `windows/amd64` becomes npm
+`win32/x64`.
 
-When `distributions.npm.keywords` is set, omnidist writes those values to the staged npm meta package `package.json`.
+## Versioning
 
-For appkit version injection, configure `build.ldflags` in your project config:
+`omnidist build` resolves the release version and writes it to
+`.omnidist/<profile>/dist/VERSION`. Stage and publish commands use that build
+version so npm and uv artifacts stay in sync.
 
-```yaml
-build:
-  ldflags: -s -w -X github.com/metalagman/appkit/version.version=${OMNIDIST_VERSION} -X github.com/metalagman/appkit/version.gitCommit=${OMNIDIST_GIT_COMMIT} -X github.com/metalagman/appkit/version.buildDate=${OMNIDIST_BUILD_DATE}
-```
+Supported version sources:
 
-`build.ldflags` values are expanded with `os.ExpandEnv` during `omnidist build`.
-Both `${VAR}` and `$VAR` are supported; unset vars expand to empty strings.
+- `git-tag`: `HEAD` must be on an exact SemVer tag, either `vX.Y.Z` or `X.Y.Z`.
+- `file`: read the version from `version.file`, defaulting to `VERSION`.
+- `env`: read `OMNIDIST_VERSION`.
+- `fixed`: read `version.fixed`.
 
-With `version.source: git-tag`, release workflows require `HEAD` to be on an exact SemVer tag (`vX.Y.Z` or `X.Y.Z`).
-
-With `version.source: file`, omnidist reads `./VERSION` from the repository root.
-
-With `version.source: file`, you can override the path via `version.file` (for example `versions/release.txt`).
-
-With `version.source: fixed`, set `version.fixed` to an exact value in config (for example `1.2.3`).
-
-With `version.source: env`, set `OMNIDIST_VERSION` (for example in `.env`) before build/stage/publish.
-
-Use global `--omnidist-root <path>` to set the project root for a command. Omnidist resolves it to an absolute path at startup and changes working directory to it before loading `.env` and config.
-
-Workspace behavior:
-- Legacy config writes artifacts to `.omnidist/*`.
-- Profiles config writes artifacts to `.omnidist/<profile>/*`.
-- Isolation is by profile name. If different config files use the same profile name in the same repo, they share the same `.omnidist/<profile>` workspace.
-
-## Command Reference
-
-Top-level:
-
-- `omnidist init`
-- `omnidist build`
-- `omnidist quickstart`
-- `omnidist version`
-- `omnidist ci [--force]`
-- `omnidist stage [--dev] [--only npm|uv|npm,uv]`
-- `omnidist verify [--only npm|uv|npm,uv]`
-- `omnidist publish [--dry-run] [--only npm|uv|npm,uv]`
-- `omnidist npm`
-- `omnidist uv`
-
-Global flags:
-
-- `--config <path>`
-- `--profile <name>`
-- `--omnidist-root <path>`
-
-NPM subcommands:
-
-- `omnidist npm stage [--dev]`
-- `omnidist npm verify`
-- `omnidist npm publish [--dry-run] [--tag <tag>] [--registry <url>] [--otp <code>]`
-
-UV subcommands:
-
-- `omnidist uv stage [--dev]`
-- `omnidist uv verify`
-- `omnidist uv publish [--dry-run] [--publish-url <url>] [--token <pypi-token>]`
-
-## Usage Patterns
-
-### Local development loop
-
-Use this when iterating on the CLI binary and validating artifact generation locally:
-
-```bash
-omnidist build
-omnidist stage
-omnidist verify
-```
-
-### Dev pre-release artifacts
-
-Generate prerelease versions from git describe data:
+For local prerelease staging, use:
 
 ```bash
 omnidist stage --dev
 ```
 
-### Unified multi-distribution orchestration
+`--dev` generates prerelease artifact versions from git metadata. For npm
+publishing, `-dev` prerelease versions are automatically published with
+`--tag dev` when no tag is supplied.
 
-Top-level `stage`, `verify`, and `publish` run distributions in deterministic order:
-`npm` first, then `uv`, and stop on first failure.
+## Environment and Build Variables
 
-Select a subset with `--only`:
+`omnidist` loads `.env` at startup when the file exists.
 
-```bash
-omnidist stage --only uv
-omnidist verify --only npm
-omnidist publish --dry-run --only npm,uv
+Environment variables:
+
+- `OMNIDIST_VERSION`: used only when `version.source: env`. `VERSION` is not used.
+- `OMNIDIST_CONFIG`: config file path, equivalent to `--config`.
+- `OMNIDIST_PROFILE`: config profile name, equivalent to `--profile`.
+- `OMNIDIST_OMNIDIST_ROOT`: project root directory, equivalent to `--omnidist-root`.
+- `NPM_PUBLISH_TOKEN`: npm token for `distributions.npm.publish-auth: token`.
+- `UV_PUBLISH_TOKEN`: uv publish token when `--token` is not provided.
+
+Build `ldflags` template variables:
+
+- `OMNIDIST_VERSION`: expanded in `build.ldflags` during `omnidist build`.
+- `OMNIDIST_GIT_COMMIT`: populated by `omnidist build` when git metadata is available.
+- `OMNIDIST_BUILD_DATE`: populated by `omnidist build` as UTC RFC3339.
+
+Example:
+
+```yaml
+build:
+  ldflags: >-
+    -s -w
+    -X github.com/your-org/mytool/internal/version.version=${OMNIDIST_VERSION}
+    -X github.com/your-org/mytool/internal/version.gitCommit=${OMNIDIST_GIT_COMMIT}
+    -X github.com/your-org/mytool/internal/version.buildDate=${OMNIDIST_BUILD_DATE}
 ```
 
-### CI bootstrap for tag releases
+`build.ldflags` uses `os.ExpandEnv`, so both `$VAR` and `${VAR}` are supported.
+Unset variables expand to empty strings.
 
-Generate `.github/workflows/omnidist-release.yml`:
+## npm Distribution
 
-```bash
-omnidist ci
-```
+The npm distribution has two package types:
 
-The generated workflow triggers on `v*` tag pushes and runs:
-`build -> stage -> verify -> publish`, then publishes the built binaries and
-checksums to the GitHub release.
-It also opts JavaScript-based GitHub Actions into Node 24 with `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true`.
+- Meta package: `distributions.npm.package`, with a small Node shim.
+- Platform packages: one package per target, selected by npm `os` and `cpu` constraints.
 
-If workflow already exists:
+The meta package lists platform packages as `optionalDependencies` at the same
+version. Published packages do not use `postinstall` scripts or network
+downloaders.
 
-```bash
-omnidist ci --force
-```
-
-### npm publishing flow with custom options
+Common npm commands:
 
 ```bash
-omnidist npm publish --dry-run --tag next --registry https://registry.npmjs.org
+omnidist npm stage
+omnidist npm verify
+omnidist npm publish --tag latest
 ```
 
-Before npm commands run, omnidist writes `.omnidist/.npmrc` from `distributions.npm.registry` using:
-`//<registry>/:_authToken=${NPM_PUBLISH_TOKEN}`.
-If staged package version contains a `-dev` prerelease and `--tag` is not provided, omnidist auto-publishes with `--tag dev`.
+Token publishing uses `NPM_PUBLISH_TOKEN`. `omnidist` writes a workspace
+`.omnidist/.npmrc` from `distributions.npm.registry` with npm's token
+substitution syntax.
 
-To publish through npm trusted publishing, set:
+Trusted publishing uses npm OIDC instead of `NPM_PUBLISH_TOKEN`:
 
 ```yaml
 distributions:
@@ -438,93 +258,176 @@ distributions:
     repository-url: git+https://github.com/your-org/your-repo.git
 ```
 
-In trusted mode, omnidist skips token-only auth preflight and does not force a workspace `.npmrc`; `npm publish` uses the ambient CI credentials instead. For GitHub Actions, that means:
-- the workflow must grant `id-token: write`
-- the job must use a supported Node/npm toolchain for OIDC
-- each published npm package must have its own trusted publisher configured on npm
-- each staged package must include a `repository.url` that exactly matches the GitHub repository
+In trusted mode:
 
-`omnidist ci` emits the required GitHub Actions OIDC permissions and Node setup when `publish-auth: trusted` is configured.
+- `repository-url` is required and is written to staged package metadata.
+- `omnidist npm publish` skips token-only auth preflight.
+- GitHub Actions must grant `id-token: write`.
+- Each npm package, including platform packages, needs a trusted publisher configured on npm.
 
-To configure npm trusted publishers for the meta package and all platform packages:
+Print trusted publisher setup commands:
 
 ```bash
 omnidist npm trust
 ```
 
-That prints the exact `npx -y npm@11.16.0 trust github ...` commands derived from your config and target matrix, so you do not have to rely on the host npm version. To apply them directly with an npm account that has write access and 2FA enabled:
+Apply them directly:
 
 ```bash
 omnidist npm trust --apply
 ```
 
-Useful overrides:
-- `--workflow-file publish.yml` when your workflow filename differs from `omnidist-release.yml`
-- `--repo your-org/your-repo` when you want to override `distributions.npm.repository-url`
-- `--environment production` when your trusted publisher is restricted to a GitHub Actions environment
-- `--allow-stage-publish` to also allow `npm stage publish`
+Useful trust options:
 
-If your npm account requires 2FA for publish operations:
+- `--workflow-file <name>` for a workflow filename other than `omnidist-release.yml`.
+- `--repo <owner/repo>` to override `distributions.npm.repository-url`.
+- `--environment <name>` for npm trusted publishers restricted to a GitHub Actions environment.
+- `--allow-stage-publish` to allow npm stage publish.
 
-```bash
-omnidist npm publish --otp <6-digit-code>
-```
+## uv Distribution
 
-### uv publishing flow with custom index/auth
+The uv distribution stages wheel artifacts under `.omnidist/<profile>/uv/dist`.
+During staging, versions are converted to PEP 440 where needed.
 
-```bash
-omnidist uv publish --publish-url https://upload.pypi.org/legacy/ --token <pypi-token>
-```
-
-`omnidist uv publish` uses token authentication.  
-Provide token via `--token` or `UV_PUBLISH_TOKEN` (required for non-dry-run).
-`omnidist uv verify` and `omnidist uv publish` use the staged version from
-`.omnidist/uv/pyproject.toml` when present.
-For PyPI/TestPyPI, `omnidist uv verify` fails if the staged version contains local metadata (`+...`), since those indexes reject local versions.
-
-TestPyPI dry-run style validation:
+Common uv commands:
 
 ```bash
-omnidist uv publish --dry-run --publish-url https://test.pypi.org/legacy/
-```
-
-## Usage Examples
-
-### npm release path
-
-```bash
-git tag v1.2.0
-omnidist build
-omnidist npm stage
-omnidist npm verify
-omnidist npm publish
-```
-
-### uv release path
-
-```bash
-git tag v1.2.0
-omnidist build
 omnidist uv stage
 omnidist uv verify
-omnidist uv publish --publish-url https://upload.pypi.org/legacy/
+omnidist uv publish
 ```
 
-### uv dry-run publish
+Publish to a different PyPI-compatible index:
 
 ```bash
-omnidist uv publish --dry-run --publish-url https://test.pypi.org/legacy/
+omnidist uv publish --publish-url https://test.pypi.org/legacy/ --token <token>
 ```
 
-### version from environment
+`omnidist uv verify` rejects versions with local metadata (`+...`) for
+PyPI/TestPyPI publishing, because those indexes reject local versions.
 
-```yaml
-version:
-  source: env
+## README and License Staging
+
+README source precedence during staging:
+
+```text
+distributions.<name>.readme-path -> readme-path -> README.md
 ```
+
+If a configured `readme-path` is set and cannot be read, staging fails. Set
+`include-readme: false` for a distribution to skip README inclusion.
+
+For npm packages, `license` can be set explicitly under `distributions.npm`.
+When it is omitted, omnidist includes the project license file when present and
+writes package metadata that points to that file.
+
+## CI Releases
+
+Generate a release workflow:
 
 ```bash
-export OMNIDIST_VERSION=2.0.0
-omnidist npm stage
-omnidist uv stage
+omnidist ci
 ```
+
+Overwrite an existing generated workflow:
+
+```bash
+omnidist ci --force
+```
+
+The workflow installs omnidist with npm. When generating this repository's own
+release workflow, it uses `go run ./cmd/omnidist` instead. The workflow also
+sets `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true` for JavaScript-based GitHub
+Actions.
+
+Before the first tag release, configure the required registry credentials:
+
+- npm token mode: `NPM_PUBLISH_TOKEN` GitHub secret.
+- npm trusted mode: npm trusted publishers for every staged npm package.
+- uv publishing: `UV_PUBLISH_TOKEN` GitHub secret.
+
+Release by pushing a SemVer tag:
+
+```bash
+git tag v1.2.3
+git push origin v1.2.3
+```
+
+## Command Reference
+
+Top-level commands:
+
+```bash
+omnidist init
+omnidist quickstart
+omnidist build
+omnidist stage [--dev] [--only npm|uv|npm,uv]
+omnidist verify [--only npm|uv|npm,uv]
+omnidist publish [--dry-run] [--only npm|uv|npm,uv]
+omnidist ci [--force] [--dry-run]
+omnidist version
+```
+
+Global flags:
+
+```bash
+--config <path>
+--profile <name>
+--omnidist-root <path>
+```
+
+npm commands:
+
+```bash
+omnidist npm stage [--dev]
+omnidist npm verify
+omnidist npm publish [--dry-run] [--tag <tag>] [--registry <url>] [--otp <code>]
+omnidist npm trust [--apply] [--workflow-file <name>] [--repo <owner/repo>] [--environment <name>] [--allow-stage-publish]
+```
+
+uv commands:
+
+```bash
+omnidist uv stage [--dev]
+omnidist uv verify
+omnidist uv publish [--dry-run] [--publish-url <url>] [--token <token>]
+```
+
+Top-level `stage`, `verify`, and `publish` run distributions in deterministic
+order: npm first, then uv. Use `--only` to limit the command to one or more
+distributions.
+
+## Troubleshooting
+
+`omnidist build` says no version could be resolved:
+
+Check `version.source`. For `git-tag`, `HEAD` must be exactly on a SemVer tag.
+For `env`, set `OMNIDIST_VERSION`. For `file`, create the configured version
+file.
+
+`omnidist stage` says the build version file is missing:
+
+Run `omnidist build` first. Stage commands use the build version persisted under
+`.omnidist/<profile>/dist/VERSION`.
+
+npm install cannot find a platform package:
+
+Run `omnidist npm verify` before publishing. It checks package versions,
+platform `os` and `cpu` fields, required binaries, forbidden `postinstall`
+scripts, repository metadata, and optional dependency parity.
+
+Trusted npm publish fails:
+
+Verify that `distributions.npm.repository-url` matches the GitHub repository,
+the workflow grants `id-token: write`, and every npm package has a trusted
+publisher configured.
+
+uv publish rejects the version:
+
+Restage with a publishable version. PyPI and TestPyPI reject local version
+metadata containing `+`.
+
+## Contributing
+
+For repository layout, development workflow, package model details, and migration
+notes, see [CONTRIBUTING.md](CONTRIBUTING.md).
