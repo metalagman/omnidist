@@ -834,6 +834,38 @@ func TestStageAndVerifyPasses(t *testing.T) {
 	}
 }
 
+func TestStageAssignsCLIBinOnlyToMetaPackage(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	t.Setenv(shared.EnvVersionName, "1.2.3")
+
+	cfg := testConfig()
+	if err := createDistArtifacts(cfg); err != nil {
+		t.Fatalf("createDistArtifacts() error = %v", err)
+	}
+	if err := shared.WriteBuildVersion("1.2.3"); err != nil {
+		t.Fatalf("shared.WriteBuildVersion() error = %v", err)
+	}
+	if err := Stage(cfg, StageOptions{}); err != nil {
+		t.Fatalf("Stage() error = %v", err)
+	}
+
+	metaDir := filepath.Join(paths.NPMDir, cfg.Distributions["npm"].Package)
+	metaJSON, err := readPackageJSON(metaDir)
+	if err != nil {
+		t.Fatalf("readPackageJSON(%q) error = %v", metaDir, err)
+	}
+	bins, ok := metaJSON["bin"].(map[string]interface{})
+	if !ok || bins[cfg.Tool.Name] != cfg.Tool.Name+".js" {
+		t.Fatalf("meta package bin = %#v, want %q: %q", metaJSON["bin"], cfg.Tool.Name, cfg.Tool.Name+".js")
+	}
+
+	for _, target := range cfg.Targets {
+		pkgName := platformPackageName(cfg.Distributions["npm"].Package, target)
+		assertNPMPackageFieldAbsent(t, filepath.Join(paths.NPMDir, pkgName), "bin")
+	}
+}
+
 func TestVerifyNilConfig(t *testing.T) {
 	result := Verify(nil)
 	if result.Valid {

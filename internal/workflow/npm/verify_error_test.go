@@ -139,6 +139,29 @@ func TestVerifyErrors(t *testing.T) {
 		assertContainsError(t, result.Errors, fmt.Sprintf("Scripts.postinstall found in %s", pkgName))
 	})
 
+	t.Run("platform_bin_forbidden", func(t *testing.T) {
+		dir := t.TempDir()
+		t.Chdir(dir)
+		t.Setenv(shared.EnvVersionName, "1.0.0")
+		cfg := testConfig()
+		createDistArtifacts(cfg)
+		shared.WriteBuildVersion("1.0.0")
+		Stage(cfg, StageOptions{})
+
+		target := cfg.Targets[0]
+		pkgName := platformPackageName(cfg.Distributions["npm"].Package, target)
+		pkgDir := filepath.Join(paths.NPMDir, pkgName)
+		pkgJSON, _ := readPackageJSON(pkgDir)
+		pkgJSON["bin"] = map[string]interface{}{cfg.Tool.Name: "bin/" + cfg.Tool.Name}
+		writePackageJSON(pkgDir, pkgJSON)
+
+		result := Verify(cfg)
+		if result.Valid {
+			t.Fatalf("Verify() = valid, want invalid")
+		}
+		assertContainsError(t, result.Errors, "bin field found in platform package "+pkgName)
+	})
+
 	t.Run("meta_missing_package_json", func(t *testing.T) {
 		dir := t.TempDir()
 		t.Chdir(dir)
@@ -177,6 +200,27 @@ func TestVerifyErrors(t *testing.T) {
 			t.Fatalf("Verify() = valid, want invalid")
 		}
 		assertContainsError(t, result.Errors, "Scripts.postinstall found in meta package")
+	})
+
+	t.Run("meta_missing_bin", func(t *testing.T) {
+		dir := t.TempDir()
+		t.Chdir(dir)
+		t.Setenv(shared.EnvVersionName, "1.0.0")
+		cfg := testConfig()
+		createDistArtifacts(cfg)
+		shared.WriteBuildVersion("1.0.0")
+		Stage(cfg, StageOptions{})
+
+		metaDir := filepath.Join(paths.NPMDir, cfg.Distributions["npm"].Package)
+		pkgJSON, _ := readPackageJSON(metaDir)
+		delete(pkgJSON, "bin")
+		writePackageJSON(metaDir, pkgJSON)
+
+		result := Verify(cfg)
+		if result.Valid {
+			t.Fatalf("Verify() = valid, want invalid")
+		}
+		assertContainsError(t, result.Errors, "Meta package bin must map "+cfg.Tool.Name)
 	})
 
 	t.Run("meta_keywords_mismatch", func(t *testing.T) {

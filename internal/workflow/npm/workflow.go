@@ -476,10 +476,7 @@ func stagePlatformPackage(layout paths.Layout, cfg *config.Config, npmDist confi
 		"description": npmDist.Package + " binary for " + target.OS + "/" + target.Arch,
 		"os":          []string{config.MapGoOSToNPM(target.OS)},
 		"cpu":         []string{config.MapGoArchToNPM(target.Arch)},
-		"bin": map[string]string{
-			cfg.Tool.Name: "bin/" + binaryName,
-		},
-		"files": files,
+		"files":       files,
 	}
 	if license, ok := packageLicenseValue(npmDist, licenseName, licenseIncluded); ok {
 		pkgJSON["license"] = license
@@ -565,6 +562,7 @@ func verifyPlatformPackages(layout paths.Layout, cfg *config.Config, npmDist con
 		verifyPlatformPackageOS(result, pkgName, pkgJSON, target.OS)
 		verifyPlatformPackageCPU(result, pkgName, pkgJSON, target.Arch)
 		verifyPlatformPackageBinary(result, pkgName, pkgDir, cfg.Tool.Name, target.OS)
+		verifyPlatformPackageHasNoBin(result, pkgName, pkgJSON)
 		verifyPlatformPackageScripts(result, pkgName, pkgJSON)
 		verifyPlatformPackageRepository(result, pkgName, pkgJSON, expectedRepositoryURL)
 		verifyPlatformPackageLicense(result, pkgName, pkgJSON, npmDist.LicenseValue())
@@ -612,6 +610,12 @@ func verifyPlatformPackageBinary(result *VerificationResult, pkgName string, pkg
 	}
 	if _, err := os.Stat(filepath.Join(pkgDir, "bin", binaryName)); os.IsNotExist(err) {
 		addVerificationErrorf(result, "Missing binary %s in %s", binaryName, pkgName)
+	}
+}
+
+func verifyPlatformPackageHasNoBin(result *VerificationResult, pkgName string, pkgJSON map[string]interface{}) {
+	if _, ok := pkgJSON["bin"]; ok {
+		addVerificationErrorf(result, "bin field found in platform package %s (only the meta package may declare a bin)", pkgName)
 	}
 }
 
@@ -670,6 +674,8 @@ func verifyMetaPackage(layout paths.Layout, cfg *config.Config, npmDist config.D
 		result.Valid = false
 	}
 
+	verifyMetaPackageBin(result, pkgJSON, cfg.Tool.Name)
+
 	if scripts, ok := pkgJSON["scripts"].(map[string]interface{}); ok {
 		if _, hasPostinstall := scripts["postinstall"]; hasPostinstall {
 			result.Errors = append(result.Errors, "Scripts.postinstall found in meta package (not allowed)")
@@ -727,6 +733,14 @@ func verifyMetaPackage(layout paths.Layout, cfg *config.Config, npmDist config.D
 	}
 
 	return nil
+}
+
+func verifyMetaPackageBin(result *VerificationResult, pkgJSON map[string]interface{}, toolName string) {
+	bins, ok := pkgJSON["bin"].(map[string]interface{})
+	if !ok || bins[toolName] != toolName+".js" {
+		result.Errors = append(result.Errors, fmt.Sprintf("Meta package bin must map %s to %s.js", toolName, toolName))
+		result.Valid = false
+	}
 }
 
 func resolveRegistry(defaultRegistry, overrideRegistry string) string {
