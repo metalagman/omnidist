@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 
+	gemworkflow "github.com/metalagman/omnidist/internal/workflow/gem"
 	npmworkflow "github.com/metalagman/omnidist/internal/workflow/npm"
 	uvworkflow "github.com/metalagman/omnidist/internal/workflow/uv"
 	"github.com/spf13/cobra"
@@ -56,6 +57,19 @@ var publishCmd = &cobra.Command{
 					return fmt.Errorf("uv publish failed: %w", err)
 				}
 				fmt.Println("uv publish completed")
+			case distributionGem:
+				fmt.Println("==> gem publish")
+				if err := gemworkflow.CheckDependency(); err != nil {
+					return err
+				}
+				if err := gemworkflow.Publish(cfg, gemworkflow.PublishOptions{
+					DryRun: publishDryRunFlag,
+					Stdout: cmd.OutOrStdout(),
+					Stderr: cmd.ErrOrStderr(),
+				}); err != nil {
+					return fmt.Errorf("gem publish failed: %w", err)
+				}
+				fmt.Println("gem publish completed")
 			}
 			return nil
 		}); err != nil {
@@ -69,6 +83,6 @@ var publishCmd = &cobra.Command{
 
 func init() {
 	publishCmd.Flags().BoolVar(&publishDryRunFlag, "dry-run", false, "Run publish without uploading artifacts")
-	publishCmd.Flags().StringVar(&publishOnlyFlag, "only", "", "Run only selected distributions (comma-separated: npm,uv)")
+	publishCmd.Flags().StringVar(&publishOnlyFlag, "only", "", "Run only selected distributions (comma-separated: npm,uv,gem)")
 	AddCommand(publishCmd)
 }

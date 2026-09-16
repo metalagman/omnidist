@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	godotenv "github.com/joho/godotenv"
+	"github.com/metalagman/omnidist/cmd/omnidist/gem"
 	"github.com/metalagman/omnidist/cmd/omnidist/npm"
 	"github.com/metalagman/omnidist/cmd/omnidist/uv"
 	"github.com/spf13/cobra"
@@ -23,7 +24,7 @@ var initRootErr error
 var rootCmd = &cobra.Command{
 	Use:           "omnidist",
 	Short:         "Omni-platform Binary Distribution Toolkit",
-	Long:          `A repeatable way to build, package, and publish a Go CLI for npm and uv distributions.`,
+	Long:          `A repeatable way to build, package, and publish a Go CLI for npm, uv, and RubyGems distributions.`,
 	SilenceUsage:  true,
 	SilenceErrors: true,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
@@ -49,6 +50,7 @@ func init() {
 	bindRootFlagsToViper()
 	rootCmd.AddCommand(npm.Cmd)
 	rootCmd.AddCommand(uv.Cmd)
+	rootCmd.AddCommand(gem.Cmd)
 }
 
 func initOmnidistRoot() {

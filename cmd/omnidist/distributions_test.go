@@ -17,7 +17,7 @@ func TestResolveDistributions(t *testing.T) {
 	}{
 		{
 			name: "default_all",
-			want: []distribution{distributionNPM, distributionUV},
+			want: []distribution{distributionNPM, distributionUV, distributionGem},
 		},
 		{
 			name: "only_npm",
@@ -33,6 +33,11 @@ func TestResolveDistributions(t *testing.T) {
 			name: "both_preserves_execution_order",
 			only: "uv,npm",
 			want: []distribution{distributionNPM, distributionUV},
+		},
+		{
+			name: "only_gem",
+			only: "gem",
+			want: []distribution{distributionGem},
 		},
 		{
 			name:    "invalid_distribution",
@@ -73,7 +78,7 @@ func TestRunDistributionSteps(t *testing.T) {
 
 	t.Run("success_runs_in_order", func(t *testing.T) {
 		t.Parallel()
-		order := []distribution{distributionNPM, distributionUV}
+		order := []distribution{distributionNPM, distributionUV, distributionGem}
 		calls := make([]distribution, 0, len(order))
 
 		err := runDistributionSteps(order, func(dist distribution) error {
@@ -90,7 +95,7 @@ func TestRunDistributionSteps(t *testing.T) {
 
 	t.Run("fail_fast_stops_after_first_error", func(t *testing.T) {
 		t.Parallel()
-		order := []distribution{distributionNPM, distributionUV}
+		order := []distribution{distributionNPM, distributionUV, distributionGem}
 		calls := make([]distribution, 0, len(order))
 		wantErr := errors.New("boom")
 
@@ -114,8 +119,8 @@ func TestRunDistributionSteps(t *testing.T) {
 func TestDistributionListSortsNames(t *testing.T) {
 	t.Parallel()
 
-	got := distributionList([]distribution{distributionUV, distributionNPM})
-	if got != "npm, uv" {
-		t.Fatalf("distributionList() = %q, want %q", got, "npm, uv")
+	got := distributionList([]distribution{distributionUV, distributionGem, distributionNPM})
+	if got != "gem, npm, uv" {
+		t.Fatalf("distributionList() = %q, want %q", got, "gem, npm, uv")
 	}
 }

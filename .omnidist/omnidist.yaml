@@ -30,3 +30,9 @@ distributions:
         # Used as default publish endpoint for `omnidist uv publish`.
         index-url: https://upload.pypi.org/legacy/
         linux-tag: manylinux2014
+    gem:
+        package: omnidist
+        registry: https://rubygems.org
+        publish-auth: trusted
+        repository-url: https://github.com/metalagman/omnidist
+        license: MIT

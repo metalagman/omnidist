@@ -11,17 +11,20 @@ type distribution string
 const (
 	distributionNPM distribution = "npm"
 	distributionUV  distribution = "uv"
+	distributionGem distribution = "gem"
 )
 
 var distributionExecutionOrder = []distribution{
 	distributionNPM,
 	distributionUV,
+	distributionGem,
 }
 
 func resolveDistributions(only string) ([]distribution, error) {
 	selected := map[distribution]bool{
 		distributionNPM: false,
 		distributionUV:  false,
+		distributionGem: false,
 	}
 
 	filter := strings.TrimSpace(only)
@@ -33,12 +36,12 @@ func resolveDistributions(only string) ([]distribution, error) {
 	for _, part := range parts {
 		name := distribution(strings.ToLower(strings.TrimSpace(part)))
 		switch name {
-		case distributionNPM, distributionUV:
+		case distributionNPM, distributionUV, distributionGem:
 			selected[name] = true
 		case "":
 			return nil, fmt.Errorf("invalid --only value %q: empty distribution name", only)
 		default:
-			return nil, fmt.Errorf("invalid --only value %q: unsupported distribution %q (allowed: npm,uv)", only, part)
+			return nil, fmt.Errorf("invalid --only value %q: unsupported distribution %q (allowed: npm,uv,gem)", only, part)
 		}
 	}
 
@@ -49,7 +52,7 @@ func resolveDistributions(only string) ([]distribution, error) {
 		}
 	}
 	if len(resolved) == 0 {
-		return nil, fmt.Errorf("invalid --only value %q: expected at least one of npm,uv", only)
+		return nil, fmt.Errorf("invalid --only value %q: expected at least one of npm,uv,gem", only)
 	}
 
 	return resolved, nil

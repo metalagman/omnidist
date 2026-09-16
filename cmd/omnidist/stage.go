@@ -6,6 +6,7 @@ import (
 
 	"github.com/metalagman/omnidist/internal/paths"
 	"github.com/metalagman/omnidist/internal/workflow"
+	gemworkflow "github.com/metalagman/omnidist/internal/workflow/gem"
 	npmworkflow "github.com/metalagman/omnidist/internal/workflow/npm"
 	uvworkflow "github.com/metalagman/omnidist/internal/workflow/uv"
 	"github.com/spf13/cobra"
@@ -51,6 +52,15 @@ var stageCmd = &cobra.Command{
 					return fmt.Errorf("uv stage failed: %w", err)
 				}
 				fmt.Println("uv stage completed")
+			case distributionGem:
+				fmt.Println("==> gem stage")
+				if err := gemworkflow.CheckDependency(); err != nil {
+					return err
+				}
+				if err := gemworkflow.Stage(cfg, gemworkflow.StageOptions{Dev: stageDevFlag}); err != nil {
+					return fmt.Errorf("gem stage failed: %w", err)
+				}
+				fmt.Println("gem stage completed")
 			}
 			return nil
 		}); err != nil {
@@ -64,6 +74,6 @@ var stageCmd = &cobra.Command{
 
 func init() {
 	stageCmd.Flags().BoolVar(&stageDevFlag, "dev", false, "Generate dev versions during staging")
-	stageCmd.Flags().StringVar(&stageOnlyFlag, "only", "", "Run only selected distributions (comma-separated: npm,uv)")
+	stageCmd.Flags().StringVar(&stageOnlyFlag, "only", "", "Run only selected distributions (comma-separated: npm,uv,gem)")
 	AddCommand(stageCmd)
 }

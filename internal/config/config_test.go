@@ -11,7 +11,7 @@ import (
 	"github.com/metalagman/omnidist/internal/paths"
 )
 
-func TestDefaultConfigIncludesUV(t *testing.T) {
+func TestDefaultConfigIncludesUVAndGem(t *testing.T) {
 	cfg := DefaultConfig()
 	npmDist, ok := cfg.Distributions["npm"]
 	if !ok {
@@ -42,9 +42,25 @@ func TestDefaultConfigIncludesUV(t *testing.T) {
 	if !uvDist.IncludeREADMEEnabled() {
 		t.Fatalf("uv include-readme default = false, want true")
 	}
+	gemDist, ok := cfg.Distributions["gem"]
+	if !ok {
+		t.Fatalf("DefaultConfig() missing gem distribution")
+	}
+	if gemDist.Package != "omnidist" {
+		t.Fatalf("gem package = %q, want %q", gemDist.Package, "omnidist")
+	}
+	if gemDist.Registry != "https://rubygems.org" {
+		t.Fatalf("gem registry = %q, want %q", gemDist.Registry, "https://rubygems.org")
+	}
+	if gemDist.PublishAuth != "token" {
+		t.Fatalf("gem publish-auth = %q, want %q", gemDist.PublishAuth, "token")
+	}
+	if !gemDist.IncludeREADMEEnabled() {
+		t.Fatalf("gem include-readme default = false, want true")
+	}
 }
 
-func TestLoadAppliesUVMissingDefaults(t *testing.T) {
+func TestLoadAppliesDistributionMissingDefaults(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, paths.ConfigPath)
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
@@ -68,6 +84,8 @@ distributions:
     package: "@scope/tool"
   uv:
     package: "tool"
+  gem:
+    package: "tool"
 `
 
 	if err := os.WriteFile(path, []byte(yaml), 0644); err != nil {
@@ -88,6 +106,16 @@ distributions:
 	}
 	if !uvDist.IncludeREADMEEnabled() {
 		t.Fatalf("uv include-readme = false, want default true")
+	}
+	gemDist := cfg.Distributions["gem"]
+	if gemDist.Registry != "https://rubygems.org" {
+		t.Fatalf("gem registry = %q, want default", gemDist.Registry)
+	}
+	if gemDist.PublishAuth != "token" {
+		t.Fatalf("gem publish-auth = %q, want default %q", gemDist.PublishAuth, "token")
+	}
+	if !gemDist.IncludeREADMEEnabled() {
+		t.Fatalf("gem include-readme = false, want default true")
 	}
 
 	npmDist := cfg.Distributions["npm"]
@@ -125,6 +153,9 @@ distributions:
   uv:
     package: "tool"
     include-readme: false
+  gem:
+    package: "tool"
+    include-readme: false
 `
 
 	if err := os.WriteFile(path, []byte(yaml), 0644); err != nil {
@@ -141,6 +172,9 @@ distributions:
 	}
 	if cfg.Distributions["uv"].IncludeREADMEEnabled() {
 		t.Fatalf("uv include-readme = true, want false")
+	}
+	if cfg.Distributions["gem"].IncludeREADMEEnabled() {
+		t.Fatalf("gem include-readme = true, want false")
 	}
 }
 

@@ -22,6 +22,8 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
           package-manager-cache: false
       - uses: astral-sh/setup-uv@v6
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
 
       - name: Build artifacts
         run: go run ./cmd/omnidist build
@@ -97,6 +99,37 @@ jobs:
         run: tar -xzf omnidist-staged.tgz
       - name: Publish uv artifacts
         run: go run ./cmd/omnidist uv publish
+
+  publish_gem:
+    needs: prepare
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: "go.mod"
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+          package-manager-cache: false
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+      - name: Configure RubyGems trusted publishing credentials
+        uses: rubygems/configure-rubygems-credentials@v1
+      - name: Download staged artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: omnidist-staged
+      - name: Restore staged artifacts
+        run: tar -xzf omnidist-staged.tgz
+      - name: Publish gem artifacts
+        run: go run ./cmd/omnidist gem publish
 
   release:
     needs: prepare

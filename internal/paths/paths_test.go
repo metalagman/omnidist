@@ -21,6 +21,9 @@ func TestPaths(t *testing.T) {
 		{"UVDir", UVDir, ".omnidist/uv"},
 		{"UVPyprojectPath", UVPyprojectPath, ".omnidist/uv/pyproject.toml"},
 		{"UVDistDir", UVDistDir, ".omnidist/uv/dist"},
+		{"GemDir", GemDir, ".omnidist/gem"},
+		{"GemBuildDir", GemBuildDir, ".omnidist/gem/build"},
+		{"GemPkgDir", GemPkgDir, ".omnidist/gem/pkg"},
 	}
 
 	for _, tt := range tests {
@@ -48,6 +51,9 @@ func TestNewLayout(t *testing.T) {
 				UVDir:           ".omnidist/uv",
 				UVPyprojectPath: ".omnidist/uv/pyproject.toml",
 				UVDistDir:       ".omnidist/uv/dist",
+				GemDir:          ".omnidist/gem",
+				GemBuildDir:     ".omnidist/gem/build",
+				GemPkgDir:       ".omnidist/gem/pkg",
 			},
 		},
 		{
@@ -62,6 +68,9 @@ func TestNewLayout(t *testing.T) {
 				UVDir:           ".omnidist/prod/uv",
 				UVPyprojectPath: ".omnidist/prod/uv/pyproject.toml",
 				UVDistDir:       ".omnidist/prod/uv/dist",
+				GemDir:          ".omnidist/prod/gem",
+				GemBuildDir:     ".omnidist/prod/gem/build",
+				GemPkgDir:       ".omnidist/prod/gem/pkg",
 			},
 		},
 	}

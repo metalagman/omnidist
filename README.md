@@ -9,7 +9,7 @@
 [![PyPI](https://img.shields.io/pypi/v/omnidist)](https://pypi.org/project/omnidist/)
 [![license](https://img.shields.io/github/license/metalagman/omnidist)](LICENSE)
 
-Package and publish a Go CLI as npm and uv installable tools with prebuilt
+Package and publish a Go CLI as npm, uv, and RubyGems installable tools with prebuilt
 cross-platform binaries.
 
 `omnidist` gives Go CLI maintainers one repeatable release flow:
@@ -21,16 +21,19 @@ build -> stage -> verify -> publish
 The generated npm packages use platform-specific optional dependencies, so users
 can run your CLI with `npx` without install-time downloader scripts. The uv
 distribution stages wheel artifacts so users can run the same CLI from Python
-tooling with `uvx`.
+tooling with `uvx`. The RubyGems distribution stages platform-specific gems so
+users can install the same CLI with `gem install`.
 
 ## Requirements
 
 - Go 1.25+
 - Node.js and npm for npm staging, verification, and publishing
 - `uv` for uv staging, verification, and publishing
+- Ruby and RubyGems for gem staging, verification, and publishing
 - `git` when `version.source: git-tag`
 - `NPM_PUBLISH_TOKEN` for npm token publishing, unless using `--dry-run` or trusted publishing
 - `UV_PUBLISH_TOKEN` or `omnidist uv publish --token` for uv publishing, unless using `--dry-run`
+- `GEM_HOST_API_KEY` / `RUBYGEMS_API_KEY` for gem token publishing, unless using `--dry-run` or trusted publishing
 
 ## Install
 
@@ -52,6 +55,13 @@ Install with Go:
 
 ```bash
 go install github.com/metalagman/omnidist/cmd/omnidist@latest
+omnidist --help
+```
+
+Install with RubyGems after publication:
+
+```bash
+gem install omnidist
 omnidist --help
 ```
 
@@ -84,6 +94,7 @@ At minimum, check these fields:
 - `tool.main`: the Go main package, for example `./cmd/mytool`.
 - `distributions.npm.package`: the npm package, for example `@my-org/mytool`.
 - `distributions.uv.package`: the uv/PyPI package, for example `mytool`.
+- `distributions.gem.package`: the RubyGems package, for example `mytool`.
 - `version.source`: usually `git-tag`, `file`, `env`, or `fixed`.
 
 Then run the local release pipeline:
@@ -108,8 +119,8 @@ omnidist ci
 
 The generated workflow is written to `.github/workflows/omnidist-release.yml`.
 It runs on `v*` tag pushes, builds once, stages and verifies artifacts, publishes
-npm and uv distributions, then uploads the built binaries and `checksums.txt` to
-the GitHub release.
+npm, uv, and gem distributions, then uploads the built binaries and `checksums.txt`
+to the GitHub release.
 
 ## Configuration
 
@@ -157,6 +168,13 @@ profiles:
         index-url: https://upload.pypi.org/legacy/
         linux-tag: manylinux2014 # manylinux2014 | musllinux_1_2
         include-readme: true
+
+      gem:
+        package: mytool
+        registry: https://rubygems.org
+        publish-auth: token # token | trusted
+        repository-url: https://github.com/my-org/mytool
+        include-readme: true
 ```
 
 Select a profile with `--profile <name>` or `OMNIDIST_PROFILE`. If `profiles`
@@ -168,13 +186,15 @@ but do not mix top-level runtime fields with a `profiles` map in the same file.
 
 Targets use Go values: `os` is `GOOS`, and `arch` is `GOARCH`. Distribution
 workflows map them as needed, for example `windows/amd64` becomes npm
-`win32/x64`.
+`win32/x64`. For RubyGems, `windows/amd64` defaults to `x64-mingw-ucrt`; set
+`targets[].variant: mingw32` if you need `x64-mingw32`, or `targets[].variant: musl`
+for Linux musl gem platforms.
 
 ## Versioning
 
 `omnidist build` resolves the release version and writes it to
 `.omnidist/<profile>/dist/VERSION`. Stage and publish commands use that build
-version so npm and uv artifacts stay in sync.
+version so npm, uv, and gem artifacts stay in sync.
 
 Supported version sources:
 
@@ -205,6 +225,9 @@ Environment variables:
 - `OMNIDIST_OMNIDIST_ROOT`: project root directory, equivalent to `--omnidist-root`.
 - `NPM_PUBLISH_TOKEN`: npm token for `distributions.npm.publish-auth: token`.
 - `UV_PUBLISH_TOKEN`: uv publish token when `--token` is not provided.
+- `GEM_HOST_API_KEY`: RubyGems token for `distributions.gem.publish-auth: token`.
+- `RUBYGEMS_API_KEY`: alternate RubyGems token env name.
+- `GEM_HOST_OTP_CODE`: RubyGems MFA OTP for token-based publish.
 
 Build `ldflags` template variables:
 
@@ -306,6 +329,43 @@ omnidist uv publish --publish-url https://test.pypi.org/legacy/ --token <token>
 `omnidist uv verify` rejects versions with local metadata (`+...`) for
 PyPI/TestPyPI publishing, because those indexes reject local versions.
 
+## RubyGems Distribution
+
+The RubyGems distribution stages one platform-specific `.gem` per configured
+target under `.omnidist/<profile>/gem/pkg`. Each gem contains:
+
+- a wrapper executable under `exe/`
+- the prebuilt CLI binary under `libexec/`
+- platform metadata so RubyGems installs the matching package
+
+Common gem commands:
+
+```bash
+omnidist gem stage
+omnidist gem verify
+omnidist gem publish
+```
+
+Token publishing uses `GEM_HOST_API_KEY` or `RUBYGEMS_API_KEY`. If your
+RubyGems account requires MFA for pushes, also pass `--otp` or set
+`GEM_HOST_OTP_CODE`.
+
+Trusted publishing uses RubyGems OIDC instead of static secrets:
+
+```yaml
+distributions:
+  gem:
+    publish-auth: trusted
+    registry: https://rubygems.org
+    repository-url: https://github.com/your-org/your-repo
+```
+
+In trusted mode:
+
+- GitHub Actions must grant `id-token: write`.
+- The repository/workflow must be registered as a trusted publisher on RubyGems.org.
+- `omnidist` can publish a brand-new gem name once the pending trusted publisher is configured on RubyGems.org.
+
 ## README and License Staging
 
 README source precedence during staging:
@@ -345,6 +405,8 @@ Before the first tag release, configure the required registry credentials:
 - npm token mode: `NPM_PUBLISH_TOKEN` GitHub secret.
 - npm trusted mode: npm trusted publishers for every staged npm package.
 - uv publishing: `UV_PUBLISH_TOKEN` GitHub secret.
+- gem token mode: `RUBYGEMS_API_KEY` GitHub secret, and optionally `RUBYGEMS_OTP_CODE`.
+- gem trusted mode: RubyGems trusted publisher for the release workflow.
 
 Release by pushing a SemVer tag:
 
@@ -361,9 +423,9 @@ Top-level commands:
 omnidist init
 omnidist quickstart
 omnidist build
-omnidist stage [--dev] [--only npm|uv|npm,uv]
-omnidist verify [--only npm|uv|npm,uv]
-omnidist publish [--dry-run] [--only npm|uv|npm,uv]
+omnidist stage [--dev] [--only npm|uv|gem|npm,uv,gem]
+omnidist verify [--only npm|uv|gem|npm,uv,gem]
+omnidist publish [--dry-run] [--only npm|uv|gem|npm,uv,gem]
 omnidist ci [--force] [--dry-run]
 omnidist version
 ```
@@ -393,9 +455,17 @@ omnidist uv verify
 omnidist uv publish [--dry-run] [--publish-url <url>] [--token <token>]
 ```
 
+gem commands:
+
+```bash
+omnidist gem stage [--dev]
+omnidist gem verify
+omnidist gem publish [--dry-run] [--host <url>] [--api-key <token>] [--otp <code>]
+```
+
 Top-level `stage`, `verify`, and `publish` run distributions in deterministic
-order: npm first, then uv. Use `--only` to limit the command to one or more
-distributions.
+order: npm first, then uv, then gem. Use `--only` to limit the command to one
+or more distributions.
 
 ## Troubleshooting
 

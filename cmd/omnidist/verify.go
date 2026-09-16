@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 
+	gemworkflow "github.com/metalagman/omnidist/internal/workflow/gem"
 	npmworkflow "github.com/metalagman/omnidist/internal/workflow/npm"
 	uvworkflow "github.com/metalagman/omnidist/internal/workflow/uv"
 	"github.com/spf13/cobra"
@@ -43,6 +44,16 @@ var verifyCmd = &cobra.Command{
 					return err
 				}
 				fmt.Println("uv verify passed")
+			case distributionGem:
+				fmt.Println("==> gem verify")
+				if err := gemworkflow.CheckDependency(); err != nil {
+					return err
+				}
+				result := gemworkflow.Verify(cfg)
+				if err := verifyResult("gem", result.Errors, result.Warnings, result.Valid); err != nil {
+					return err
+				}
+				fmt.Println("gem verify passed")
 			}
 			return nil
 		}); err != nil {
@@ -71,6 +82,6 @@ func verifyResult(name string, errors []string, warnings []string, valid bool) e
 }
 
 func init() {
-	verifyCmd.Flags().StringVar(&verifyOnlyFlag, "only", "", "Run only selected distributions (comma-separated: npm,uv)")
+	verifyCmd.Flags().StringVar(&verifyOnlyFlag, "only", "", "Run only selected distributions (comma-separated: npm,uv,gem)")
 	AddCommand(verifyCmd)
 }

@@ -13,6 +13,9 @@ const (
 	UVDir           = WorkspaceDir + "/uv"
 	UVPyprojectPath = UVDir + "/pyproject.toml"
 	UVDistDir       = UVDir + "/dist"
+	GemDir          = WorkspaceDir + "/gem"
+	GemBuildDir     = GemDir + "/build"
+	GemPkgDir       = GemDir + "/pkg"
 )
 
 // Layout holds resolved artifact paths for a workspace root.
@@ -25,6 +28,9 @@ type Layout struct {
 	UVDir           string
 	UVPyprojectPath string
 	UVDistDir       string
+	GemDir          string
+	GemBuildDir     string
+	GemPkgDir       string
 }
 
 // NewLayout resolves all path variants for a workspace root.
@@ -42,5 +48,8 @@ func NewLayout(workspaceDir string) Layout {
 		UVDir:           ws + "/uv",
 		UVPyprojectPath: ws + "/uv/pyproject.toml",
 		UVDistDir:       ws + "/uv/dist",
+		GemDir:          ws + "/gem",
+		GemBuildDir:     ws + "/gem/build",
+		GemPkgDir:       ws + "/gem/pkg",
 	}
 }

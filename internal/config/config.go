@@ -161,6 +161,12 @@ func DefaultConfig() *Config {
 				LinuxTag:      "manylinux2014",
 				IncludeREADME: boolPtr(true),
 			},
+			"gem": {
+				Package:       "omnidist",
+				Registry:      "https://rubygems.org",
+				PublishAuth:   "token",
+				IncludeREADME: boolPtr(true),
+			},
 		},
 	}
 	applyRuntimeDefaults(cfg, DefaultProfileName, false)
@@ -351,6 +357,27 @@ func applyDistributionDefaults(cfg *Config) {
 		uvDist.IncludeREADME = boolPtr(true)
 	}
 	cfg.Distributions["uv"] = uvDist
+
+	gemDist := cfg.Distributions["gem"]
+	gemDist.Package = strings.TrimSpace(gemDist.Package)
+	gemDist.Registry = strings.TrimSpace(gemDist.Registry)
+	gemDist.PublishAuth = strings.TrimSpace(gemDist.PublishAuth)
+	gemDist.RepositoryURL = gemDist.RepositoryURLValue()
+	gemDist.License = gemDist.LicenseValue()
+	gemDist.ReadmePath = strings.TrimSpace(gemDist.ReadmePath)
+	if gemDist.Package == "" {
+		gemDist.Package = "omnidist"
+	}
+	if gemDist.Registry == "" {
+		gemDist.Registry = "https://rubygems.org"
+	}
+	if gemDist.PublishAuth == "" {
+		gemDist.PublishAuth = "token"
+	}
+	if gemDist.IncludeREADME == nil {
+		gemDist.IncludeREADME = boolPtr(true)
+	}
+	cfg.Distributions["gem"] = gemDist
 }
 
 func boolPtr(v bool) *bool {
@@ -535,6 +562,27 @@ func validate(cfg *Config) error {
 		}
 	}
 
+	if gemDist, ok := cfg.Distributions["gem"]; ok {
+		if err := validateGemDistribution(gemDist); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func validateGemDistribution(dist DistributionConfig) error {
+	if dist.Package == "" {
+		return fmt.Errorf("distributions.gem.package is required")
+	}
+	switch dist.PublishAuth {
+	case "", "token", "trusted":
+	default:
+		return fmt.Errorf("invalid distributions.gem.publish-auth %q: expected token or trusted", dist.PublishAuth)
+	}
+	if dist.PublishAuth == "trusted" && dist.Registry != "" && dist.Registry != "https://rubygems.org" {
+		return fmt.Errorf("distributions.gem.publish-auth %q requires distributions.gem.registry %q", "trusted", "https://rubygems.org")
+	}
 	return nil
 }
 

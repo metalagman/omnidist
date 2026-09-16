@@ -4,7 +4,7 @@ Contributor and project-reference material lives here. For installation and user
 
 ## Why
 
-- One release system for JavaScript and Python package ecosystems
+- One release system for JavaScript, Python, and Ruby package ecosystems
 - Run Go binaries via `npx`/`uvx` on machines without a Go runtime
 - Install once with npm: `npm i -g <package>`
 - Publish wheel artifacts to PyPI-compatible indexes with uv
@@ -13,7 +13,7 @@ Contributor and project-reference material lives here. For installation and user
 
 ## How It Works
 
-`omnidist` supports two additive backends:
+`omnidist` supports three additive backends:
 
 - `npm`:
   - meta package (for example `@scope/tool`) with shim and `optionalDependencies`
@@ -21,21 +21,28 @@ Contributor and project-reference material lives here. For installation and user
 - `uv`:
   - per-target platform wheel artifacts in `.omnidist/uv/dist/`
   - one wheel per configured target with embedded binary in `<pkg>/bin/`
+- `gem`:
+  - per-target platform gem artifacts in `.omnidist/gem/pkg/`
+  - one gem per configured target with embedded binary in `libexec/`
 
-## Migration Guide (npm -> dual backend)
+## Migration Guide (npm -> multi-backend)
 
-1. Pull latest `omnidist` and run `omnidist init` in a clean branch to get uv defaults in config.
+1. Pull latest `omnidist` and run `omnidist init` in a clean branch to get uv/gem defaults in config.
 2. Keep existing `distributions.npm` unchanged.
 3. Add/update `distributions.uv` values:
    - `package` for wheel distribution name
    - `index-url` for target registry
    - `linux-tag` policy (`manylinux2014` default)
-4. Extend CI pipeline with uv stage/verify gates (see next section).
-5. Release both backends in the same version cycle.
+4. Add/update `distributions.gem` values:
+   - `package` for RubyGems package name
+   - `publish-auth` (`token` or `trusted`)
+   - `repository-url` for gem metadata/trusted publishing setup
+5. Extend CI pipeline with uv/gem stage/verify gates (see next section).
+6. Release all backends in the same version cycle.
 
 This is additive: npm support remains first-class and is not deprecated.
 
-## CI and Release Flow (Dual Backend)
+## CI and Release Flow (Multi-backend)
 
 Recommended release sequence:
 
@@ -46,14 +53,14 @@ Recommended release sequence:
 
 For CI verification-only jobs, run steps 1-3.
 
-When you need distribution-specific publish options (`npm --tag/--otp/--registry`, `uv --publish-url/--token`), use `omnidist npm ...` and `omnidist uv ...` subcommands directly.
+When you need distribution-specific publish options (`npm --tag/--otp/--registry`, `uv --publish-url/--token`, `gem --host/--api-key/--otp`), use the backend subcommands directly.
 
 ## Project Layout
 
 ```text
 cmd/omnidist/               CLI entrypoint and commands
 internal/config/            Config model and YAML load/save
-internal/workflow/          build/init/npm/uv workflows
+internal/workflow/          build/init/npm/uv/gem workflows
 .omnidist/omnidist.yaml     Project configuration
 .omnidist/.gitignore        Ignore rules for generated artifacts
 .omnidist/dist/             Built binaries by os/arch
@@ -61,4 +68,6 @@ internal/workflow/          build/init/npm/uv workflows
 .omnidist/npm/              Staged npm packages
 .omnidist/uv/pyproject.toml UV staging project with PEP 440 version
 .omnidist/uv/dist/          Staged wheel artifacts
+.omnidist/gem/build/        Per-platform gem staging directories
+.omnidist/gem/pkg/          Staged gem artifacts
 ```
