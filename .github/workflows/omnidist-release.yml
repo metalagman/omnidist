@@ -24,6 +24,8 @@ jobs:
       - uses: astral-sh/setup-uv@v6
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.4'
 
       - name: Build artifacts
         run: go run ./cmd/omnidist build
@@ -120,6 +122,8 @@ jobs:
 
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.4'
       - name: Configure RubyGems trusted publishing credentials
         uses: rubygems/configure-rubygems-credentials@v1
       - name: Download staged artifacts

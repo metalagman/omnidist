@@ -41,6 +41,7 @@ func TestGenerateGitHubReleaseWorkflow(t *testing.T) {
 		`UV_PUBLISH_TOKEN: ${{ secrets.UV_PUBLISH_TOKEN }}`,
 		`GEM_HOST_API_KEY: ${{ secrets.RUBYGEMS_API_KEY }}`,
 		`ruby/setup-ruby@v1`,
+		`ruby-version: '3.4'`,
 		`actions/setup-node@v6`,
 		`node-version: '24'`,
 		`registry-url: 'https://registry.npmjs.org'`,

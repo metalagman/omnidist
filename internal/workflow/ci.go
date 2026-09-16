@@ -170,6 +170,8 @@ jobs:
 %s
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.4'
 %s
       - name: Download staged artifacts
         uses: actions/download-artifact@v4
@@ -314,7 +316,9 @@ func workflowInstallStep(command string) string {
 
 func workflowRubySetupStep() string {
 	return `      - name: Set up Ruby
-        uses: ruby/setup-ruby@v1`
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.4'`
 }
 
 func workflowPublishNPMPermissions(cfg *config.Config) string {
