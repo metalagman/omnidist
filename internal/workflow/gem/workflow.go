@@ -302,7 +302,11 @@ func stageGemForTarget(layout paths.Layout, cfg *config.Config, dist config.Dist
 		return fmt.Errorf("write gemspec: %w", err)
 	}
 
-	cmd := command("gem", "build", dist.Package+".gemspec", "--strict", "--output", gemArtifactPath(layout, dist, target, version))
+	artifactPath, err := filepath.Abs(gemArtifactPath(layout, dist, target, version))
+	if err != nil {
+		return fmt.Errorf("resolve gem artifact path: %w", err)
+	}
+	cmd := command("gem", "build", dist.Package+".gemspec", "--strict", "--output", artifactPath)
 	cmd.Dir = stagingDir
 	var stderr bytes.Buffer
 	cmd.Stdout = io.Discard
@@ -340,6 +344,7 @@ func gemspecContent(dist config.DistributionConfig, executable string, version s
   spec.licenses = [%q]
   spec.homepage = %q
   spec.platform = Gem::Platform.new(%q)
+  spec.required_ruby_version = ">= 3.1"
   spec.bindir = "exe"
   spec.executables = [%q]
   spec.require_paths = ["lib"]
@@ -442,12 +447,7 @@ func verifyGemArchive(path string, executable string) error {
 		return fmt.Errorf("open gem artifact %s: %w", path, err)
 	}
 	defer file.Close()
-	gzr, err := gzip.NewReader(file)
-	if err != nil {
-		return fmt.Errorf("read gem artifact %s: %w", path, err)
-	}
-	defer gzr.Close()
-	tr := tar.NewReader(gzr)
+	tr := tar.NewReader(file)
 	foundDataTar := false
 	foundMetadataGz := false
 	for {
@@ -463,6 +463,13 @@ func verifyGemArchive(path string, executable string) error {
 		}
 		if hdr.Name == "data.tar.gz" {
 			foundDataTar = true
+			data, err := io.ReadAll(io.LimitReader(tr, hdr.Size))
+			if err != nil {
+				return fmt.Errorf("read data.tar.gz from gem artifact %s: %w", path, err)
+			}
+			if err := verifyGemData(data, executable); err != nil {
+				return fmt.Errorf("invalid gem artifact %s: %w", path, err)
+			}
 		}
 	}
 	if !foundDataTar {
@@ -471,7 +478,43 @@ func verifyGemArchive(path string, executable string) error {
 	if !foundMetadataGz {
 		return fmt.Errorf("invalid gem artifact %s: missing metadata.gz", path)
 	}
-	_ = executable
+	return nil
+}
+
+func verifyGemData(data []byte, executable string) error {
+	gzr, err := gzip.NewReader(bytes.NewReader(data))
+	if err != nil {
+		return fmt.Errorf("read data.tar.gz: %w", err)
+	}
+	defer gzr.Close()
+
+	wrapperPath := filepath.ToSlash(filepath.Join("exe", executable))
+	binaryPath := filepath.ToSlash(filepath.Join("libexec", executable))
+	foundWrapper := false
+	foundBinary := false
+	tr := tar.NewReader(gzr)
+	for {
+		hdr, err := tr.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return fmt.Errorf("scan data.tar.gz: %w", err)
+		}
+		name := filepath.ToSlash(hdr.Name)
+		if name == wrapperPath {
+			foundWrapper = true
+		}
+		if name == binaryPath || name == binaryPath+".exe" {
+			foundBinary = true
+		}
+	}
+	if !foundWrapper {
+		return fmt.Errorf("missing %s", wrapperPath)
+	}
+	if !foundBinary {
+		return fmt.Errorf("missing %s binary", binaryPath)
+	}
 	return nil
 }
 

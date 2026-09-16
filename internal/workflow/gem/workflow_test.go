@@ -1,6 +1,7 @@
 package gem
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
@@ -78,6 +79,7 @@ func TestGemspecContent(t *testing.T) {
 		`spec.name = "omnidist"`,
 		`spec.version = "1.2.3"`,
 		`spec.platform = Gem::Platform.new("x86_64-linux")`,
+		`spec.required_ruby_version = ">= 3.1"`,
 		`"rubygems_mfa_required" => "true"`,
 		`"source_code_uri" => "https://github.com/metalagman/omnidist"`,
 		`spec.executables = ["omnidist"]`,
@@ -167,13 +169,22 @@ func writeFakeGem(t *testing.T, path string, includeMetadata bool) {
 	}
 	defer file.Close()
 
-	gzw := gzipWriter(t, file)
-	defer gzw.Close()
-	tw := tarWriter(t, gzw)
+	tw := tarWriter(t, file)
 	defer tw.Close()
 
 	if includeMetadata {
 		writeTarEntry(t, tw, "metadata.gz", []byte("meta"))
 	}
-	writeTarEntry(t, tw, "data.tar.gz", []byte("data"))
+	var data bytes.Buffer
+	gzw := gzipWriter(t, &data)
+	dataTar := tarWriter(t, gzw)
+	writeTarEntry(t, dataTar, "exe/omnidist", []byte("wrapper"))
+	writeTarEntry(t, dataTar, "libexec/omnidist", []byte("binary"))
+	if err := dataTar.Close(); err != nil {
+		t.Fatalf("close data tar: %v", err)
+	}
+	if err := gzw.Close(); err != nil {
+		t.Fatalf("close data gzip: %v", err)
+	}
+	writeTarEntry(t, tw, "data.tar.gz", data.Bytes())
 }
