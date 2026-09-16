@@ -3,13 +3,23 @@ package gem
 import (
 	"bytes"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
+	"sort"
 	"strings"
 	"testing"
 
 	"github.com/metalagman/omnidist/internal/config"
 	"github.com/metalagman/omnidist/internal/paths"
 )
+
+func TestCheckDependencyMissing(t *testing.T) {
+	t.Setenv("PATH", t.TempDir())
+	if err := CheckDependency(); err == nil || !strings.Contains(err.Error(), "gem executable not found") {
+		t.Fatalf("CheckDependency() error = %v, want RubyGems installation guidance", err)
+	}
+}
 
 func TestNormalizeVersion(t *testing.T) {
 	t.Parallel()
@@ -126,6 +136,57 @@ func TestPublishEnv(t *testing.T) {
 			t.Fatalf("publishEnv(trusted) env is empty")
 		}
 	})
+}
+
+func TestPublishProgressIdentifiesLastSuccessfulGem(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell command based failure simulation")
+	}
+	dir := t.TempDir()
+	t.Chdir(dir)
+	cfg := config.DefaultConfig()
+	cfg.Targets = []config.Target{
+		{OS: "linux", Arch: "amd64"},
+		{OS: "linux", Arch: "arm64"},
+	}
+	if err := os.MkdirAll(filepath.Dir(paths.DistVersionPath), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(paths.DistVersionPath, []byte("1.2.3\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	dist := cfg.Distributions["gem"]
+	layout := layoutForConfig(cfg)
+	artifacts := []string{
+		gemArtifactPath(layout, dist, cfg.Targets[0], "1.2.3"),
+		gemArtifactPath(layout, dist, cfg.Targets[1], "1.2.3"),
+	}
+	sort.Strings(artifacts)
+
+	originalCommand := command
+	t.Cleanup(func() { command = originalCommand })
+	invocations := 0
+	command = func(name string, args ...string) *exec.Cmd {
+		invocations++
+		if invocations == 2 {
+			return exec.Command("sh", "-c", "exit 7")
+		}
+		return exec.Command("sh", "-c", "exit 0")
+	}
+
+	var progress bytes.Buffer
+	err := Publish(cfg, PublishOptions{APIKey: "secret", Progress: &progress})
+	if err == nil || !strings.Contains(err.Error(), filepath.Base(artifacts[1])) {
+		t.Fatalf("Publish() error = %v, want second artifact context", err)
+	}
+	output := progress.String()
+	if !strings.Contains(output, "Published: "+filepath.Base(artifacts[0])) {
+		t.Fatalf("progress missing last successful artifact:\n%s", output)
+	}
+	if strings.Contains(output, "Published: "+filepath.Base(artifacts[1])) {
+		t.Fatalf("failed artifact reported as published:\n%s", output)
+	}
 }
 
 func TestVerifyGemArchive(t *testing.T) {

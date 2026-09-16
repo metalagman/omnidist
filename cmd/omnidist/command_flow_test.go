@@ -112,6 +112,99 @@ func TestUVCommandFlow(t *testing.T) {
 	}
 }
 
+func TestPublishPreflightFailureAttemptsNoUploads(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell script based publish preflight test")
+	}
+
+	dir := t.TempDir()
+	t.Chdir(dir)
+	if err := setupCommandFlowProject(); err != nil {
+		t.Fatalf("setupCommandFlowProject() error = %v", err)
+	}
+	cfg, err := config.Load(paths.ConfigPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.EnabledDistributions = []string{"npm", "uv"}
+	if err := config.Save(cfg, paths.ConfigPath); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := executeCommand("stage", "--only", "npm"); err != nil {
+		t.Fatalf("stage npm: %v", err)
+	}
+
+	logPath := filepath.Join(dir, "uploads.log")
+	t.Setenv("OMNIDIST_TEST_LOG", logPath)
+	if err := installFakeTool(t, dir, "npm", "#!/bin/sh\nif [ \"$1\" = publish ]; then echo npm-publish >> \"$OMNIDIST_TEST_LOG\"; fi\nexit 0\n"); err != nil {
+		t.Fatal(err)
+	}
+	if err := installFakeTool(t, dir, "uv", "#!/bin/sh\nif [ \"$1\" = publish ]; then echo uv-publish >> \"$OMNIDIST_TEST_LOG\"; fi\nexit 0\n"); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = executeCommand("publish", "--dry-run")
+	if err == nil || !strings.Contains(err.Error(), "no uploads attempted") || !strings.Contains(err.Error(), "uv:") {
+		t.Fatalf("publish preflight error = %v", err)
+	}
+	if data, readErr := os.ReadFile(logPath); readErr == nil {
+		t.Fatalf("upload commands were invoked despite preflight failure: %s", data)
+	} else if !os.IsNotExist(readErr) {
+		t.Fatal(readErr)
+	}
+}
+
+func TestAggregatePublishPreservesSelectedBackendOrder(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell script based publish ordering test")
+	}
+
+	dir := t.TempDir()
+	t.Chdir(dir)
+	if err := setupCommandFlowProject(); err != nil {
+		t.Fatalf("setupCommandFlowProject() error = %v", err)
+	}
+	cfg, err := config.Load(paths.ConfigPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.EnabledDistributions = []string{"uv", "npm"}
+	if err := config.Save(cfg, paths.ConfigPath); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := executeCommand("stage"); err != nil {
+		t.Fatalf("stage selected backends: %v", err)
+	}
+
+	logPath := filepath.Join(dir, "publish-order.log")
+	t.Setenv("OMNIDIST_TEST_LOG", logPath)
+	t.Setenv("NPM_PUBLISH_TOKEN", "npm-token")
+	t.Setenv("UV_PUBLISH_TOKEN", "uv-token")
+	t.Setenv("GEM_HOST_API_KEY", "gem-token")
+	for name, script := range map[string]string{
+		"npm": "#!/bin/sh\necho npm-$1 >> \"$OMNIDIST_TEST_LOG\"\nexit 0\n",
+		"uv":  "#!/bin/sh\necho uv-$1 >> \"$OMNIDIST_TEST_LOG\"\nexit 0\n",
+	} {
+		if err := installFakeTool(t, dir, name, script); err != nil {
+			t.Fatalf("installFakeTool(%s): %v", name, err)
+		}
+	}
+
+	if _, err := executeCommand("publish"); err != nil {
+		t.Fatalf("publish all: %v", err)
+	}
+	data, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	log := string(data)
+	npmLast := strings.LastIndex(log, "npm-publish")
+	uvAt := strings.Index(log, "uv-publish")
+	if npmLast < 0 || uvAt < 0 || npmLast >= uvAt {
+		t.Fatalf("publish order is not canonical npm -> uv:\n%s", log)
+	}
+}
+
 func setupCommandFlowProject() error {
 	cfg := config.DefaultConfig()
 	cfg.Version.Source = "env"

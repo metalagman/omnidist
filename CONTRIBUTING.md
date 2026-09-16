@@ -1,73 +1,107 @@
 # Contributing
 
-Contributor and project-reference material lives here. For installation and user-facing usage, start with [README.md](README.md).
+Start with the [README](README.md) for product usage. This guide covers repository development and review gates.
 
-## Why
+## Setup
 
-- One release system for JavaScript, Python, and Ruby package ecosystems
-- Run Go binaries via `npx`/`uvx` on machines without a Go runtime
-- Install once with npm: `npm i -g <package>`
-- Publish wheel artifacts to PyPI-compatible indexes with uv
-- No install-time download scripts for npm
-- Reproducible, CI-friendly flow from a single config file
+Use the Go version declared in `go.mod` (currently Go 1.25+):
 
-## How It Works
+```bash
+go mod download
+go run ./cmd/omnidist --help
+```
 
-`omnidist` supports three additive backends:
+Some integration paths need ecosystem tools:
 
-- `npm`:
-  - meta package (for example `@scope/tool`) with shim and `optionalDependencies`
-  - platform packages (for example `@scope/tool-linux-x64`) with prebuilt binaries
-- `uv`:
-  - per-target platform wheel artifacts in `.omnidist/uv/dist/`
-  - one wheel per configured target with embedded binary in `<pkg>/bin/`
-- `gem`:
-  - per-target platform gem artifacts in `.omnidist/gem/pkg/`
-  - one gem per configured target with embedded binary in `libexec/`
+- Node.js/npm for npm publish and auth command tests;
+- uv for uv stage/publish flows;
+- Ruby/RubyGems for gem stage/publish flows.
 
-## Migration Guide (npm -> multi-backend)
+Most unit tests isolate external commands with fakes. CI installs uv; release environments must install only the tools needed by enabled backends.
 
-1. Pull latest `omnidist` and run `omnidist init` in a clean branch to get uv/gem defaults in config.
-2. Keep existing `distributions.npm` unchanged.
-3. Add/update `distributions.uv` values:
-   - `package` for wheel distribution name
-   - `index-url` for target registry
-   - `linux-tag` policy (`manylinux2014` default)
-4. Add/update `distributions.gem` values:
-   - `package` for RubyGems package name
-   - `publish-auth` (`token` or `trusted`)
-   - `repository-url` for gem metadata/trusted publishing setup
-5. Extend CI pipeline with uv/gem stage/verify gates (see next section).
-6. Release all backends in the same version cycle.
+## Quality gates
 
-This is additive: npm support remains first-class and is not deprecated.
+Run focused package tests while iterating, then the repository gates before handoff:
 
-## CI and Release Flow (Multi-backend)
+```bash
+go test ./path/to/changed/package
+go test -race ./...
+go tool golangci-lint run --timeout=5m
+git diff --check
+```
 
-Recommended release sequence:
+CI additionally produces atomic coverage with `go test -race -coverprofile=coverage.out -covermode=atomic ./...`. Do not weaken verification or remove a regression test to make a change pass.
 
-1. `omnidist build`
-2. `omnidist stage`
-3. `omnidist verify`
-4. `omnidist publish`
-
-For CI verification-only jobs, run steps 1-3.
-
-When you need distribution-specific publish options (`npm --tag/--otp/--registry`, `uv --publish-url/--token`, `gem --host/--api-key/--otp`), use the backend subcommands directly.
-
-## Project Layout
+## Architecture
 
 ```text
-cmd/omnidist/               CLI entrypoint and commands
-internal/config/            Config model and YAML load/save
-internal/workflow/          build/init/npm/uv/gem workflows
-.omnidist/omnidist.yaml     Project configuration
-.omnidist/.gitignore        Ignore rules for generated artifacts
-.omnidist/dist/             Built binaries by os/arch
-.omnidist/dist/VERSION      Version captured at build time
-.omnidist/npm/              Staged npm packages
-.omnidist/uv/pyproject.toml UV staging project with PEP 440 version
-.omnidist/uv/dist/          Staged wheel artifacts
-.omnidist/gem/build/        Per-platform gem staging directories
-.omnidist/gem/pkg/          Staged gem artifacts
+cmd/omnidist/                 Cobra root and aggregate commands
+cmd/omnidist/{npm,uv,gem}/   Backend-specific CLI commands
+internal/config/              YAML loading, profiles, defaults, validation
+internal/paths/               Profile/legacy workspace paths
+internal/workflow/            Build, init, CI generation, shared workflows
+internal/workflow/npm/        npm staging, verification, auth, publication
+internal/workflow/uv/         wheel staging, verification, publication
+internal/workflow/gem/        gem staging, verification, publication
+docs/                         User configuration, release, target references
 ```
+
+The config layer owns the canonical enabled-backend plan. Aggregate commands and CI generation must consume that plan rather than implement their own ordering. Canonical execution order is npm → uv → gem. Backend-specific commands remain available for explicit recovery.
+
+Publish is deliberately two-phase: every selected backend preflights before aggregate upload begins, then uploads run deterministically. Keep preflight free of registry upload operations and retain unit/package context in errors. External registries do not provide a shared rollback transaction.
+
+## Configuration and generated artifacts
+
+The recommended profiles shape nests runtime configuration under `profiles.<name>`:
+
+```text
+.omnidist/omnidist.yaml
+.omnidist/<profile>/dist/
+.omnidist/<profile>/npm/
+.omnidist/<profile>/uv/
+.omnidist/<profile>/gem/
+```
+
+Supported legacy top-level configuration uses:
+
+```text
+.omnidist/dist/
+.omnidist/npm/
+.omnidist/uv/
+.omnidist/gem/
+```
+
+Do not mix profiles and top-level runtime fields. Use Go target spellings (`windows`, `amd64`, field `arch`), not npm spellings (`win32`, `x64`). See [configuration](docs/configuration.md) and [targets](docs/targets.md) before changing schema or mapping behavior.
+
+Generated or staged content includes `.omnidist/<profile>/**` (or legacy `.omnidist/**`), `<workspace>/.npmrc`, npm package trees, wheels, gems, and build binaries. Tests should use temporary directories and must not depend on locally staged release artifacts.
+
+`.github/workflows/omnidist-release.yml` is generated by the project config. Preview changes with:
+
+```bash
+go run ./cmd/omnidist ci --dry-run
+```
+
+Regenerate it intentionally with `--force`; avoid hand-editing generated sections. The repository also has hand-maintained lint, test, and release workflows.
+
+## Change guidelines
+
+- Add or update tests for behavior changes, including negative paths and actionable errors.
+- Preserve configs that omit `enabled-distributions`; they enable all backends for compatibility.
+- Test both profile and legacy paths when changing layout or config loading.
+- Keep npm packages free of install-time scripts/downloaders.
+- Keep README concise; place field-level facts in `docs/configuration.md`, release operations in `docs/releases.md`, and platform mappings in `docs/targets.md`.
+- Update Cobra help, docs, and drift checks together when command behavior changes.
+- Do not edit `pack/callee/**` as part of unrelated work.
+
+## Safe release-development loop
+
+Use a disposable repository or temporary directory for end-to-end staging. The normal sequence is:
+
+```bash
+go run ./cmd/omnidist build
+go run ./cmd/omnidist stage
+go run ./cmd/omnidist verify
+go run ./cmd/omnidist publish --dry-run
+```
+
+Do not run a real publish as a development check. Follow the [release runbook](docs/releases.md) for credentials and partial-release recovery.

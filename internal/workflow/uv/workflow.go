@@ -64,6 +64,21 @@ func CheckDependency() error {
 	return nil
 }
 
+// PreflightPublish validates local artifacts, tooling, version policy, and credentials without uploading wheels.
+func PreflightPublish(cfg *config.Config, opts PublishOptions) error {
+	if err := CheckDependency(); err != nil {
+		return err
+	}
+	result := Verify(cfg)
+	if !result.Valid {
+		return fmt.Errorf("staged artifact verification failed: %s", strings.Join(result.Errors, "; "))
+	}
+	if _, err := resolvePublishToken(opts); err != nil {
+		return err
+	}
+	return nil
+}
+
 // Stage assembles uv wheel artifacts from built binaries.
 func Stage(cfg *config.Config, opts StageOptions) error {
 	uvDist, err := uvDistribution(cfg)

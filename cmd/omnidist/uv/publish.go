@@ -27,10 +27,6 @@ var publishCmd = &cobra.Command{
 	Use:   "publish",
 	Short: "Publish uv wheel artifacts to a PyPI-compatible index",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if err := uvworkflow.CheckDependency(); err != nil {
-			return err
-		}
-
 		cfg, err := loadConfig()
 		if err != nil {
 			return fmt.Errorf("load config: %w", err)
@@ -45,6 +41,9 @@ var publishCmd = &cobra.Command{
 		}
 		if opts.PublishURL == "" {
 			opts.PublishURL = publishLegacyURL
+		}
+		if err := uvworkflow.PreflightPublish(cfg, opts); err != nil {
+			return fmt.Errorf("uv publish preflight failed: %w", err)
 		}
 
 		if err := uvworkflow.Publish(cfg, opts); err != nil {

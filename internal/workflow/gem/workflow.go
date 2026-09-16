@@ -38,12 +38,13 @@ type StageOptions struct {
 }
 
 type PublishOptions struct {
-	DryRun bool
-	Host   string
-	APIKey string
-	OTP    string
-	Stdout io.Writer
-	Stderr io.Writer
+	DryRun   bool
+	Host     string
+	APIKey   string
+	OTP      string
+	Stdout   io.Writer
+	Stderr   io.Writer
+	Progress io.Writer
 }
 
 type VerificationResult struct {
@@ -55,6 +56,25 @@ type VerificationResult struct {
 func CheckDependency() error {
 	if _, err := lookPath("gem"); err != nil {
 		return fmt.Errorf("gem executable not found in PATH. Install RubyGems/Ruby and retry")
+	}
+	return nil
+}
+
+// PreflightPublish validates local artifacts, tooling, and credentials without uploading gems.
+func PreflightPublish(cfg *config.Config, opts PublishOptions) error {
+	if err := CheckDependency(); err != nil {
+		return err
+	}
+	result := Verify(cfg)
+	if !result.Valid {
+		return fmt.Errorf("staged artifact verification failed: %s", strings.Join(result.Errors, "; "))
+	}
+	dist, err := gemDistribution(cfg)
+	if err != nil {
+		return err
+	}
+	if _, err := publishEnv(dist, opts); err != nil {
+		return err
 	}
 	return nil
 }
@@ -158,6 +178,7 @@ func Publish(cfg *config.Config, opts PublishOptions) error {
 	}
 
 	for _, artifact := range artifacts {
+		writeProgressf(opts.Progress, "Publishing gem: %s\n", filepath.Base(artifact))
 		args := []string{"push", artifact, "--host", host}
 		if otp := strings.TrimSpace(resolveOTP(opts)); otp != "" {
 			args = append(args, "--otp", otp)
@@ -169,6 +190,7 @@ func Publish(cfg *config.Config, opts PublishOptions) error {
 		if err := cmd.Run(); err != nil {
 			return fmt.Errorf("gem push failed for %s: %w", filepath.Base(artifact), err)
 		}
+		writeProgressf(opts.Progress, "Published: %s\n", filepath.Base(artifact))
 	}
 	return nil
 }
@@ -541,6 +563,12 @@ func outputWriter(w io.Writer) io.Writer {
 		return io.Discard
 	}
 	return w
+}
+
+func writeProgressf(w io.Writer, format string, args ...interface{}) {
+	if w != nil {
+		fmt.Fprintf(w, format, args...)
+	}
 }
 
 func normalizeHost(value string) string {

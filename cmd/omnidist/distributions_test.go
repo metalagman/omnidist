@@ -3,7 +3,10 @@ package main
 import (
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
+
+	"github.com/metalagman/omnidist/internal/config"
 )
 
 func TestResolveDistributions(t *testing.T) {
@@ -56,7 +59,7 @@ func TestResolveDistributions(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := resolveDistributions(tc.only)
+			got, err := resolveDistributions(config.DefaultConfig(), tc.only)
 			if tc.wantErr {
 				if err == nil {
 					t.Fatalf("resolveDistributions(%q) error = nil, want error", tc.only)
@@ -70,6 +73,27 @@ func TestResolveDistributions(t *testing.T) {
 				t.Fatalf("resolveDistributions(%q) = %#v, want %#v", tc.only, got, tc.want)
 			}
 		})
+	}
+}
+
+func TestResolveDistributionsHonorsEnabledConfig(t *testing.T) {
+	t.Parallel()
+
+	cfg := config.DefaultConfig()
+	cfg.EnabledDistributions = []string{"gem", "npm"}
+
+	got, err := resolveDistributions(cfg, "")
+	if err != nil {
+		t.Fatalf("resolveDistributions() error = %v", err)
+	}
+	want := []distribution{distributionNPM, distributionGem}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("resolveDistributions() = %#v, want %#v", got, want)
+	}
+
+	_, err = resolveDistributions(cfg, "uv")
+	if err == nil || !strings.Contains(err.Error(), "disabled") {
+		t.Fatalf("resolveDistributions(uv) error = %v, want disabled error", err)
 	}
 }
 

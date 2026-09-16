@@ -50,8 +50,35 @@ type VerificationResult struct {
 	Warnings []string `json:"warnings"`
 }
 
+// CheckDependency verifies the npm executable is available in PATH.
+func CheckDependency() error {
+	if _, err := exec.LookPath("npm"); err != nil {
+		return fmt.Errorf("npm executable not found in PATH. Install Node.js/npm and retry")
+	}
+	return nil
+}
+
+// PreflightPublish validates local artifacts, tooling, and authentication without uploading packages.
+func PreflightPublish(cfg *config.Config, opts PublishOptions) error {
+	if err := CheckDependency(); err != nil {
+		return err
+	}
+	result := Verify(cfg)
+	if !result.Valid {
+		return fmt.Errorf("staged artifact verification failed: %s", strings.Join(result.Errors, "; "))
+	}
+	if err := checkAuth(cfg, opts.Registry, opts.DryRun, true); err != nil {
+		return fmt.Errorf("authentication failed: %w", err)
+	}
+	return nil
+}
+
 // CheckAuth validates npm authentication for the configured registry.
 func CheckAuth(cfg *config.Config, registryOverride string, dryRun bool) error {
+	return checkAuth(cfg, registryOverride, dryRun, false)
+}
+
+func checkAuth(cfg *config.Config, registryOverride string, dryRun bool, temporaryConfig bool) error {
 	npmDist, err := npmDistribution(cfg)
 	if err != nil {
 		return err
@@ -65,9 +92,19 @@ func CheckAuth(cfg *config.Config, registryOverride string, dryRun bool) error {
 		return err
 	}
 
-	npmrcPath, err := ensureWorkspaceNPMRC(layout, resolveRegistry(npmDist.Registry, registryOverride))
+	registry := resolveRegistry(npmDist.Registry, registryOverride)
+	var cleanup func()
+	var npmrcPath string
+	if temporaryConfig {
+		npmrcPath, cleanup, err = createTemporaryNPMRC(registry)
+	} else {
+		npmrcPath, err = ensureWorkspaceNPMRC(layout, registry)
+	}
 	if err != nil {
 		return fmt.Errorf("prepare npmrc: %w", err)
+	}
+	if cleanup != nil {
+		defer cleanup()
 	}
 	workspaceDir, err := ensureWorkingDir(layout.WorkspaceDir)
 	if err != nil {
@@ -756,7 +793,7 @@ func resolveRegistry(defaultRegistry, overrideRegistry string) string {
 }
 
 func ensureWorkspaceNPMRC(layout paths.Layout, registry string) (string, error) {
-	tokenKey, err := npmTokenConfigKey(registry)
+	content, err := npmrcContent(registry)
 	if err != nil {
 		return "", err
 	}
@@ -764,13 +801,7 @@ func ensureWorkspaceNPMRC(layout paths.Layout, registry string) (string, error) 
 	if err := os.MkdirAll(layout.WorkspaceDir, 0755); err != nil {
 		return "", err
 	}
-
-	content := fmt.Sprintf(
-		"# omnidist npm auth (uses npm env substitution)\nregistry=%s\n%s=${NPM_PUBLISH_TOKEN}\n",
-		registry,
-		tokenKey,
-	)
-	if err := os.WriteFile(layout.NPMRCPath, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(layout.NPMRCPath, content, 0644); err != nil {
 		return "", err
 	}
 
@@ -779,6 +810,48 @@ func ensureWorkspaceNPMRC(layout paths.Layout, registry string) (string, error) 
 		return "", err
 	}
 	return npmrcPath, nil
+}
+
+func createTemporaryNPMRC(registry string) (string, func(), error) {
+	content, err := npmrcContent(registry)
+	if err != nil {
+		return "", nil, err
+	}
+	file, err := os.CreateTemp("", "omnidist-npmrc-*")
+	if err != nil {
+		return "", nil, err
+	}
+	path := file.Name()
+	cleanup := func() { _ = os.Remove(path) }
+	if err := file.Chmod(0600); err != nil {
+		_ = file.Close()
+		cleanup()
+		return "", nil, err
+	}
+	if _, err := file.Write(content); err != nil {
+		_ = file.Close()
+		cleanup()
+		return "", nil, err
+	}
+	if err := file.Close(); err != nil {
+		cleanup()
+		return "", nil, err
+	}
+	return path, cleanup, nil
+}
+
+func npmrcContent(registry string) ([]byte, error) {
+	tokenKey, err := npmTokenConfigKey(registry)
+	if err != nil {
+		return nil, err
+	}
+
+	content := fmt.Sprintf(
+		"# omnidist npm auth (uses npm env substitution)\nregistry=%s\n%s=${NPM_PUBLISH_TOKEN}\n",
+		registry,
+		tokenKey,
+	)
+	return []byte(content), nil
 }
 
 func layoutForConfig(cfg *config.Config) paths.Layout {

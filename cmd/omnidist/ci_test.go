@@ -42,8 +42,8 @@ func TestCICommandCreatesWorkflow(t *testing.T) {
 		`release:`,
 		`needs: prepare`,
 		`run: go run ./cmd/omnidist build`,
-		`run: go run ./cmd/omnidist stage`,
-		`run: go run ./cmd/omnidist verify`,
+		`run: go run ./cmd/omnidist stage --only 'npm,uv,gem'`,
+		`run: go run ./cmd/omnidist verify --only 'npm,uv,gem'`,
 		`run: tar -czf omnidist-staged.tgz .omnidist`,
 		`path: .omnidist/dist/**/*`,
 		`if-no-files-found: error`,
@@ -141,5 +141,34 @@ func TestCICommandDryRunPrintsWorkflow(t *testing.T) {
 		if !strings.Contains(output, want) {
 			t.Fatalf("dry-run output missing %q: %s", want, output)
 		}
+	}
+}
+
+func TestCICommandDryRunRespectsEnabledDistributions(t *testing.T) {
+	for _, selected := range []string{"npm", "uv", "gem"} {
+		t.Run(selected, func(t *testing.T) {
+			dir := t.TempDir()
+			t.Chdir(dir)
+			cfg := config.DefaultConfig()
+			cfg.EnabledDistributions = []string{selected}
+			if err := config.Save(cfg, paths.ConfigPath); err != nil {
+				t.Fatal(err)
+			}
+
+			output, err := executeCommand("ci", "--dry-run")
+			if err != nil {
+				t.Fatalf("executeCommand(ci --dry-run) error = %v", err)
+			}
+			for _, want := range []string{"stage --only '" + selected + "'", "publish_" + selected + ":"} {
+				if !strings.Contains(output, want) {
+					t.Fatalf("%s-only workflow missing %q: %s", selected, want, output)
+				}
+			}
+			for _, other := range []string{"npm", "uv", "gem"} {
+				if other != selected && strings.Contains(output, "publish_"+other+":") {
+					t.Fatalf("%s-only workflow contains publish_%s: %s", selected, other, output)
+				}
+			}
+		})
 	}
 }

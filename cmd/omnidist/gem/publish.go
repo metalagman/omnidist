@@ -26,23 +26,24 @@ var publishCmd = &cobra.Command{
 	Use:   "publish",
 	Short: "Publish staged gem artifacts to a RubyGems-compatible host",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if err := gemworkflow.CheckDependency(); err != nil {
-			return err
-		}
-
 		cfg, err := loadConfig()
 		if err != nil {
 			return fmt.Errorf("load config: %w", err)
 		}
 
-		if err := gemworkflow.Publish(cfg, gemworkflow.PublishOptions{
-			DryRun: publishDryRun,
-			Host:   publishHost,
-			APIKey: publishAPIKey,
-			OTP:    publishOTP,
-			Stdout: cmd.OutOrStdout(),
-			Stderr: cmd.ErrOrStderr(),
-		}); err != nil {
+		opts := gemworkflow.PublishOptions{
+			DryRun:   publishDryRun,
+			Host:     publishHost,
+			APIKey:   publishAPIKey,
+			OTP:      publishOTP,
+			Stdout:   cmd.OutOrStdout(),
+			Stderr:   cmd.ErrOrStderr(),
+			Progress: cmd.OutOrStdout(),
+		}
+		if err := gemworkflow.PreflightPublish(cfg, opts); err != nil {
+			return fmt.Errorf("gem publish preflight failed: %w", err)
+		}
+		if err := gemworkflow.Publish(cfg, opts); err != nil {
 			return fmt.Errorf("publish gem artifacts: %w", err)
 		}
 

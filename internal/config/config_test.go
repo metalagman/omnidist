@@ -13,6 +13,10 @@ import (
 
 func TestDefaultConfigIncludesUVAndGem(t *testing.T) {
 	cfg := DefaultConfig()
+	wantEnabled := []string{"npm", "uv", "gem"}
+	if !reflect.DeepEqual(cfg.EnabledDistributions, wantEnabled) {
+		t.Fatalf("enabled distributions = %#v, want %#v", cfg.EnabledDistributions, wantEnabled)
+	}
 	npmDist, ok := cfg.Distributions["npm"]
 	if !ok {
 		t.Fatalf("DefaultConfig() missing npm distribution")
@@ -57,6 +61,97 @@ func TestDefaultConfigIncludesUVAndGem(t *testing.T) {
 	}
 	if !gemDist.IncludeREADMEEnabled() {
 		t.Fatalf("gem include-readme default = false, want true")
+	}
+}
+
+func TestEnabledDistributionNames(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		values  []string
+		want    []string
+		wantErr string
+	}{
+		{name: "absent_preserves_legacy_all", want: []string{"npm", "uv", "gem"}},
+		{name: "canonical_order", values: []string{" GEM ", "NPM"}, want: []string{"npm", "gem"}},
+		{name: "explicit_empty", values: []string{}, wantErr: "at least one"},
+		{name: "duplicate", values: []string{"npm", "NPM"}, wantErr: "duplicate"},
+		{name: "unknown", values: []string{"brew"}, wantErr: "invalid enabled distribution"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			cfg := &Config{EnabledDistributions: tc.values}
+			got, err := cfg.EnabledDistributionNames()
+			if tc.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+					t.Fatalf("EnabledDistributionNames() error = %v, want containing %q", err, tc.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("EnabledDistributionNames() error = %v", err)
+			}
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Fatalf("EnabledDistributionNames() = %#v, want %#v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestLoadEnabledDistributionsInLegacyAndProfilesConfig(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		yaml string
+	}{
+		{
+			name: "legacy",
+			yaml: "enabled-distributions:\n  - gem\n  - npm\n",
+		},
+		{
+			name: "profiles",
+			yaml: "profiles:\n  default:\n    enabled-distributions:\n      - gem\n      - npm\n",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			path := filepath.Join(t.TempDir(), "omnidist.yaml")
+			if err := os.WriteFile(path, []byte(tc.yaml), 0644); err != nil {
+				t.Fatalf("os.WriteFile() error = %v", err)
+			}
+
+			cfg, err := Load(path)
+			if err != nil {
+				t.Fatalf("Load() error = %v", err)
+			}
+			got, err := cfg.EnabledDistributionNames()
+			if err != nil {
+				t.Fatalf("EnabledDistributionNames() error = %v", err)
+			}
+			want := []string{"npm", "gem"}
+			if !reflect.DeepEqual(got, want) {
+				t.Fatalf("EnabledDistributionNames() = %#v, want %#v", got, want)
+			}
+		})
+	}
+}
+
+func TestLoadRejectsExplicitlyEmptyEnabledDistributions(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "omnidist.yaml")
+	if err := os.WriteFile(path, []byte("enabled-distributions: []\n"), 0644); err != nil {
+		t.Fatalf("os.WriteFile() error = %v", err)
+	}
+	_, err := Load(path)
+	if err == nil || !strings.Contains(err.Error(), "at least one") {
+		t.Fatalf("Load() error = %v, want enabled-distributions error", err)
 	}
 }
 

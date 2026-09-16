@@ -41,8 +41,8 @@ var publishCmd = &cobra.Command{
 			Progress: cmd.OutOrStdout(),
 		}
 
-		if err := npmworkflow.CheckAuth(cfg, opts.Registry, opts.DryRun); err != nil {
-			return fmt.Errorf("npm authentication failed: %w", err)
+		if err := npmworkflow.PreflightPublish(cfg, opts); err != nil {
+			return fmt.Errorf("npm publish preflight failed: %w", err)
 		}
 
 		if err := npmworkflow.Publish(cfg, opts); err != nil {

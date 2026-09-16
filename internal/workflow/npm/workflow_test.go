@@ -16,6 +16,13 @@ import (
 	"github.com/metalagman/omnidist/internal/workflow/shared"
 )
 
+func TestCheckDependencyMissing(t *testing.T) {
+	t.Setenv("PATH", t.TempDir())
+	if err := CheckDependency(); err == nil || !strings.Contains(err.Error(), "npm executable not found") {
+		t.Fatalf("CheckDependency() error = %v, want npm installation guidance", err)
+	}
+}
+
 func TestWriteShimResolvesScopedPlatformPackage(t *testing.T) {
 	t.Parallel()
 

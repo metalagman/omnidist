@@ -20,7 +20,7 @@ var verifyCmd = &cobra.Command{
 			return fmt.Errorf("load config: %w", err)
 		}
 
-		distributions, err := resolveDistributions(verifyOnlyFlag)
+		distributions, err := resolveDistributions(cfg, verifyOnlyFlag)
 		if err != nil {
 			return fmt.Errorf("resolve distributions: %w", err)
 		}

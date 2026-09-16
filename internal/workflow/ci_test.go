@@ -32,8 +32,8 @@ func TestGenerateGitHubReleaseWorkflow(t *testing.T) {
 		`release:`,
 		`needs: prepare`,
 		`run: go run ./cmd/omnidist build`,
-		`run: go run ./cmd/omnidist stage`,
-		`run: go run ./cmd/omnidist verify`,
+		`run: go run ./cmd/omnidist stage --only 'npm,uv,gem'`,
+		`run: go run ./cmd/omnidist verify --only 'npm,uv,gem'`,
 		`run: go run ./cmd/omnidist npm publish`,
 		`run: go run ./cmd/omnidist uv publish`,
 		`run: go run ./cmd/omnidist gem publish`,
@@ -66,6 +66,67 @@ func TestGenerateGitHubReleaseWorkflow(t *testing.T) {
 		if !strings.Contains(content, want) {
 			t.Fatalf("workflow content missing %q\n---\n%s", want, content)
 		}
+	}
+}
+
+func TestGenerateGitHubReleaseWorkflowUsesEnabledDistributions(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		enabled    []string
+		want       []string
+		wantAbsent []string
+	}{
+		{
+			name:    "npm only",
+			enabled: []string{"npm"},
+			want: []string{
+				`stage --only 'npm'`, `verify --only 'npm'`, `publish_npm:`,
+				`actions/setup-node@v6`, `NPM_PUBLISH_TOKEN`, `release:`,
+			},
+			wantAbsent: []string{`publish_uv:`, `publish_gem:`, `setup-uv`, `ruby/setup-ruby`, `UV_PUBLISH_TOKEN`, `GEM_HOST_API_KEY`},
+		},
+		{
+			name:    "uv only",
+			enabled: []string{"uv"},
+			want: []string{
+				`stage --only 'uv'`, `verify --only 'uv'`, `publish_uv:`,
+				`astral-sh/setup-uv@v6`, `UV_PUBLISH_TOKEN`, `release:`,
+			},
+			wantAbsent: []string{`publish_npm:`, `publish_gem:`, `actions/setup-node`, `ruby/setup-ruby`, `NPM_PUBLISH_TOKEN`, `GEM_HOST_API_KEY`},
+		},
+		{
+			name:    "gem only",
+			enabled: []string{"gem"},
+			want: []string{
+				`stage --only 'gem'`, `verify --only 'gem'`, `publish_gem:`,
+				`ruby/setup-ruby@v1`, `GEM_HOST_API_KEY`, `release:`,
+			},
+			wantAbsent: []string{`publish_npm:`, `publish_uv:`, `actions/setup-node`, `setup-uv`, `NPM_PUBLISH_TOKEN`, `UV_PUBLISH_TOKEN`},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			cfg := config.DefaultConfig()
+			cfg.EnabledDistributions = tc.enabled
+			content, err := GenerateGitHubReleaseWorkflow(cfg, CIWorkflowOptions{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, want := range tc.want {
+				if !strings.Contains(content, want) {
+					t.Errorf("workflow missing %q\n---\n%s", want, content)
+				}
+			}
+			for _, unwanted := range tc.wantAbsent {
+				if strings.Contains(content, unwanted) {
+					t.Errorf("workflow unexpectedly contains %q\n---\n%s", unwanted, content)
+				}
+			}
+		})
 	}
 }
 
@@ -102,8 +163,8 @@ func TestGenerateGitHubReleaseWorkflowProfilesMode(t *testing.T) {
 
 	for _, want := range []string{
 		`run: go run ./cmd/omnidist --profile 'release' build`,
-		`run: go run ./cmd/omnidist --profile 'release' stage`,
-		`run: go run ./cmd/omnidist --profile 'release' verify`,
+		`run: go run ./cmd/omnidist --profile 'release' stage --only 'npm,uv,gem'`,
+		`run: go run ./cmd/omnidist --profile 'release' verify --only 'npm,uv,gem'`,
 		`run: go run ./cmd/omnidist --profile 'release' npm publish`,
 		`run: go run ./cmd/omnidist --profile 'release' uv publish`,
 		`run: go run ./cmd/omnidist --profile 'release' gem publish`,

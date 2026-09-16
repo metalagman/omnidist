@@ -185,7 +185,7 @@ func TestInitErrors(t *testing.T) {
 		if err := os.MkdirAll(paths.ConfigPath, 0755); err != nil {
 			t.Fatalf("os.MkdirAll(%q) error = %v", paths.ConfigPath, err)
 		}
-		err := Init(paths.ConfigPath)
+		err := Init(paths.ConfigPath, InitOptions{Force: true, ToolName: "tool", ToolMain: "./cmd/tool"})
 		if err == nil || !strings.Contains(err.Error(), "save config") {
 			t.Fatalf("Init(save fail) error = %v, want save config error", err)
 		}
@@ -199,7 +199,7 @@ func TestInitErrors(t *testing.T) {
 			t.Fatalf("os.WriteFile(%q) error = %v", paths.WorkspaceDir, err)
 		}
 		// Init might fail at Save() because it also tries to create the directory
-		err := Init(paths.ConfigPath)
+		err := Init(paths.ConfigPath, InitOptions{ToolName: "tool", ToolMain: "./cmd/tool"})
 		if err == nil {
 			t.Fatalf("Init(mkdir fail) error = nil, want error")
 		}
@@ -215,7 +215,7 @@ func TestInitErrors(t *testing.T) {
 		if err := os.WriteFile(npmBase, []byte("file"), 0644); err != nil {
 			t.Fatalf("os.WriteFile(%q) error = %v", npmBase, err)
 		}
-		err := Init(paths.ConfigPath)
+		err := Init(paths.ConfigPath, InitOptions{ToolName: "tool", ToolMain: "./cmd/tool"})
 		if err == nil {
 			t.Fatalf("Init(npm fail) error = nil, want error")
 		}
@@ -233,7 +233,7 @@ func TestInitErrors(t *testing.T) {
 		if err := os.WriteFile(uvDir, []byte("file"), 0644); err != nil {
 			t.Fatalf("os.WriteFile(%q) error = %v", uvDir, err)
 		}
-		err := Init(paths.ConfigPath)
+		err := Init(paths.ConfigPath, InitOptions{ToolName: "tool", ToolMain: "./cmd/tool"})
 		if err == nil {
 			t.Fatalf("Init(uv fail) error = nil, want error")
 		}

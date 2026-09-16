@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/metalagman/omnidist/internal/config"
 )
 
 type distribution string
@@ -20,7 +22,16 @@ var distributionExecutionOrder = []distribution{
 	distributionGem,
 }
 
-func resolveDistributions(only string) ([]distribution, error) {
+func resolveDistributions(cfg *config.Config, only string) ([]distribution, error) {
+	enabledNames, err := cfg.EnabledDistributionNames()
+	if err != nil {
+		return nil, err
+	}
+	enabled := make(map[distribution]bool, len(enabledNames))
+	for _, name := range enabledNames {
+		enabled[distribution(name)] = true
+	}
+
 	selected := map[distribution]bool{
 		distributionNPM: false,
 		distributionUV:  false,
@@ -29,7 +40,13 @@ func resolveDistributions(only string) ([]distribution, error) {
 
 	filter := strings.TrimSpace(only)
 	if filter == "" {
-		return append([]distribution(nil), distributionExecutionOrder...), nil
+		resolved := make([]distribution, 0, len(enabled))
+		for _, dist := range distributionExecutionOrder {
+			if enabled[dist] {
+				resolved = append(resolved, dist)
+			}
+		}
+		return resolved, nil
 	}
 
 	parts := strings.Split(filter, ",")
@@ -37,6 +54,9 @@ func resolveDistributions(only string) ([]distribution, error) {
 		name := distribution(strings.ToLower(strings.TrimSpace(part)))
 		switch name {
 		case distributionNPM, distributionUV, distributionGem:
+			if !enabled[name] {
+				return nil, fmt.Errorf("invalid --only value %q: distribution %q is disabled (enabled: %s)", only, name, strings.Join(enabledNames, ","))
+			}
 			selected[name] = true
 		case "":
 			return nil, fmt.Errorf("invalid --only value %q: empty distribution name", only)

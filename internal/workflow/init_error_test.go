@@ -84,7 +84,7 @@ func TestInitErrorMkdirAll(t *testing.T) {
 	// Create a file where .omnidist should be
 	os.WriteFile(paths.WorkspaceDir, []byte("i am a file"), 0644)
 
-	err := Init(paths.ConfigPath)
+	err := Init(paths.ConfigPath, InitOptions{ToolName: "tool", ToolMain: "./cmd/tool"})
 	if err == nil {
 		t.Fatalf("Init() error = nil, want error (mkdir fail)")
 	}
@@ -99,7 +99,7 @@ func TestInitGetWorkingDirError(t *testing.T) {
 		return "", fmt.Errorf("boom")
 	}
 
-	err := Init(paths.ConfigPath)
+	err := Init(paths.ConfigPath, InitOptions{})
 	if err == nil || err.Error() != "get current working directory: boom" {
 		t.Fatalf("Init() error = %v, want getwd wrapped error", err)
 	}

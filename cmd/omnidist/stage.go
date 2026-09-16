@@ -30,7 +30,7 @@ var stageCmd = &cobra.Command{
 			return fmt.Errorf("ensure workspace gitignore: %w", err)
 		}
 
-		distributions, err := resolveDistributions(stageOnlyFlag)
+		distributions, err := resolveDistributions(cfg, stageOnlyFlag)
 		if err != nil {
 			return fmt.Errorf("resolve distributions: %w", err)
 		}

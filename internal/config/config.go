@@ -25,13 +25,54 @@ var profileNamePattern = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
 
 // Config is the root omnidist configuration loaded from omnidist.yaml.
 type Config struct {
-	Tool          ToolConfig                    `yaml:"tool"`
-	Version       VersionConfig                 `yaml:"version"`
-	ReadmePath    string                        `yaml:"readme-path,omitempty"`
-	Targets       []Target                      `yaml:"targets"`
-	Build         BuildConfig                   `yaml:"build"`
-	Distributions map[string]DistributionConfig `yaml:"distributions"`
-	Runtime       RuntimeConfig                 `yaml:"-"`
+	Tool                 ToolConfig                    `yaml:"tool"`
+	Version              VersionConfig                 `yaml:"version"`
+	ReadmePath           string                        `yaml:"readme-path,omitempty"`
+	Targets              []Target                      `yaml:"targets"`
+	Build                BuildConfig                   `yaml:"build"`
+	EnabledDistributions []string                      `yaml:"enabled-distributions,omitempty"`
+	Distributions        map[string]DistributionConfig `yaml:"distributions"`
+	Runtime              RuntimeConfig                 `yaml:"-"`
+}
+
+var supportedDistributionNames = []string{"npm", "uv", "gem"}
+
+// EnabledDistributionNames returns enabled distributions in deterministic execution order.
+// A missing enabled-distributions field preserves the legacy behavior of enabling every backend.
+func (cfg *Config) EnabledDistributionNames() ([]string, error) {
+	if cfg == nil {
+		return nil, fmt.Errorf("config is nil")
+	}
+	if cfg.EnabledDistributions != nil && len(cfg.EnabledDistributions) == 0 {
+		return nil, fmt.Errorf("enabled-distributions must contain at least one of npm, uv, or gem")
+	}
+
+	configured := cfg.EnabledDistributions
+	if configured == nil {
+		configured = supportedDistributionNames
+	}
+
+	enabled := make(map[string]bool, len(configured))
+	for _, raw := range configured {
+		name := strings.ToLower(strings.TrimSpace(raw))
+		switch name {
+		case "npm", "uv", "gem":
+		default:
+			return nil, fmt.Errorf("invalid enabled distribution %q: expected npm, uv, or gem", raw)
+		}
+		if enabled[name] {
+			return nil, fmt.Errorf("duplicate enabled distribution %q", name)
+		}
+		enabled[name] = true
+	}
+
+	resolved := make([]string, 0, len(enabled))
+	for _, name := range supportedDistributionNames {
+		if enabled[name] {
+			resolved = append(resolved, name)
+		}
+	}
+	return resolved, nil
 }
 
 // RuntimeConfig stores resolved runtime metadata not persisted in YAML.
@@ -147,6 +188,7 @@ func DefaultConfig() *Config {
 			Tags:    []string{},
 			CGO:     false,
 		},
+		EnabledDistributions: append([]string(nil), supportedDistributionNames...),
 		Distributions: map[string]DistributionConfig{
 			"npm": {
 				Package:       "@omnidist/omnidist",
@@ -424,7 +466,7 @@ func hasRootKey(root map[string]interface{}, key string) bool {
 }
 
 func hasTopLevelLegacyFields(root map[string]interface{}) bool {
-	for _, key := range []string{"tool", "version", "readme-path", "targets", "build", "distributions"} {
+	for _, key := range []string{"tool", "version", "readme-path", "targets", "build", "enabled-distributions", "distributions"} {
 		if hasRootKey(root, key) {
 			return true
 		}
@@ -506,20 +548,12 @@ func validate(cfg *Config) error {
 	if cfg == nil {
 		return fmt.Errorf("config is nil")
 	}
+	if _, err := cfg.EnabledDistributionNames(); err != nil {
+		return err
+	}
 
-	for i, target := range cfg.Targets {
-		if strings.TrimSpace(target.OS) == "" {
-			return fmt.Errorf("targets[%d].os is required", i)
-		}
-		if strings.TrimSpace(target.Arch) == "" {
-			return fmt.Errorf("targets[%d].arch is required", i)
-		}
-		if target.OS == "win32" {
-			return fmt.Errorf("invalid targets[%d].os %q: use Go GOOS value %q", i, target.OS, "windows")
-		}
-		if target.Arch == "x64" {
-			return fmt.Errorf("invalid targets[%d].arch %q: use Go GOARCH value %q", i, target.Arch, "amd64")
-		}
+	if err := validateTargets(cfg.Targets); err != nil {
+		return err
 	}
 
 	source := strings.TrimSpace(cfg.Version.Source)
@@ -568,6 +602,24 @@ func validate(cfg *Config) error {
 		}
 	}
 
+	return nil
+}
+
+func validateTargets(targets []Target) error {
+	for i, target := range targets {
+		if strings.TrimSpace(target.OS) == "" {
+			return fmt.Errorf("targets[%d].os is required", i)
+		}
+		if strings.TrimSpace(target.Arch) == "" {
+			return fmt.Errorf("targets[%d].arch is required", i)
+		}
+		if target.OS == "win32" {
+			return fmt.Errorf("invalid targets[%d].os %q: use Go GOOS value %q", i, target.OS, "windows")
+		}
+		if target.Arch == "x64" {
+			return fmt.Errorf("invalid targets[%d].arch %q: use Go GOARCH value %q", i, target.Arch, "amd64")
+		}
+	}
 	return nil
 }
 
