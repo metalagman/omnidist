@@ -125,6 +125,9 @@ func TestGenerateGitHubReleaseWorkflowTrustedPublishUsesOIDC(t *testing.T) {
 	npmDist := cfg.Distributions["npm"]
 	npmDist.PublishAuth = "trusted"
 	cfg.Distributions["npm"] = npmDist
+	gemDist := cfg.Distributions["gem"]
+	gemDist.PublishAuth = "trusted"
+	cfg.Distributions["gem"] = gemDist
 
 	content, err := GenerateGitHubReleaseWorkflow(cfg, CIWorkflowOptions{})
 	if err != nil {
@@ -134,6 +137,7 @@ func TestGenerateGitHubReleaseWorkflowTrustedPublishUsesOIDC(t *testing.T) {
 	for _, want := range []string{
 		`id-token: write`,
 		`run: go run ./cmd/omnidist npm publish`,
+		`rubygems/configure-rubygems-credentials@v2.1.0`,
 	} {
 		if !strings.Contains(content, want) {
 			t.Fatalf("workflow content missing %q\n---\n%s", want, content)

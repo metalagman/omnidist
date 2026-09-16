@@ -357,7 +357,7 @@ func workflowPublishGemCredentialStep(cfg *config.Config) string {
 		return ""
 	}
 	return `      - name: Configure RubyGems trusted publishing credentials
-        uses: rubygems/configure-rubygems-credentials@v1`
+        uses: rubygems/configure-rubygems-credentials@v2.1.0`
 }
 
 func usesTrustedGemPublishAuth(cfg *config.Config) bool {
