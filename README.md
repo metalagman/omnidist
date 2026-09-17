@@ -1,9 +1,12 @@
 # omnidist
 
-[![Go Report Card](https://goreportcard.com/badge/github.com/metalagman/omnidist)](https://goreportcard.com/report/github.com/metalagman/omnidist)
-[![test](https://github.com/metalagman/omnidist/actions/workflows/test.yml/badge.svg)](https://github.com/metalagman/omnidist/actions/workflows/test.yml)
+[![Lint](https://github.com/metalagman/omnidist/actions/workflows/lint.yml/badge.svg)](https://github.com/metalagman/omnidist/actions/workflows/lint.yml)
+[![Test](https://github.com/metalagman/omnidist/actions/workflows/test.yml/badge.svg)](https://github.com/metalagman/omnidist/actions/workflows/test.yml)
+[![Security](https://github.com/metalagman/omnidist/actions/workflows/security.yml/badge.svg)](https://github.com/metalagman/omnidist/actions/workflows/security.yml)
 [![npm](https://img.shields.io/npm/v/%40omnidist%2Fomnidist)](https://www.npmjs.com/package/@omnidist/omnidist)
 [![PyPI](https://img.shields.io/pypi/v/omnidist)](https://pypi.org/project/omnidist/)
+[![Gem](https://img.shields.io/gem/v/omnidist)](https://rubygems.org/gems/omnidist)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 Omnidist builds one Go CLI and packages its prebuilt binaries for npm, PyPI-compatible indexes through uv, and RubyGems. npm packages contain no `postinstall` downloader; installation uses platform-specific optional dependencies already present in registry tarballs.
 
