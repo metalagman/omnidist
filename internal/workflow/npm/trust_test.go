@@ -85,6 +85,34 @@ func TestTrustedPublishingPlanHonorsOverrides(t *testing.T) {
 	}
 }
 
+func TestTrustedPublishingPlanUsesIndependentPlatformPackage(t *testing.T) {
+	t.Parallel()
+
+	cfg := testConfig()
+	cfg.Targets = []config.Target{
+		{OS: "linux", Arch: "amd64"},
+		{OS: "darwin", Arch: "arm64"},
+	}
+	npmDist := cfg.Distributions["npm"]
+	npmDist.Package = "omnidist"
+	npmDist.PlatformPackage = "@omnidist/omnidist"
+	cfg.Distributions["npm"] = npmDist
+
+	plan, err := TrustedPublishingPlan(cfg, TrustOptions{})
+	if err != nil {
+		t.Fatalf("TrustedPublishingPlan() error = %v", err)
+	}
+
+	want := []string{
+		"omnidist",
+		"@omnidist/omnidist-darwin-arm64",
+		"@omnidist/omnidist-linux-x64",
+	}
+	if !reflect.DeepEqual(plan.Packages, want) {
+		t.Fatalf("plan.Packages = %v, want %v", plan.Packages, want)
+	}
+}
+
 func TestTrustedPublishingPlanErrors(t *testing.T) {
 	t.Parallel()
 

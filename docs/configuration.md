@@ -110,6 +110,7 @@ Every persisted `DistributionConfig` field is listed below. A dash means that ba
 | Field | npm | uv | gem | Default / condition |
 | --- | --- | --- | --- | --- |
 | `package` | Meta package name | Python distribution name | Gem name | Generated from tool name; compatibility defaults are `@omnidist/omnidist`, `omnidist`, `omnidist`. Set explicitly in third-party legacy configs. |
+| `platform-package` | Base name for target-specific packages | — | — | Empty; falls back to npm `package`, preserving legacy names. |
 | `registry` | npm registry | — | Gem host | npm registry / `https://rubygems.org`. |
 | `access` | `public` or `restricted` | — | — | `public`. |
 | `publish-auth` | `token` or `trusted` | — | `token` or `trusted` | `token`. Gem trusted mode requires rubygems.org; npm trusted mode requires `repository-url`. |
@@ -122,6 +123,25 @@ Every persisted `DistributionConfig` field is listed below. A dash means that ba
 | `include-readme` | Include README | Include README | Include README | `true`; set `false` to omit it. |
 
 If an explicitly configured README cannot be read, staging fails. Metadata fields that a backend does not consume should be omitted.
+
+### Independent npm platform package names
+
+`platform-package` changes only the base used for npm target packages. Omnidist appends the existing `-<os>-<cpu>` suffix and an optional target variant. The root package continues to use `package`:
+
+```yaml
+distributions:
+  npm:
+    package: omnidist
+    platform-package: "@omnidist/omnidist"
+    registry: https://registry.npmjs.org
+    access: public
+```
+
+For a Linux amd64 target, this stages the root package as `omnidist` and the binary package as `@omnidist/omnidist-linux-x64`. The root package lists that scoped name in `optionalDependencies`, and its shim resolves the same name at runtime.
+
+The field is opt-in. If it is absent, empty, or whitespace-only, target names continue to derive from `package` exactly as in earlier configurations. No migration is required for existing files. Root and platform packages still share one version, registry, authentication mode, access setting, and platform-first publish order.
+
+For public scoped platform packages, keep `access: public`. The publishing npm account or organization must own the scope and also have permission to publish the unscoped root name. In trusted mode, configure every generated root and platform package as a trusted publisher; `omnidist npm trust` derives the complete package set.
 
 ## Versions and build variables
 

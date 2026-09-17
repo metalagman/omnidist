@@ -16,9 +16,9 @@ Never commit tokens or place them in generated workflow YAML. The CI generator r
 
 ## First-release checklist
 
-1. Confirm package names are available and registry accounts have permission to publish them.
+1. Confirm package names are available and registry accounts have permission to publish them. When npm `platform-package` uses a different scope from the root `package`, verify ownership of both identities; public scoped packages require `access: public`.
 2. Review `.omnidist/omnidist.yaml`, especially `enabled-distributions`, package names, repository URLs, access, authentication modes, and target matrix.
-3. For npm trusted mode, run `omnidist npm trust` to inspect setup commands; use `--apply` only after reviewing them.
+3. For npm trusted mode, run `omnidist npm trust` to inspect setup commands for the root and every platform package; use `--apply` only after reviewing them.
 4. Configure CI secrets or trusted publishers for every enabled backend.
 5. Generate and review CI without writing first: `omnidist ci --dry-run`.
 6. Build, stage, verify, and exercise publish preflight:
@@ -66,7 +66,7 @@ These commands are also the recovery path for a backend disabled from aggregate 
 Do not delete tags, retag a different build with the same version, or assume retry is an atomic rollback.
 
 1. Stop automated retries and retain the publish log.
-2. Inspect each registry to identify exactly which package/version units exist. npm may have some platform packages but not the meta package; RubyGems may have only some platforms.
+2. Inspect each registry to identify exactly which package/version units exist. npm may have some platform packages but not the meta package; when `platform-package` uses another scope, inspect both the root namespace and that scope. RubyGems may have only some platforms.
 3. Compare accepted artifacts with the locally verified staged artifacts and checksums.
 4. Correct the local or remote cause without rebuilding the same version differently.
 5. Retry only the missing backend with its backend-specific publish command. Registry clients commonly reject already-existing versions, so use the progress log and registry state to avoid blindly replaying accepted units.

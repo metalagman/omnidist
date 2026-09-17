@@ -248,7 +248,7 @@ func Publish(cfg *config.Config, opts PublishOptions) error {
 
 	platformPackages := []string{}
 	for _, target := range cfg.Targets {
-		pkgName := platformPackageName(npmDist.Package, target)
+		pkgName := platformPackageName(npmDist.PlatformPackage, target)
 		platformPackages = append(platformPackages, pkgName)
 	}
 
@@ -285,11 +285,17 @@ func npmDistribution(cfg *config.Config) (config.DistributionConfig, error) {
 	}
 
 	dist.Package = strings.TrimSpace(dist.Package)
+	dist.PlatformPackage = strings.TrimSpace(dist.PlatformPackage)
 	dist.Registry = strings.TrimSpace(dist.Registry)
 	dist.Access = strings.TrimSpace(dist.Access)
 	dist.PublishAuth = strings.TrimSpace(dist.PublishAuth)
 	if dist.Package == "" {
 		return config.DistributionConfig{}, fmt.Errorf("npm distribution package is required")
+	}
+	if dist.PlatformPackage == "" {
+		dist.PlatformPackage = dist.Package
+	} else if err := config.ValidateNPMPlatformPackage(dist.PlatformPackage, cfg.Targets); err != nil {
+		return config.DistributionConfig{}, fmt.Errorf("invalid npm platform package %q: %w", dist.PlatformPackage, err)
 	}
 	if dist.Access != "" && dist.Access != "public" && dist.Access != "restricted" {
 		return config.DistributionConfig{}, fmt.Errorf("invalid npm access %q: expected public or restricted", dist.Access)
@@ -303,12 +309,8 @@ func npmDistribution(cfg *config.Config) (config.DistributionConfig, error) {
 	return dist, nil
 }
 
-func platformPackageName(meta string, target config.Target) string {
-	name := meta + "-" + config.MapGoOSToNPM(target.OS) + "-" + config.MapGoArchToNPM(target.Arch)
-	if target.Variant != "" {
-		name += "-" + target.Variant
-	}
-	return name
+func platformPackageName(base string, target config.Target) string {
+	return config.NPMPlatformPackageName(base, target)
 }
 
 func writePackageJSON(dir string, data map[string]interface{}) error {
@@ -323,7 +325,7 @@ func writePackageJSON(dir string, data map[string]interface{}) error {
 	return enc.Encode(data)
 }
 
-func writeShim(path, toolName, metaPackage string) error {
+func writeShim(path, toolName, platformPackage string) error {
 	shim := fmt.Sprintf(`#!/usr/bin/env node
 const path = require('path');
 const os = require('os');
@@ -373,7 +375,7 @@ try {
 	}
 	process.exit(e.status || 1);
 }
-`, toolName, metaPackage, toolName, toolName, metaPackage, metaPackage)
+`, toolName, platformPackage, toolName, toolName, platformPackage, platformPackage)
 
 	return os.WriteFile(path, []byte(shim), 0755)
 }
@@ -468,7 +470,7 @@ func readPackageJSON(dir string) (map[string]interface{}, error) {
 }
 
 func stagePlatformPackage(layout paths.Layout, cfg *config.Config, npmDist config.DistributionConfig, target config.Target, version string) error {
-	pkgName := platformPackageName(npmDist.Package, target)
+	pkgName := platformPackageName(npmDist.PlatformPackage, target)
 	pkgDir := filepath.Join(layout.NPMDir, pkgName)
 
 	if err := os.MkdirAll(filepath.Join(pkgDir, "bin"), 0755); err != nil {
@@ -548,7 +550,7 @@ func stageMetaPackage(layout paths.Layout, cfg *config.Config, npmDist config.Di
 
 	optionalDeps := make(map[string]string)
 	for _, target := range cfg.Targets {
-		pkgName := platformPackageName(npmDist.Package, target)
+		pkgName := platformPackageName(npmDist.PlatformPackage, target)
 		optionalDeps[pkgName] = version
 	}
 
@@ -576,7 +578,7 @@ func stageMetaPackage(layout paths.Layout, cfg *config.Config, npmDist config.Di
 	}
 
 	shimPath := filepath.Join(metaDir, cfg.Tool.Name+".js")
-	if err := writeShim(shimPath, cfg.Tool.Name, npmDist.Package); err != nil {
+	if err := writeShim(shimPath, cfg.Tool.Name, npmDist.PlatformPackage); err != nil {
 		return err
 	}
 
@@ -586,7 +588,7 @@ func stageMetaPackage(layout paths.Layout, cfg *config.Config, npmDist config.Di
 func verifyPlatformPackages(layout paths.Layout, cfg *config.Config, npmDist config.DistributionConfig, version string, result *VerificationResult) error {
 	expectedRepositoryURL := npmDist.RepositoryURLValue()
 	for _, target := range cfg.Targets {
-		pkgName := platformPackageName(npmDist.Package, target)
+		pkgName := platformPackageName(npmDist.PlatformPackage, target)
 		pkgDir := filepath.Join(layout.NPMDir, pkgName)
 
 		pkgJSON, err := readPackageJSON(pkgDir)
@@ -752,7 +754,7 @@ func verifyMetaPackage(layout paths.Layout, cfg *config.Config, npmDist config.D
 		result.Valid = false
 	} else {
 		for _, target := range cfg.Targets {
-			pkgName := platformPackageName(npmDist.Package, target)
+			pkgName := platformPackageName(npmDist.PlatformPackage, target)
 			if _, exists := optionalDeps[pkgName]; !exists {
 				result.Errors = append(result.Errors, fmt.Sprintf("Missing %s in optionalDependencies", pkgName))
 				result.Valid = false

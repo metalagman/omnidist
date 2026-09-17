@@ -84,7 +84,7 @@ func TrustedPublishingPlan(cfg *config.Config, opts TrustOptions) (*TrustPlan, e
 		allowPublish = true
 	}
 
-	packages := trustPackages(cfg, npmDist.Package)
+	packages := trustPackages(cfg, npmDist.Package, npmDist.PlatformPackage)
 	if len(packages) == 0 {
 		return nil, fmt.Errorf("no npm packages configured for trusted publishing")
 	}
@@ -99,7 +99,7 @@ func TrustedPublishingPlan(cfg *config.Config, opts TrustOptions) (*TrustPlan, e
 	}, nil
 }
 
-func trustPackages(cfg *config.Config, metaPackage string) []string {
+func trustPackages(cfg *config.Config, metaPackage, platformPackage string) []string {
 	if cfg == nil {
 		return nil
 	}
@@ -107,7 +107,7 @@ func trustPackages(cfg *config.Config, metaPackage string) []string {
 	packages := []string{metaPackage}
 	seen := map[string]struct{}{metaPackage: {}}
 	for _, target := range cfg.Targets {
-		pkgName := platformPackageName(metaPackage, target)
+		pkgName := platformPackageName(platformPackage, target)
 		if _, ok := seen[pkgName]; ok {
 			continue
 		}

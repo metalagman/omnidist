@@ -21,7 +21,12 @@ const (
 	DefaultProfileName = "default"
 )
 
-var profileNamePattern = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
+var (
+	profileNamePattern    = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
+	npmPackageNamePattern = regexp.MustCompile(`^(?:@[a-z0-9][a-z0-9._-]*/)?[a-z0-9][a-z0-9._-]*$`)
+)
+
+const maxNPMPackageNameLength = 214
 
 // Config is the root omnidist configuration loaded from omnidist.yaml.
 type Config struct {
@@ -104,17 +109,52 @@ type Target struct {
 
 // DistributionConfig stores distribution-specific packaging settings.
 type DistributionConfig struct {
-	Package       string   `yaml:"package"`
-	Registry      string   `yaml:"registry,omitempty"`
-	Access        string   `yaml:"access,omitempty"`
-	PublishAuth   string   `yaml:"publish-auth,omitempty"`
-	RepositoryURL string   `yaml:"repository-url,omitempty"`
-	License       string   `yaml:"license,omitempty"`
-	Keywords      []string `yaml:"keywords,omitempty"`
-	ReadmePath    string   `yaml:"readme-path,omitempty"`
-	IndexURL      string   `yaml:"index-url,omitempty"`
-	LinuxTag      string   `yaml:"linux-tag,omitempty"`
-	IncludeREADME *bool    `yaml:"include-readme,omitempty"`
+	Package         string   `yaml:"package"`
+	PlatformPackage string   `yaml:"platform-package,omitempty"`
+	Registry        string   `yaml:"registry,omitempty"`
+	Access          string   `yaml:"access,omitempty"`
+	PublishAuth     string   `yaml:"publish-auth,omitempty"`
+	RepositoryURL   string   `yaml:"repository-url,omitempty"`
+	License         string   `yaml:"license,omitempty"`
+	Keywords        []string `yaml:"keywords,omitempty"`
+	ReadmePath      string   `yaml:"readme-path,omitempty"`
+	IndexURL        string   `yaml:"index-url,omitempty"`
+	LinuxTag        string   `yaml:"linux-tag,omitempty"`
+	IncludeREADME   *bool    `yaml:"include-readme,omitempty"`
+}
+
+// ValidateNPMPackageName checks the npm package-name grammar used by Omnidist.
+func ValidateNPMPackageName(name string) error {
+	if len(name) > maxNPMPackageNameLength {
+		return fmt.Errorf("package name exceeds %d characters", maxNPMPackageNameLength)
+	}
+	if !npmPackageNamePattern.MatchString(name) {
+		return fmt.Errorf("expected a lowercase package name with an optional @scope/ prefix")
+	}
+	return nil
+}
+
+// NPMPlatformPackageName returns the npm package name for a target-specific binary.
+func NPMPlatformPackageName(base string, target Target) string {
+	name := base + "-" + MapGoOSToNPM(target.OS) + "-" + MapGoArchToNPM(target.Arch)
+	if target.Variant != "" {
+		name += "-" + target.Variant
+	}
+	return name
+}
+
+// ValidateNPMPlatformPackage checks a configured base and every target name it produces.
+func ValidateNPMPlatformPackage(base string, targets []Target) error {
+	if err := ValidateNPMPackageName(base); err != nil {
+		return err
+	}
+	for _, target := range targets {
+		name := NPMPlatformPackageName(base, target)
+		if err := ValidateNPMPackageName(name); err != nil {
+			return fmt.Errorf("generated package %q for target %s/%s: %w", name, target.OS, target.Arch, err)
+		}
+	}
+	return nil
 }
 
 // IncludeREADMEEnabled reports whether README.md should be included in staged artifacts.
@@ -357,6 +397,7 @@ func applyDistributionDefaults(cfg *Config) {
 
 	npmDist := cfg.Distributions["npm"]
 	npmDist.Package = strings.TrimSpace(npmDist.Package)
+	npmDist.PlatformPackage = strings.TrimSpace(npmDist.PlatformPackage)
 	npmDist.Registry = strings.TrimSpace(npmDist.Registry)
 	npmDist.Access = strings.TrimSpace(npmDist.Access)
 	npmDist.PublishAuth = strings.TrimSpace(npmDist.PublishAuth)
@@ -570,6 +611,11 @@ func validate(cfg *Config) error {
 	}
 
 	if npmDist, ok := cfg.Distributions["npm"]; ok {
+		if npmDist.PlatformPackage != "" {
+			if err := ValidateNPMPlatformPackage(npmDist.PlatformPackage, cfg.Targets); err != nil {
+				return fmt.Errorf("invalid distributions.npm.platform-package %q: %w", npmDist.PlatformPackage, err)
+			}
+		}
 		switch npmDist.Access {
 		case "", "public", "restricted":
 		default:

@@ -88,6 +88,18 @@ profiles:
 
 Valid enabled values are `npm`, `uv`, and `gem`. An omitted field preserves compatibility by enabling all three. Aggregate commands always execute in npm → uv → gem order. `--only` can narrow the configured set but cannot enable a disabled backend; backend-specific commands remain available for repair and recovery.
 
+To keep the npm package installed by users unscoped while publishing platform binaries under a scope, set an independent platform-package base:
+
+```yaml
+distributions:
+  npm:
+    package: omnidist
+    platform-package: "@omnidist/omnidist"
+    access: public
+```
+
+This produces platform packages such as `@omnidist/omnidist-linux-x64`, while the root package remains `omnidist`. If `platform-package` is omitted or blank, it defaults to `package`, preserving existing package names. The configured npm identity must be allowed to publish the unscoped name and every package in the selected scope; trusted publishing must be configured for every generated package.
+
 ## Release flow
 
 ```bash

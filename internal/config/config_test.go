@@ -773,6 +773,102 @@ func TestSaveRoundTrip(t *testing.T) {
 	}
 }
 
+func TestNPMPlatformPackageConfig(t *testing.T) {
+	t.Run("profile trims valid scoped value", func(t *testing.T) {
+		dir := t.TempDir()
+		configPath := filepath.Join(dir, "omnidist.yaml")
+		contents := `profiles:
+  default:
+    version:
+      source: env
+    targets:
+      - os: linux
+        arch: amd64
+    distributions:
+      npm:
+        package: omnidist
+        platform-package: "  @omnidist/omnidist  "
+`
+		if err := os.WriteFile(configPath, []byte(contents), 0644); err != nil {
+			t.Fatalf("os.WriteFile() error = %v", err)
+		}
+
+		cfg, err := Load(configPath)
+		if err != nil {
+			t.Fatalf("Load() error = %v", err)
+		}
+		got := cfg.Distributions["npm"]
+		if got.Package != "omnidist" {
+			t.Fatalf("npm package = %q, want %q", got.Package, "omnidist")
+		}
+		if got.PlatformPackage != "@omnidist/omnidist" {
+			t.Fatalf("npm platform-package = %q, want %q", got.PlatformPackage, "@omnidist/omnidist")
+		}
+	})
+
+	t.Run("legacy blank value stays omitted on save", func(t *testing.T) {
+		dir := t.TempDir()
+		configPath := filepath.Join(dir, "omnidist.yaml")
+		contents := `version:
+  source: env
+targets:
+  - os: linux
+    arch: amd64
+distributions:
+  npm:
+    package: omnidist
+    platform-package: "   "
+`
+		if err := os.WriteFile(configPath, []byte(contents), 0644); err != nil {
+			t.Fatalf("os.WriteFile() error = %v", err)
+		}
+
+		cfg, err := Load(configPath)
+		if err != nil {
+			t.Fatalf("Load() error = %v", err)
+		}
+		if got := cfg.Distributions["npm"].PlatformPackage; got != "" {
+			t.Fatalf("npm platform-package = %q, want empty fallback marker", got)
+		}
+
+		savedPath := filepath.Join(dir, "saved.yaml")
+		if err := Save(cfg, savedPath); err != nil {
+			t.Fatalf("Save() error = %v", err)
+		}
+		saved, err := os.ReadFile(savedPath)
+		if err != nil {
+			t.Fatalf("os.ReadFile() error = %v", err)
+		}
+		if strings.Contains(string(saved), "platform-package:") {
+			t.Fatalf("saved config unexpectedly contains empty platform-package:\n%s", saved)
+		}
+	})
+}
+
+func TestValidateNPMPackageName(t *testing.T) {
+	valid := []string{"omnidist", "@omnidist/omnidist", "@scope/tool.name_v2"}
+	for _, name := range valid {
+		if err := ValidateNPMPackageName(name); err != nil {
+			t.Errorf("ValidateNPMPackageName(%q) error = %v", name, err)
+		}
+	}
+
+	invalid := []string{"", "Omnidist", "@scope", "@Scope/tool", "@scope/Tool", "scope/tool", strings.Repeat("a", 215)}
+	for _, name := range invalid {
+		if err := ValidateNPMPackageName(name); err == nil {
+			t.Errorf("ValidateNPMPackageName(%q) error = nil, want validation error", name)
+		}
+	}
+}
+
+func TestValidateNPMPlatformPackageChecksGeneratedNames(t *testing.T) {
+	base := strings.Repeat("a", 205)
+	err := ValidateNPMPlatformPackage(base, []Target{{OS: "linux", Arch: "amd64"}})
+	if err == nil || !strings.Contains(err.Error(), "generated package") || !strings.Contains(err.Error(), "exceeds 214") {
+		t.Fatalf("ValidateNPMPlatformPackage() error = %v, want generated package length error", err)
+	}
+}
+
 func TestSaveInvalidPath(t *testing.T) {
 	// Use a path that is likely to fail (e.g., a directory that exists as a file)
 	dir := t.TempDir()
@@ -836,6 +932,26 @@ func TestValidate(t *testing.T) {
 				},
 			},
 			wantErr: "invalid distributions.npm.access \"invalid\"",
+		},
+		{
+			name: "invalid npm platform package",
+			cfg: &Config{
+				Targets: []Target{{OS: "linux", Arch: "amd64"}},
+				Distributions: map[string]DistributionConfig{
+					"npm": {PlatformPackage: "@scope/Invalid"},
+				},
+			},
+			wantErr: "invalid distributions.npm.platform-package \"@scope/Invalid\"",
+		},
+		{
+			name: "npm platform package target name too long",
+			cfg: &Config{
+				Targets: []Target{{OS: "linux", Arch: "amd64"}},
+				Distributions: map[string]DistributionConfig{
+					"npm": {PlatformPackage: strings.Repeat("a", 205)},
+				},
+			},
+			wantErr: "generated package",
 		},
 		{
 			name: "invalid npm publish auth",

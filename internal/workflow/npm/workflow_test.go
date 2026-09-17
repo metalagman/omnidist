@@ -88,6 +88,15 @@ func TestNPMDistribution(t *testing.T) {
 			},
 			wantErr: "invalid npm access",
 		},
+		{
+			name: "invalid_platform_package",
+			cfg: &config.Config{
+				Distributions: map[string]config.DistributionConfig{
+					"npm": {Package: "omnidist", PlatformPackage: "@scope/Invalid"},
+				},
+			},
+			wantErr: "invalid npm platform package",
+		},
 	}
 
 	for _, tc := range tests {
@@ -108,10 +117,11 @@ func TestNPMDistributionTrimsFields(t *testing.T) {
 	cfg := &config.Config{
 		Distributions: map[string]config.DistributionConfig{
 			"npm": {
-				Package:     " @omnidist/omnidist ",
-				Registry:    " https://registry.npmjs.org ",
-				Access:      " public ",
-				PublishAuth: " trusted ",
+				Package:         " omnidist ",
+				PlatformPackage: " @omnidist/omnidist ",
+				Registry:        " https://registry.npmjs.org ",
+				Access:          " public ",
+				PublishAuth:     " trusted ",
 			},
 		},
 	}
@@ -121,8 +131,11 @@ func TestNPMDistributionTrimsFields(t *testing.T) {
 		t.Fatalf("npmDistribution() error = %v", err)
 	}
 
-	if dist.Package != "@omnidist/omnidist" {
-		t.Fatalf("dist.Package = %q, want %q", dist.Package, "@omnidist/omnidist")
+	if dist.Package != "omnidist" {
+		t.Fatalf("dist.Package = %q, want %q", dist.Package, "omnidist")
+	}
+	if dist.PlatformPackage != "@omnidist/omnidist" {
+		t.Fatalf("dist.PlatformPackage = %q, want %q", dist.PlatformPackage, "@omnidist/omnidist")
 	}
 	if dist.Registry != "https://registry.npmjs.org" {
 		t.Fatalf("dist.Registry = %q, want %q", dist.Registry, "https://registry.npmjs.org")
@@ -132,6 +145,23 @@ func TestNPMDistributionTrimsFields(t *testing.T) {
 	}
 	if dist.PublishAuth != "trusted" {
 		t.Fatalf("dist.PublishAuth = %q, want %q", dist.PublishAuth, "trusted")
+	}
+}
+
+func TestNPMDistributionDefaultsPlatformPackageToMetaPackage(t *testing.T) {
+	t.Parallel()
+
+	for _, packageName := range []string{"omnidist", "@omnidist/omnidist"} {
+		cfg := &config.Config{Distributions: map[string]config.DistributionConfig{
+			"npm": {Package: packageName, PlatformPackage: "   "},
+		}}
+		dist, err := npmDistribution(cfg)
+		if err != nil {
+			t.Fatalf("npmDistribution(%q) error = %v", packageName, err)
+		}
+		if dist.PlatformPackage != packageName {
+			t.Errorf("npmDistribution(%q).PlatformPackage = %q, want legacy fallback", packageName, dist.PlatformPackage)
+		}
 	}
 }
 
@@ -353,6 +383,10 @@ func TestPublishDryRunPublishesStagedPackages(t *testing.T) {
 	t.Setenv(shared.EnvVersionName, "1.2.3-dev.4.gabc123")
 
 	cfg := testConfig()
+	npmDist := cfg.Distributions["npm"]
+	npmDist.Package = "omnidist"
+	npmDist.PlatformPackage = "@omnidist/omnidist"
+	cfg.Distributions["npm"] = npmDist
 	if err := createDistArtifacts(cfg); err != nil {
 		t.Fatalf("createDistArtifacts() error = %v", err)
 	}
@@ -391,6 +425,12 @@ func TestPublishDryRunPublishesStagedPackages(t *testing.T) {
 	}
 	if !strings.Contains(progressText, "Publishing meta package") {
 		t.Fatalf("Publish progress missing meta publish message: %q", progressText)
+	}
+	if !strings.Contains(progressText, "Published: @omnidist/omnidist-linux-x64") {
+		t.Fatalf("Publish progress missing scoped platform package: %q", progressText)
+	}
+	if !strings.Contains(progressText, "Published: omnidist") {
+		t.Fatalf("Publish progress missing unscoped meta package: %q", progressText)
 	}
 
 	logData, err := os.ReadFile(logPath)
@@ -838,6 +878,74 @@ func TestStageAndVerifyPasses(t *testing.T) {
 	result := Verify(cfg)
 	if !result.Valid {
 		t.Fatalf("Verify().Valid = false, errors = %v", result.Errors)
+	}
+}
+
+func TestStageAndVerifyMixedScopePackages(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+
+	cfg := testConfig()
+	cfg.Targets = []config.Target{{OS: "linux", Arch: "amd64"}}
+	npmDist := cfg.Distributions["npm"]
+	npmDist.Package = "omnidist"
+	npmDist.PlatformPackage = "@omnidist/omnidist"
+	cfg.Distributions["npm"] = npmDist
+
+	if err := createDistArtifacts(cfg); err != nil {
+		t.Fatalf("createDistArtifacts() error = %v", err)
+	}
+	if err := shared.WriteBuildVersionForConfig(cfg, "1.2.3"); err != nil {
+		t.Fatalf("shared.WriteBuildVersionForConfig() error = %v", err)
+	}
+	if err := Stage(cfg, StageOptions{}); err != nil {
+		t.Fatalf("Stage() error = %v", err)
+	}
+
+	metaDir := filepath.Join(paths.NPMDir, "omnidist")
+	metaJSON, err := readPackageJSON(metaDir)
+	if err != nil {
+		t.Fatalf("readPackageJSON(meta) error = %v", err)
+	}
+	if got := metaJSON["name"]; got != "omnidist" {
+		t.Fatalf("meta package name = %v, want %q", got, "omnidist")
+	}
+	optionalDeps, ok := metaJSON["optionalDependencies"].(map[string]interface{})
+	if !ok || optionalDeps["@omnidist/omnidist-linux-x64"] != "1.2.3" {
+		t.Fatalf("meta optionalDependencies = %#v, want scoped platform", metaJSON["optionalDependencies"])
+	}
+
+	platformDir := filepath.Join(paths.NPMDir, "@omnidist/omnidist-linux-x64")
+	platformJSON, err := readPackageJSON(platformDir)
+	if err != nil {
+		t.Fatalf("readPackageJSON(platform) error = %v", err)
+	}
+	if got := platformJSON["name"]; got != "@omnidist/omnidist-linux-x64" {
+		t.Fatalf("platform package name = %v, want scoped name", got)
+	}
+	if platformJSON["version"] != metaJSON["version"] {
+		t.Fatalf("platform version = %v, meta version = %v", platformJSON["version"], metaJSON["version"])
+	}
+
+	shim, err := os.ReadFile(filepath.Join(metaDir, "omnidist.js"))
+	if err != nil {
+		t.Fatalf("os.ReadFile(shim) error = %v", err)
+	}
+	if !strings.Contains(string(shim), "const platformPkgName = '@omnidist/omnidist-' + platformKey;") {
+		t.Fatalf("shim does not resolve scoped platform base: %q", shim)
+	}
+
+	result := Verify(cfg)
+	if !result.Valid {
+		t.Fatalf("Verify().Valid = false, errors = %v", result.Errors)
+	}
+
+	if err := os.Remove(filepath.Join(platformDir, "package.json")); err != nil {
+		t.Fatalf("os.Remove(platform package.json) error = %v", err)
+	}
+	result = Verify(cfg)
+	if result.Valid || !strings.Contains(strings.Join(result.Errors, "\n"), "@omnidist/omnidist-linux-x64") {
+		t.Fatalf("Verify() after removal = valid %v, errors %v; want scoped package diagnostic", result.Valid, result.Errors)
 	}
 }
 
