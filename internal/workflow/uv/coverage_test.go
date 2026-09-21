@@ -39,7 +39,7 @@ func TestStageErrorsExtra(t *testing.T) {
 		if err := shared.WriteBuildVersion("1.0.0"); err != nil {
 			t.Fatalf("shared.WriteBuildVersion() error = %v", err)
 		}
-		
+
 		if err := os.MkdirAll(paths.WorkspaceDir, 0755); err != nil {
 			t.Fatalf("os.MkdirAll() error = %v", err)
 		}
@@ -79,7 +79,7 @@ func TestPublishErrorsExtra(t *testing.T) {
 		t.Chdir(dir)
 		t.Setenv("PATH", dir) // empty path
 		t.Setenv(shared.EnvVersionName, "1.0.0")
-		
+
 		cfg := testConfig()
 		createDistArtifacts(cfg)
 		shared.WriteBuildVersion("1.0.0")
@@ -118,9 +118,9 @@ func TestWriteWheelErrors(t *testing.T) {
 	path := filepath.Join(dir, "readonly")
 	os.MkdirAll(path, 0555)
 	defer os.Chmod(path, 0755)
-	
+
 	wheelPath := filepath.Join(path, "test.whl")
-	err := writeWheel(wheelPath, &config.Config{}, config.DistributionConfig{}, config.Target{}, "1.0.0", nil)
+	err := writeWheel(wheelPath, &config.Config{}, config.UVDistributionConfig{}, config.Target{}, "1.0.0", nil)
 	if err == nil {
 		t.Fatalf("writeWheel(readonly) error = nil, want error")
 	}
@@ -148,7 +148,7 @@ func TestCollectWheelArtifactsError(t *testing.T) {
 	cfg := testConfig()
 	uvDist, _ := uvDistribution(cfg)
 	t.Setenv(shared.EnvVersionName, "1.0.0")
-	
+
 	// collectWheelArtifacts will fail if artifacts are missing
 	_, err := collectWheelArtifacts(cfg, uvDist, "1.0.0")
 	if err == nil {

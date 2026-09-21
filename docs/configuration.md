@@ -5,7 +5,6 @@ Omnidist reads `.omnidist/omnidist.yaml` unless `--config` or `OMNIDIST_CONFIG` 
 ```yaml
 profiles:
   default:
-    enabled-distributions: [npm, uv, gem]
     tool:
       name: mytool
       main: ./cmd/mytool
@@ -54,7 +53,7 @@ This example is a complete, copyable profile. Select another profile with `--pro
 | Profiles (recommended) | `profiles.<name>` | `.omnidist/<name>/` |
 | Legacy | runtime fields at document root | `.omnidist/` |
 
-Do not mix `profiles` with top-level runtime fields. Existing legacy files remain supported, and an absent `enabled-distributions` retains the former all-backend behavior. `version.fixed-version` is not supported; use `version.fixed`.
+Do not mix `profiles` with top-level runtime fields. Existing legacy files remain supported. In canonical configuration, each key present under `distributions` selects that backend. `version.fixed-version` is not supported; use `version.fixed`.
 
 Legacy-only shape, shown for compatibility rather than new projects:
 
@@ -98,18 +97,18 @@ distributions:
 | `build.ldflags` | string | `-s -w` | Passed to `go build -ldflags`; environment expansion supports `$VAR` and `${VAR}`. |
 | `build.tags` | string list | `[]` | Go build tags. |
 | `build.cgo` | boolean | `false` | Sets `CGO_ENABLED`; cross-compilation usually needs `false`. |
-| `enabled-distributions` | non-empty unique list | Absent means `[npm, uv, gem]`; generated configs emit all three | Aggregate stage/verify/publish and generated CI selection. Values: `npm`, `uv`, `gem`. Execution order is canonical, not YAML order. |
-| `distributions` | map | Missing entries receive compatibility defaults | Backend package metadata. Selection is controlled separately by `enabled-distributions`. |
+| `enabled-distributions` | legacy non-empty unique list | Omit in new configs | Compatibility selector for existing files. Every listed backend must have a matching `distributions` section. Empty, null, duplicate, and unknown values are rejected. |
+| `distributions` | typed map | At least one backend section | Backend configuration and the canonical aggregate selection. Section presence enables npm, uv, or gem in canonical files. |
 
-`--only` narrows aggregate commands to enabled values. It errors when asked for a disabled backend. Explicit backend commands such as `omnidist uv publish` remain available for recovery.
+Aggregate commands and generated CI use configured sections in npm → uv → gem order. `--only` narrows that set and errors when asked for an unavailable backend. A backend-specific command requires its explicit section. In a legacy file, an extra section excluded by `enabled-distributions` remains available to a direct backend command and is validated when invoked.
 
 ## Distribution fields
 
-Every persisted `DistributionConfig` field is listed below. A dash means that backend does not currently consume the field.
+Every backend-specific field is listed below. A dash means the field is invalid for that backend; strict loading rejects misplaced and unknown fields.
 
 | Field | npm | uv | gem | Default / condition |
 | --- | --- | --- | --- | --- |
-| `package` | Meta package name | Python distribution name | Gem name | Generated from tool name; compatibility defaults are `@omnidist/omnidist`, `omnidist`, `omnidist`. Set explicitly in third-party legacy configs. |
+| `package` | Meta package name | Python distribution name | Gem name | Required in every configured backend. `omnidist init` writes a project-derived value; loading never invents an identity. |
 | `platform-package` | Base name for target-specific packages | — | — | Empty; falls back to npm `package`, preserving legacy names. |
 | `registry` | npm registry | — | Gem host | npm registry / `https://rubygems.org`. |
 | `access` | `public` or `restricted` | — | — | `public`. |
@@ -169,9 +168,9 @@ CLI flags take precedence over their environment-backed selectors. Omnidist load
 
 Do not run `omnidist init --force` merely to upgrade an existing config. Edit the current file in place:
 
-1. Add a non-empty `enabled-distributions` list for the backends you actually publish.
-2. Add metadata for newly enabled backends.
+1. Keep only the `distributions` sections you publish, and set each section's `package` explicitly.
+2. Remove `enabled-distributions` to adopt the canonical presence-based shape. If a legacy file intentionally keeps inactive sections, retain a non-empty selector whose values all have matching sections.
 3. Run `omnidist build`, `omnidist stage`, and `omnidist verify`.
 4. Inspect `omnidist ci --dry-run`, then replace an existing generated workflow only with `omnidist ci --force`.
 
-Leaving `enabled-distributions` absent deliberately preserves npm, uv, and gem execution for backward compatibility.
+Omitting `enabled-distributions` selects exactly the backend sections present. For example, a pre-selector config containing only `distributions.npm` continues to run only npm workflows. A selector that names a missing section now fails before staging, CI generation, authentication, or publication.

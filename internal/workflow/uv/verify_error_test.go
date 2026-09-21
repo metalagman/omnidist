@@ -21,7 +21,7 @@ func TestVerifyDetectsWheelMismatches(t *testing.T) {
 	createDistArtifacts(cfg)
 	Stage(cfg, StageOptions{})
 
-	uvDist := cfg.Distributions["uv"]
+	uvDist := *cfg.Distributions.UV
 	version := "1.0.0"
 	target := cfg.Targets[0]
 	wheelPath, _ := wheelPathForTarget(uvDist, target, version)
@@ -134,7 +134,7 @@ func TestVerifyDetectsRecordErrors(t *testing.T) {
 	createDistArtifacts(cfg)
 	Stage(cfg, StageOptions{})
 
-	uvDist := cfg.Distributions["uv"]
+	uvDist := *cfg.Distributions.UV
 	version := "1.0.0"
 	target := cfg.Targets[0]
 	wheelPath, _ := wheelPathForTarget(uvDist, target, version)

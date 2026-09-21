@@ -27,8 +27,8 @@ Keep discovered follow-up work in Beads and link it with `discovered-from`. Pres
 Omnidist builds a Go CLI and distributes prebuilt binaries through npm, uv/PyPI-compatible indexes, and RubyGems.
 
 - The release sequence is build → stage → verify → publish.
-- `enabled-distributions` is a non-empty subset of `npm`, `uv`, and `gem`. If absent in an older config, all three are enabled.
-- Aggregate commands and generated CI use enabled backends in npm → uv → gem order. `--only` may narrow, never enable a disabled backend.
+- Canonical configs select backends by the presence of `distributions.npm`, `distributions.uv`, and `distributions.gem`. Existing non-empty `enabled-distributions` lists remain a compatibility selector and may only reference present sections.
+- Aggregate commands and generated CI use selected backends in npm → uv → gem order. `--only` may narrow, never add an unavailable backend.
 - Aggregate publish preflights every selected backend before upload. Registry publication remains non-transactional and cannot be rolled back atomically.
 - npm packages must contain no `postinstall` script or install-time downloader.
 - All backend artifacts in one release derive from the build version file.
@@ -43,13 +43,15 @@ Targets use Go syntax:
 ```yaml
 profiles:
   default:
-    enabled-distributions: [npm, uv, gem]
     tool:
       name: mytool
       main: ./cmd/mytool
     targets:
       - os: windows
         arch: amd64
+    distributions:
+      npm:
+        package: "@scope/mytool"
 ```
 
 Use `os: windows`, `arch: amd64`, and the field name `arch`. npm mappings such as `win32/x64` belong only to generated package metadata.

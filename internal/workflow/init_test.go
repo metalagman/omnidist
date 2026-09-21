@@ -33,13 +33,13 @@ func TestInitCreatesNPMAndUVStructure(t *testing.T) {
 	if got := cfg.Tool.Main; got != "./cmd/my-tool" {
 		t.Fatalf("tool main = %q, want %q", got, "./cmd/my-tool")
 	}
-	if got := cfg.Distributions["npm"].Package; got != wantNPMPackage {
+	if got := cfg.Distributions.NPM.Package; got != wantNPMPackage {
 		t.Fatalf("npm package = %q, want %q", got, wantNPMPackage)
 	}
-	if got := cfg.Distributions["uv"].Package; got != wantUVPackage {
+	if got := cfg.Distributions.UV.Package; got != wantUVPackage {
 		t.Fatalf("uv package = %q, want %q", got, wantUVPackage)
 	}
-	if got := cfg.Distributions["gem"].Package; got != slug {
+	if got := cfg.Distributions.Gem.Package; got != slug {
 		t.Fatalf("gem package = %q, want %q", got, slug)
 	}
 
@@ -66,6 +66,14 @@ func TestInitCreatesNPMAndUVStructure(t *testing.T) {
 	}
 	if !strings.Contains(configContent, "include-readme: true") {
 		t.Fatalf("generated config missing include-readme default, got:\n%s", configContent)
+	}
+	if strings.Contains(configContent, "enabled-distributions:") {
+		t.Fatalf("generated config contains legacy enabled-distributions selector:\n%s", configContent)
+	}
+	for _, packageName := range []string{wantNPMPackage, wantUVPackage, slug} {
+		if !strings.Contains(configContent, "package: "+packageName) && !strings.Contains(configContent, "package: '"+packageName+"'") {
+			t.Fatalf("generated config missing explicit package %q:\n%s", packageName, configContent)
+		}
 	}
 	if strings.Contains(configContent, "\ntool:\n") {
 		t.Fatalf("generated config should not use legacy top-level fields, got:\n%s", configContent)

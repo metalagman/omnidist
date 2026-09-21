@@ -76,11 +76,11 @@ func TestResolveDistributions(t *testing.T) {
 	}
 }
 
-func TestResolveDistributionsHonorsEnabledConfig(t *testing.T) {
+func TestResolveDistributionsHonorsConfiguredBackends(t *testing.T) {
 	t.Parallel()
 
 	cfg := config.DefaultConfig()
-	cfg.EnabledDistributions = []string{"gem", "npm"}
+	cfg.Distributions.UV = nil
 
 	got, err := resolveDistributions(cfg, "")
 	if err != nil {
@@ -92,8 +92,48 @@ func TestResolveDistributionsHonorsEnabledConfig(t *testing.T) {
 	}
 
 	_, err = resolveDistributions(cfg, "uv")
-	if err == nil || !strings.Contains(err.Error(), "disabled") {
-		t.Fatalf("resolveDistributions(uv) error = %v, want disabled error", err)
+	if err == nil || !strings.Contains(err.Error(), "unavailable") {
+		t.Fatalf("resolveDistributions(uv) error = %v, want unavailable error", err)
+	}
+}
+
+func TestResolveDistributionsCoversEveryConfiguredSubset(t *testing.T) {
+	t.Parallel()
+
+	subsets := [][]distribution{
+		{distributionNPM},
+		{distributionUV},
+		{distributionGem},
+		{distributionNPM, distributionUV},
+		{distributionNPM, distributionGem},
+		{distributionUV, distributionGem},
+		{distributionNPM, distributionUV, distributionGem},
+	}
+	for _, selected := range subsets {
+		selected := selected
+		t.Run(distributionList(selected), func(t *testing.T) {
+			t.Parallel()
+			cfg := config.DefaultConfig()
+			configured := cfg.Distributions
+			cfg.Distributions = config.DistributionConfigs{}
+			for _, name := range selected {
+				switch name {
+				case distributionNPM:
+					cfg.Distributions.NPM = configured.NPM
+				case distributionUV:
+					cfg.Distributions.UV = configured.UV
+				case distributionGem:
+					cfg.Distributions.Gem = configured.Gem
+				}
+			}
+			got, err := resolveDistributions(cfg, "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(got, selected) {
+				t.Fatalf("resolveDistributions() = %#v, want %#v", got, selected)
+			}
+		})
 	}
 }
 

@@ -275,38 +275,8 @@ func Publish(cfg *config.Config, opts PublishOptions) error {
 	return nil
 }
 
-func npmDistribution(cfg *config.Config) (config.DistributionConfig, error) {
-	if cfg == nil {
-		return config.DistributionConfig{}, fmt.Errorf("config is nil")
-	}
-	dist, ok := cfg.Distributions["npm"]
-	if !ok {
-		return config.DistributionConfig{}, fmt.Errorf("missing required distribution: npm")
-	}
-
-	dist.Package = strings.TrimSpace(dist.Package)
-	dist.PlatformPackage = strings.TrimSpace(dist.PlatformPackage)
-	dist.Registry = strings.TrimSpace(dist.Registry)
-	dist.Access = strings.TrimSpace(dist.Access)
-	dist.PublishAuth = strings.TrimSpace(dist.PublishAuth)
-	if dist.Package == "" {
-		return config.DistributionConfig{}, fmt.Errorf("npm distribution package is required")
-	}
-	if dist.PlatformPackage == "" {
-		dist.PlatformPackage = dist.Package
-	} else if err := config.ValidateNPMPlatformPackage(dist.PlatformPackage, cfg.Targets); err != nil {
-		return config.DistributionConfig{}, fmt.Errorf("invalid npm platform package %q: %w", dist.PlatformPackage, err)
-	}
-	if dist.Access != "" && dist.Access != "public" && dist.Access != "restricted" {
-		return config.DistributionConfig{}, fmt.Errorf("invalid npm access %q: expected public or restricted", dist.Access)
-	}
-	if dist.PublishAuth == "" {
-		dist.PublishAuth = npmPublishAuthToken
-	}
-	if dist.PublishAuth != npmPublishAuthToken && dist.PublishAuth != npmPublishAuthTrusted {
-		return config.DistributionConfig{}, fmt.Errorf("invalid npm publish-auth %q: expected token or trusted", dist.PublishAuth)
-	}
-	return dist, nil
+func npmDistribution(cfg *config.Config) (config.NPMDistributionConfig, error) {
+	return cfg.RequireNPM()
 }
 
 func platformPackageName(base string, target config.Target) string {
@@ -392,7 +362,7 @@ func copyFileWithMode(src, dst string, mode os.FileMode) error {
 	return os.WriteFile(dst, data, mode)
 }
 
-func stageProjectREADME(cfg *config.Config, dist config.DistributionConfig, dstDir string, enabled bool) (bool, error) {
+func stageProjectREADME(cfg *config.Config, dist config.NPMDistributionConfig, dstDir string, enabled bool) (bool, error) {
 	if !enabled {
 		return false, nil
 	}
@@ -445,7 +415,7 @@ func readOptionalProjectLicense() (string, []byte, bool, error) {
 	return "", nil, false, nil
 }
 
-func packageLicenseValue(dist config.DistributionConfig, licenseName string, licenseIncluded bool) (string, bool) {
+func packageLicenseValue(dist config.NPMDistributionConfig, licenseName string, licenseIncluded bool) (string, bool) {
 	if license := dist.LicenseValue(); license != "" {
 		return license, true
 	}
@@ -469,7 +439,7 @@ func readPackageJSON(dir string) (map[string]interface{}, error) {
 	return pkg, nil
 }
 
-func stagePlatformPackage(layout paths.Layout, cfg *config.Config, npmDist config.DistributionConfig, target config.Target, version string) error {
+func stagePlatformPackage(layout paths.Layout, cfg *config.Config, npmDist config.NPMDistributionConfig, target config.Target, version string) error {
 	pkgName := platformPackageName(npmDist.PlatformPackage, target)
 	pkgDir := filepath.Join(layout.NPMDir, pkgName)
 
@@ -527,7 +497,7 @@ func stagePlatformPackage(layout paths.Layout, cfg *config.Config, npmDist confi
 	return writePackageJSON(pkgDir, pkgJSON)
 }
 
-func stageMetaPackage(layout paths.Layout, cfg *config.Config, npmDist config.DistributionConfig, version string) error {
+func stageMetaPackage(layout paths.Layout, cfg *config.Config, npmDist config.NPMDistributionConfig, version string) error {
 	metaDir := filepath.Join(layout.NPMDir, npmDist.Package)
 
 	if err := os.MkdirAll(metaDir, 0755); err != nil {
@@ -585,7 +555,7 @@ func stageMetaPackage(layout paths.Layout, cfg *config.Config, npmDist config.Di
 	return nil
 }
 
-func verifyPlatformPackages(layout paths.Layout, cfg *config.Config, npmDist config.DistributionConfig, version string, result *VerificationResult) error {
+func verifyPlatformPackages(layout paths.Layout, cfg *config.Config, npmDist config.NPMDistributionConfig, version string, result *VerificationResult) error {
 	expectedRepositoryURL := npmDist.RepositoryURLValue()
 	for _, target := range cfg.Targets {
 		pkgName := platformPackageName(npmDist.PlatformPackage, target)
@@ -697,7 +667,7 @@ func addVerificationErrorf(result *VerificationResult, format string, args ...in
 	result.Valid = false
 }
 
-func verifyMetaPackage(layout paths.Layout, cfg *config.Config, npmDist config.DistributionConfig, version string, result *VerificationResult) error {
+func verifyMetaPackage(layout paths.Layout, cfg *config.Config, npmDist config.NPMDistributionConfig, version string, result *VerificationResult) error {
 	metaDir := filepath.Join(layout.NPMDir, npmDist.Package)
 	expectedRepositoryURL := npmDist.RepositoryURLValue()
 
@@ -1015,7 +985,7 @@ func npmCommandEnv(npmrcPath string, token string) []string {
 	return env
 }
 
-func usesTrustedPublishing(dist config.DistributionConfig) bool {
+func usesTrustedPublishing(dist config.NPMDistributionConfig) bool {
 	return strings.TrimSpace(dist.PublishAuth) == npmPublishAuthTrusted
 }
 
@@ -1082,7 +1052,7 @@ func equalStringLists(a, b []string) bool {
 	return true
 }
 
-func npmPackageRepository(npmDist config.DistributionConfig) map[string]string {
+func npmPackageRepository(npmDist config.NPMDistributionConfig) map[string]string {
 	repositoryURL := npmDist.RepositoryURLValue()
 	if repositoryURL == "" {
 		return nil

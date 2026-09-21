@@ -58,10 +58,10 @@ func TestNPMCommandFlowTrustedPublishingProfile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("config.Load(%q) error = %v", paths.ConfigPath, err)
 	}
-	npmDist := cfg.Distributions["npm"]
+	npmDist := *cfg.Distributions.NPM
 	npmDist.PublishAuth = "trusted"
 	npmDist.RepositoryURL = "git+https://github.com/metalagman/omnidist.git"
-	cfg.Distributions["npm"] = npmDist
+	*cfg.Distributions.NPM = npmDist
 	if err := config.Save(cfg, paths.ConfigPath); err != nil {
 		t.Fatalf("config.Save(%q) error = %v", paths.ConfigPath, err)
 	}
@@ -126,7 +126,7 @@ func TestPublishPreflightFailureAttemptsNoUploads(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cfg.EnabledDistributions = []string{"npm", "uv"}
+	cfg = configWithoutGem(cfg)
 	if err := config.Save(cfg, paths.ConfigPath); err != nil {
 		t.Fatal(err)
 	}
@@ -168,7 +168,7 @@ func TestAggregatePublishPreservesSelectedBackendOrder(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cfg.EnabledDistributions = []string{"uv", "npm"}
+	cfg = configWithoutGem(cfg)
 	if err := config.Save(cfg, paths.ConfigPath); err != nil {
 		t.Fatal(err)
 	}
@@ -225,6 +225,21 @@ func setupCommandFlowProject() error {
 		}
 	}
 	return shared.WriteBuildVersion("1.2.3")
+}
+
+func configWithoutGem(cfg *config.Config) *config.Config {
+	return &config.Config{
+		Tool:       cfg.Tool,
+		Version:    cfg.Version,
+		ReadmePath: cfg.ReadmePath,
+		Targets:    append([]config.Target(nil), cfg.Targets...),
+		Build:      cfg.Build,
+		Distributions: config.DistributionConfigs{
+			NPM: cfg.Distributions.NPM,
+			UV:  cfg.Distributions.UV,
+		},
+		Runtime: cfg.Runtime,
+	}
 }
 
 func installFakeTool(t *testing.T, dir string, name string, script string) error {

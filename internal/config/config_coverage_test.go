@@ -7,9 +7,9 @@ import (
 	"testing"
 )
 
-func TestDistributionConfigIncludeREADMEEnabled(t *testing.T) {
+func TestDistributionIncludeREADMEEnabled(t *testing.T) {
 	t.Run("nil", func(t *testing.T) {
-		d := DistributionConfig{IncludeREADME: nil}
+		d := NPMDistributionConfig{IncludeREADME: nil}
 		if !d.IncludeREADMEEnabled() {
 			t.Fatalf("IncludeREADMEEnabled(nil) = false, want true")
 		}
@@ -17,7 +17,7 @@ func TestDistributionConfigIncludeREADMEEnabled(t *testing.T) {
 
 	t.Run("true", func(t *testing.T) {
 		val := true
-		d := DistributionConfig{IncludeREADME: &val}
+		d := UVDistributionConfig{IncludeREADME: &val}
 		if !d.IncludeREADMEEnabled() {
 			t.Fatalf("IncludeREADMEEnabled(true) = false, want true")
 		}
@@ -25,7 +25,7 @@ func TestDistributionConfigIncludeREADMEEnabled(t *testing.T) {
 
 	t.Run("false", func(t *testing.T) {
 		val := false
-		d := DistributionConfig{IncludeREADME: &val}
+		d := GemDistributionConfig{IncludeREADME: &val}
 		if d.IncludeREADMEEnabled() {
 			t.Fatalf("IncludeREADMEEnabled(false) = true, want false")
 		}
@@ -70,16 +70,10 @@ func TestLoadInvalidYAML(t *testing.T) {
 }
 
 func TestApplyDistributionDefaultsNilDistributions(t *testing.T) {
-	cfg := &Config{Distributions: nil}
+	cfg := &Config{}
 	applyDistributionDefaults(cfg)
-	if cfg.Distributions == nil {
-		t.Fatalf("applyDistributionDefaults() failed to initialize Distributions map")
-	}
-	if _, ok := cfg.Distributions["npm"]; !ok {
-		t.Fatalf("applyDistributionDefaults() missing npm default")
-	}
-	if _, ok := cfg.Distributions["uv"]; !ok {
-		t.Fatalf("applyDistributionDefaults() missing uv default")
+	if len(cfg.Distributions.Names()) != 0 {
+		t.Fatalf("applyDistributionDefaults() materialized absent distributions: %#v", cfg.Distributions)
 	}
 }
 

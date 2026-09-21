@@ -11,7 +11,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 
@@ -27,7 +26,6 @@ const (
 	rubygemsAPIKeyEnv  = "RUBYGEMS_API_KEY"
 )
 
-var gemNamePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
 var (
 	lookPath = exec.LookPath
 	command  = exec.Command
@@ -215,36 +213,8 @@ func NormalizeVersion(version string) (string, error) {
 	return v, nil
 }
 
-func gemDistribution(cfg *config.Config) (config.DistributionConfig, error) {
-	if cfg == nil {
-		return config.DistributionConfig{}, fmt.Errorf("config is nil")
-	}
-	dist, ok := cfg.Distributions["gem"]
-	if !ok {
-		return config.DistributionConfig{}, fmt.Errorf("missing required distribution: gem")
-	}
-	dist.Package = strings.TrimSpace(dist.Package)
-	dist.Registry = strings.TrimSpace(dist.Registry)
-	dist.PublishAuth = strings.TrimSpace(dist.PublishAuth)
-	dist.RepositoryURL = dist.RepositoryURLValue()
-	dist.License = dist.LicenseValue()
-	dist.ReadmePath = strings.TrimSpace(dist.ReadmePath)
-	if dist.Package == "" {
-		return config.DistributionConfig{}, fmt.Errorf("gem distribution package is required")
-	}
-	if !gemNamePattern.MatchString(dist.Package) {
-		return config.DistributionConfig{}, fmt.Errorf("invalid gem package name %q", dist.Package)
-	}
-	if dist.Registry == "" {
-		dist.Registry = defaultGemRegistry
-	}
-	if dist.PublishAuth == "" {
-		dist.PublishAuth = "token"
-	}
-	if dist.PublishAuth != "token" && dist.PublishAuth != "trusted" {
-		return config.DistributionConfig{}, fmt.Errorf("invalid gem publish-auth %q: expected token or trusted", dist.PublishAuth)
-	}
-	return dist, nil
+func gemDistribution(cfg *config.Config) (config.GemDistributionConfig, error) {
+	return cfg.RequireGem()
 }
 
 func layoutForConfig(cfg *config.Config) paths.Layout {
@@ -276,7 +246,7 @@ func resolveStagedGemVersion(cfg *config.Config, layout paths.Layout) (string, e
 	return NormalizeVersion(version)
 }
 
-func stageGemForTarget(layout paths.Layout, cfg *config.Config, dist config.DistributionConfig, target config.Target, version string) error {
+func stageGemForTarget(layout paths.Layout, cfg *config.Config, dist config.GemDistributionConfig, target config.Target, version string) error {
 	srcBinary := binaryPath(layout, cfg.Tool.Name, target)
 	if _, err := os.Stat(srcBinary); err != nil {
 		return fmt.Errorf("missing built binary %s; run `omnidist build` before `omnidist gem stage`", srcBinary)
@@ -343,7 +313,7 @@ func stageGemForTarget(layout paths.Layout, cfg *config.Config, dist config.Dist
 	return nil
 }
 
-func gemspecContent(dist config.DistributionConfig, executable string, version string, platform string) string {
+func gemspecContent(dist config.GemDistributionConfig, executable string, version string, platform string) string {
 	license := dist.LicenseValue()
 	if license == "" {
 		license = "MIT"
@@ -380,7 +350,7 @@ end
 `, dist.Package, version, fmt.Sprintf("Prebuilt %s CLI packaged by omnidist", executable), fmt.Sprintf("Prebuilt %s CLI packaged by omnidist with platform-specific binaries", executable), license, repositoryURL, platform, executable, repositoryURL, allowedPushHostLine, readmeLine)
 }
 
-func repositoryURLOrDefault(dist config.DistributionConfig) string {
+func repositoryURLOrDefault(dist config.GemDistributionConfig) string {
 	if v := dist.RepositoryURLValue(); v != "" {
 		return v
 	}
@@ -427,7 +397,7 @@ func binaryPath(layout paths.Layout, toolName string, target config.Target) stri
 	return filepath.Join(layout.DistDir, target.OS, target.Arch, name)
 }
 
-func gemArtifactPath(layout paths.Layout, dist config.DistributionConfig, target config.Target, version string) string {
+func gemArtifactPath(layout paths.Layout, dist config.GemDistributionConfig, target config.Target, version string) string {
 	return filepath.Join(layout.GemPkgDir, fmt.Sprintf("%s-%s-%s.gem", dist.Package, version, gemPlatform(target)))
 }
 
@@ -540,7 +510,7 @@ func verifyGemData(data []byte, executable string) error {
 	return nil
 }
 
-func publishEnv(dist config.DistributionConfig, opts PublishOptions) ([]string, error) {
+func publishEnv(dist config.GemDistributionConfig, opts PublishOptions) ([]string, error) {
 	env := append([]string{}, os.Environ()...)
 	key := strings.TrimSpace(opts.APIKey)
 	if key == "" {

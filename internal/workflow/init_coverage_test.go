@@ -15,8 +15,8 @@ func TestCreateNPMStructureWithVariant(t *testing.T) {
 	t.Chdir(dir)
 
 	cfg := &config.Config{
-		Distributions: map[string]config.DistributionConfig{
-			"npm": {Package: "pkg"},
+		Distributions: config.DistributionConfigs{
+			NPM: &config.NPMDistributionConfig{Package: "pkg"},
 		},
 		Targets: []config.Target{
 			{OS: "linux", Arch: "amd64", Variant: "musl"},
@@ -45,8 +45,8 @@ func TestCreateNPMStructureErrors(t *testing.T) {
 			t.Fatalf("os.WriteFile(%q) error = %v", paths.NPMDir, err)
 		}
 		cfg := &config.Config{
-			Distributions: map[string]config.DistributionConfig{
-				"npm": {Package: "pkg"},
+			Distributions: config.DistributionConfigs{
+				NPM: &config.NPMDistributionConfig{Package: "pkg"},
 			},
 		}
 		err := CreateNPMStructure(cfg)
@@ -67,8 +67,8 @@ func TestCreateNPMStructureErrors(t *testing.T) {
 			t.Fatalf("os.WriteFile(%q) error = %v", metaDir, err)
 		}
 		cfg := &config.Config{
-			Distributions: map[string]config.DistributionConfig{
-				"npm": {Package: "pkg"},
+			Distributions: config.DistributionConfigs{
+				NPM: &config.NPMDistributionConfig{Package: "pkg"},
 			},
 		}
 		err := CreateNPMStructure(cfg)
@@ -89,8 +89,8 @@ func TestCreateNPMStructureErrors(t *testing.T) {
 			t.Fatalf("os.WriteFile(%q) error = %v", pkgDir, err)
 		}
 		cfg := &config.Config{
-			Distributions: map[string]config.DistributionConfig{
-				"npm": {Package: "pkg"},
+			Distributions: config.DistributionConfigs{
+				NPM: &config.NPMDistributionConfig{Package: "pkg"},
 			},
 			Targets: []config.Target{
 				{OS: "linux", Arch: "amd64"},
@@ -112,8 +112,8 @@ func TestCreateUVStructureErrors(t *testing.T) {
 			t.Fatalf("os.WriteFile(%q) error = %v", paths.WorkspaceDir, err)
 		}
 		cfg := &config.Config{
-			Distributions: map[string]config.DistributionConfig{
-				"uv": {Package: "pkg"},
+			Distributions: config.DistributionConfigs{
+				UV: &config.UVDistributionConfig{Package: "pkg"},
 			},
 		}
 		err := CreateUVStructure(cfg)

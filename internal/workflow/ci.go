@@ -57,15 +57,15 @@ func GenerateGitHubReleaseWorkflow(cfg *config.Config, opts CIWorkflowOptions) (
 			return "", err
 		}
 	}
-	enabledNames, err := cfg.EnabledDistributionNames()
+	selectedNames, err := cfg.SelectedDistributionNames()
 	if err != nil {
-		return "", fmt.Errorf("resolve enabled distributions: %w", err)
+		return "", fmt.Errorf("resolve selected distributions: %w", err)
 	}
-	enabled := make(map[string]bool, len(enabledNames))
-	for _, name := range enabledNames {
-		enabled[name] = true
+	selected := make(map[config.DistributionName]bool, len(selectedNames))
+	for _, name := range selectedNames {
+		selected[name] = true
 	}
-	only := shellQuote(strings.Join(enabledNames, ","))
+	only := shellQuote(strings.Join(config.DistributionNameStrings(selectedNames), ","))
 	workspaceDir := cfg.EffectiveWorkspaceDir()
 	workspaceDistDir := workspaceDir + "/dist"
 	omnidistCmd := workflowOmnidistCommand(cfg, useLocalSource)
@@ -81,14 +81,14 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 jobs:
 `)
-	content.WriteString(renderPrepareJob(installCmd, omnidistCmd, only, workspaceDir, workspaceDistDir, enabled, useLocalSource))
-	if enabled["npm"] {
+	content.WriteString(renderPrepareJob(installCmd, omnidistCmd, only, workspaceDir, workspaceDistDir, selected, useLocalSource))
+	if selected[config.DistributionNPM] {
 		content.WriteString(renderNPMPublishJob(cfg, installCmd, omnidistCmd, useLocalSource))
 	}
-	if enabled["uv"] {
+	if selected[config.DistributionUV] {
 		content.WriteString(renderUVPublishJob(installCmd, omnidistCmd, useLocalSource))
 	}
-	if enabled["gem"] {
+	if selected[config.DistributionGem] {
 		content.WriteString(renderGemPublishJob(cfg, installCmd, omnidistCmd, useLocalSource))
 	}
 	content.WriteString(renderReleaseJob(workspaceDistDir))
@@ -96,17 +96,17 @@ jobs:
 	return content.String(), nil
 }
 
-func renderPrepareJob(installCmd, omnidistCmd, only, workspaceDir, workspaceDistDir string, enabled map[string]bool, useLocalSource bool) string {
+func renderPrepareJob(installCmd, omnidistCmd, only, workspaceDir, workspaceDistDir string, selected map[config.DistributionName]bool, useLocalSource bool) string {
 	nodeSetup := ""
 	if !useLocalSource {
 		nodeSetup = githubActionsNodeSetupStep()
 	}
 	uvSetup := ""
-	if enabled["uv"] {
+	if selected[config.DistributionUV] {
 		uvSetup = "      - uses: astral-sh/setup-uv@v6"
 	}
 	rubySetup := ""
-	if enabled["gem"] {
+	if selected[config.DistributionGem] {
 		rubySetup = workflowRubySetupStep()
 	}
 	return fmt.Sprintf(`  prepare:
@@ -415,8 +415,8 @@ func usesTrustedGemPublishAuth(cfg *config.Config) bool {
 	if cfg == nil {
 		return false
 	}
-	gemDist, ok := cfg.Distributions["gem"]
-	if !ok {
+	gemDist := cfg.Distributions.Gem
+	if gemDist == nil {
 		return false
 	}
 	registry := strings.TrimSpace(gemDist.Registry)
@@ -428,8 +428,8 @@ func usesTrustedNPMPublishAuth(cfg *config.Config) bool {
 	if cfg == nil {
 		return false
 	}
-	npmDist, ok := cfg.Distributions["npm"]
-	if !ok {
+	npmDist := cfg.Distributions.NPM
+	if npmDist == nil {
 		return false
 	}
 	return strings.TrimSpace(npmDist.PublishAuth) == "trusted"

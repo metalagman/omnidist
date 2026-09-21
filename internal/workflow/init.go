@@ -11,7 +11,6 @@ import (
 
 	"github.com/metalagman/omnidist/internal/config"
 	"github.com/metalagman/omnidist/internal/paths"
-	"gopkg.in/yaml.v3"
 )
 
 var getWorkingDir = os.Getwd
@@ -43,7 +42,7 @@ func Init(configPath string, opts InitOptions) error {
 		return err
 	}
 
-	if err := saveProfilesConfig(cfg, configPath, opts.Force); err != nil {
+	if err := config.WriteProfiles(configPath, config.DefaultProfileName, cfg, opts.Force); err != nil {
 		return fmt.Errorf("save config: %w", err)
 	}
 
@@ -74,17 +73,9 @@ func defaultInitConfig(wd string, opts InitOptions) (*config.Config, error) {
 	cfg.Tool.Name = slug
 	cfg.Tool.Main = mainPath
 
-	npmDist := cfg.Distributions["npm"]
-	npmDist.Package = fmt.Sprintf("@%s/%s", slug, slug)
-	cfg.Distributions["npm"] = npmDist
-
-	uvDist := cfg.Distributions["uv"]
-	uvDist.Package = slug
-	cfg.Distributions["uv"] = uvDist
-
-	gemDist := cfg.Distributions["gem"]
-	gemDist.Package = slug
-	cfg.Distributions["gem"] = gemDist
+	cfg.Distributions.NPM.Package = fmt.Sprintf("@%s/%s", slug, slug)
+	cfg.Distributions.UV.Package = slug
+	cfg.Distributions.Gem.Package = slug
 
 	return cfg, nil
 }
@@ -214,8 +205,8 @@ func CreateNPMStructure(cfg *config.Config) error {
 	if cfg == nil {
 		return fmt.Errorf("config is nil")
 	}
-	dist, ok := cfg.Distributions["npm"]
-	if !ok || strings.TrimSpace(dist.Package) == "" {
+	dist := cfg.Distributions.NPM
+	if dist == nil || strings.TrimSpace(dist.Package) == "" {
 		return nil
 	}
 
@@ -249,8 +240,8 @@ func CreateUVStructure(cfg *config.Config) error {
 	if cfg == nil {
 		return fmt.Errorf("config is nil")
 	}
-	dist, ok := cfg.Distributions["uv"]
-	if !ok || strings.TrimSpace(dist.Package) == "" {
+	dist := cfg.Distributions.UV
+	if dist == nil || strings.TrimSpace(dist.Package) == "" {
 		return nil
 	}
 
@@ -280,70 +271,6 @@ func EnsureWorkspaceGitignore(path string) error {
 	content := "*\n!.gitignore\n!omnidist.yaml\n"
 	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
 		return fmt.Errorf("write gitignore %s: %w", path, err)
-	}
-	return nil
-}
-
-func saveProfilesConfig(cfg *config.Config, configPath string, force bool) error {
-	if cfg == nil {
-		return fmt.Errorf("config is nil")
-	}
-
-	var file struct {
-		Profiles map[string]config.Config `yaml:"profiles"`
-	}
-	file.Profiles = map[string]config.Config{
-		config.DefaultProfileName: *cfg,
-	}
-
-	data, err := yaml.Marshal(file)
-	if err != nil {
-		return fmt.Errorf("marshal profile config: %w", err)
-	}
-
-	dir := filepath.Dir(configPath)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return fmt.Errorf("create config directory %s: %w", dir, err)
-	}
-
-	if !force {
-		file, err := os.OpenFile(configPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
-		if err != nil {
-			return fmt.Errorf("create config file %s: %w", configPath, err)
-		}
-		if _, err := file.Write(data); err != nil {
-			_ = file.Close()
-			return fmt.Errorf("write config file %s: %w", configPath, err)
-		}
-		if err := file.Close(); err != nil {
-			return fmt.Errorf("close config file %s: %w", configPath, err)
-		}
-		return nil
-	}
-
-	tmp, err := os.CreateTemp(dir, ".omnidist.yaml-*")
-	if err != nil {
-		return fmt.Errorf("create temporary config in %s: %w", dir, err)
-	}
-	tmpPath := tmp.Name()
-	defer os.Remove(tmpPath)
-	if err := tmp.Chmod(0644); err != nil {
-		_ = tmp.Close()
-		return fmt.Errorf("set temporary config permissions: %w", err)
-	}
-	if _, err := tmp.Write(data); err != nil {
-		_ = tmp.Close()
-		return fmt.Errorf("write temporary config: %w", err)
-	}
-	if err := tmp.Sync(); err != nil {
-		_ = tmp.Close()
-		return fmt.Errorf("sync temporary config: %w", err)
-	}
-	if err := tmp.Close(); err != nil {
-		return fmt.Errorf("close temporary config: %w", err)
-	}
-	if err := os.Rename(tmpPath, configPath); err != nil {
-		return fmt.Errorf("replace config file %s: %w", configPath, err)
 	}
 	return nil
 }

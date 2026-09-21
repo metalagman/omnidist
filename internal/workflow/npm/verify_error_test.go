@@ -35,7 +35,7 @@ func TestVerifyErrors(t *testing.T) {
 
 		// Remove a platform package.json
 		target := cfg.Targets[0]
-		pkgName := platformPackageName(cfg.Distributions["npm"].Package, target)
+		pkgName := platformPackageName(cfg.Distributions.NPM.Package, target)
 		os.Remove(filepath.Join(paths.NPMDir, pkgName, "package.json"))
 
 		result := Verify(cfg)
@@ -55,7 +55,7 @@ func TestVerifyErrors(t *testing.T) {
 		Stage(cfg, StageOptions{})
 
 		target := cfg.Targets[0]
-		pkgName := platformPackageName(cfg.Distributions["npm"].Package, target)
+		pkgName := platformPackageName(cfg.Distributions.NPM.Package, target)
 		pkgDir := filepath.Join(paths.NPMDir, pkgName)
 		pkgJSON, _ := readPackageJSON(pkgDir)
 		pkgJSON["os"] = []interface{}{"wrong-os"}
@@ -78,7 +78,7 @@ func TestVerifyErrors(t *testing.T) {
 		Stage(cfg, StageOptions{})
 
 		target := cfg.Targets[0]
-		pkgName := platformPackageName(cfg.Distributions["npm"].Package, target)
+		pkgName := platformPackageName(cfg.Distributions.NPM.Package, target)
 		pkgDir := filepath.Join(paths.NPMDir, pkgName)
 		pkgJSON, _ := readPackageJSON(pkgDir)
 		pkgJSON["cpu"] = []interface{}{"wrong-cpu"}
@@ -101,7 +101,7 @@ func TestVerifyErrors(t *testing.T) {
 		Stage(cfg, StageOptions{})
 
 		target := cfg.Targets[0]
-		pkgName := platformPackageName(cfg.Distributions["npm"].Package, target)
+		pkgName := platformPackageName(cfg.Distributions.NPM.Package, target)
 		pkgDir := filepath.Join(paths.NPMDir, pkgName)
 		binaryName := cfg.Tool.Name
 		if target.OS == "windows" {
@@ -126,7 +126,7 @@ func TestVerifyErrors(t *testing.T) {
 		Stage(cfg, StageOptions{})
 
 		target := cfg.Targets[0]
-		pkgName := platformPackageName(cfg.Distributions["npm"].Package, target)
+		pkgName := platformPackageName(cfg.Distributions.NPM.Package, target)
 		pkgDir := filepath.Join(paths.NPMDir, pkgName)
 		pkgJSON, _ := readPackageJSON(pkgDir)
 		pkgJSON["scripts"] = map[string]interface{}{"postinstall": "do-something"}
@@ -149,7 +149,7 @@ func TestVerifyErrors(t *testing.T) {
 		Stage(cfg, StageOptions{})
 
 		target := cfg.Targets[0]
-		pkgName := platformPackageName(cfg.Distributions["npm"].Package, target)
+		pkgName := platformPackageName(cfg.Distributions.NPM.Package, target)
 		pkgDir := filepath.Join(paths.NPMDir, pkgName)
 		pkgJSON, _ := readPackageJSON(pkgDir)
 		pkgJSON["bin"] = map[string]interface{}{cfg.Tool.Name: "bin/" + cfg.Tool.Name}
@@ -171,7 +171,7 @@ func TestVerifyErrors(t *testing.T) {
 		shared.WriteBuildVersion("1.0.0")
 		Stage(cfg, StageOptions{})
 
-		metaDir := filepath.Join(paths.NPMDir, cfg.Distributions["npm"].Package)
+		metaDir := filepath.Join(paths.NPMDir, cfg.Distributions.NPM.Package)
 		os.Remove(filepath.Join(metaDir, "package.json"))
 
 		result := Verify(cfg)
@@ -190,7 +190,7 @@ func TestVerifyErrors(t *testing.T) {
 		shared.WriteBuildVersion("1.0.0")
 		Stage(cfg, StageOptions{})
 
-		metaDir := filepath.Join(paths.NPMDir, cfg.Distributions["npm"].Package)
+		metaDir := filepath.Join(paths.NPMDir, cfg.Distributions.NPM.Package)
 		pkgJSON, _ := readPackageJSON(metaDir)
 		pkgJSON["scripts"] = map[string]interface{}{"postinstall": "do-something"}
 		writePackageJSON(metaDir, pkgJSON)
@@ -211,7 +211,7 @@ func TestVerifyErrors(t *testing.T) {
 		shared.WriteBuildVersion("1.0.0")
 		Stage(cfg, StageOptions{})
 
-		metaDir := filepath.Join(paths.NPMDir, cfg.Distributions["npm"].Package)
+		metaDir := filepath.Join(paths.NPMDir, cfg.Distributions.NPM.Package)
 		pkgJSON, _ := readPackageJSON(metaDir)
 		delete(pkgJSON, "bin")
 		writePackageJSON(metaDir, pkgJSON)
@@ -228,14 +228,14 @@ func TestVerifyErrors(t *testing.T) {
 		t.Chdir(dir)
 		t.Setenv(shared.EnvVersionName, "1.0.0")
 		cfg := testConfig()
-		npmDist := cfg.Distributions["npm"]
+		npmDist := *cfg.Distributions.NPM
 		npmDist.Keywords = []string{"ai", "llm", "cli"}
-		cfg.Distributions["npm"] = npmDist
+		*cfg.Distributions.NPM = npmDist
 		createDistArtifacts(cfg)
 		shared.WriteBuildVersion("1.0.0")
 		Stage(cfg, StageOptions{})
 
-		metaDir := filepath.Join(paths.NPMDir, cfg.Distributions["npm"].Package)
+		metaDir := filepath.Join(paths.NPMDir, cfg.Distributions.NPM.Package)
 		pkgJSON, _ := readPackageJSON(metaDir)
 		pkgJSON["keywords"] = []interface{}{"ai"}
 		writePackageJSON(metaDir, pkgJSON)
@@ -252,20 +252,20 @@ func TestVerifyErrors(t *testing.T) {
 		t.Chdir(dir)
 		t.Setenv(shared.EnvVersionName, "1.0.0")
 		cfg := testConfig()
-		npmDist := cfg.Distributions["npm"]
+		npmDist := *cfg.Distributions.NPM
 		npmDist.License = "MIT"
-		cfg.Distributions["npm"] = npmDist
+		*cfg.Distributions.NPM = npmDist
 		createDistArtifacts(cfg)
 		shared.WriteBuildVersion("1.0.0")
 		Stage(cfg, StageOptions{})
 
-		metaDir := filepath.Join(paths.NPMDir, cfg.Distributions["npm"].Package)
+		metaDir := filepath.Join(paths.NPMDir, cfg.Distributions.NPM.Package)
 		metaJSON, _ := readPackageJSON(metaDir)
 		metaJSON["license"] = "Apache-2.0"
 		writePackageJSON(metaDir, metaJSON)
 
 		target := cfg.Targets[0]
-		pkgName := platformPackageName(cfg.Distributions["npm"].Package, target)
+		pkgName := platformPackageName(cfg.Distributions.NPM.Package, target)
 		pkgDir := filepath.Join(paths.NPMDir, pkgName)
 		pkgJSON, _ := readPackageJSON(pkgDir)
 		pkgJSON["license"] = "Apache-2.0"
@@ -288,7 +288,7 @@ func TestVerifyErrors(t *testing.T) {
 		shared.WriteBuildVersion("1.0.0")
 		Stage(cfg, StageOptions{})
 
-		metaDir := filepath.Join(paths.NPMDir, cfg.Distributions["npm"].Package)
+		metaDir := filepath.Join(paths.NPMDir, cfg.Distributions.NPM.Package)
 		pkgJSON, _ := readPackageJSON(metaDir)
 		delete(pkgJSON, "optionalDependencies")
 		writePackageJSON(metaDir, pkgJSON)
@@ -309,11 +309,11 @@ func TestVerifyErrors(t *testing.T) {
 		shared.WriteBuildVersion("1.0.0")
 		Stage(cfg, StageOptions{})
 
-		metaDir := filepath.Join(paths.NPMDir, cfg.Distributions["npm"].Package)
+		metaDir := filepath.Join(paths.NPMDir, cfg.Distributions.NPM.Package)
 		pkgJSON, _ := readPackageJSON(metaDir)
 		optionalDeps := pkgJSON["optionalDependencies"].(map[string]interface{})
 		target := cfg.Targets[0]
-		pkgName := platformPackageName(cfg.Distributions["npm"].Package, target)
+		pkgName := platformPackageName(cfg.Distributions.NPM.Package, target)
 		delete(optionalDeps, pkgName)
 		writePackageJSON(metaDir, pkgJSON)
 
@@ -333,11 +333,11 @@ func TestVerifyErrors(t *testing.T) {
 		shared.WriteBuildVersion("1.0.0")
 		Stage(cfg, StageOptions{})
 
-		metaDir := filepath.Join(paths.NPMDir, cfg.Distributions["npm"].Package)
+		metaDir := filepath.Join(paths.NPMDir, cfg.Distributions.NPM.Package)
 		pkgJSON, _ := readPackageJSON(metaDir)
 		optionalDeps := pkgJSON["optionalDependencies"].(map[string]interface{})
 		target := cfg.Targets[0]
-		pkgName := platformPackageName(cfg.Distributions["npm"].Package, target)
+		pkgName := platformPackageName(cfg.Distributions.NPM.Package, target)
 		optionalDeps[pkgName] = "2.0.0"
 		writePackageJSON(metaDir, pkgJSON)
 
@@ -357,7 +357,7 @@ func TestVerifyErrors(t *testing.T) {
 		shared.WriteBuildVersion("1.0.0")
 		Stage(cfg, StageOptions{})
 
-		metaDir := filepath.Join(paths.NPMDir, cfg.Distributions["npm"].Package)
+		metaDir := filepath.Join(paths.NPMDir, cfg.Distributions.NPM.Package)
 		os.Remove(filepath.Join(metaDir, cfg.Tool.Name+".js"))
 
 		result := Verify(cfg)

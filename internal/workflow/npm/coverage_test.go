@@ -112,10 +112,10 @@ func TestPublishErrors(t *testing.T) {
 
 	t.Run("missing_npm_distribution", func(t *testing.T) {
 		cfg := &config.Config{
-			Distributions: map[string]config.DistributionConfig{},
+			Distributions: config.DistributionConfigs{},
 		}
 		err := Publish(cfg, PublishOptions{})
-		if err == nil || !strings.Contains(err.Error(), "missing required distribution: npm") {
+		if err == nil || !strings.Contains(err.Error(), "distributions.npm is required") {
 			t.Fatalf("Publish(no npm) error = %v, want missing npm error", err)
 		}
 	})

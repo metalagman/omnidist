@@ -1,7 +1,9 @@
 package config
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"path"
 	"path/filepath"
@@ -24,60 +26,91 @@ const (
 var (
 	profileNamePattern    = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
 	npmPackageNamePattern = regexp.MustCompile(`^(?:@[a-z0-9][a-z0-9._-]*/)?[a-z0-9][a-z0-9._-]*$`)
+	gemPackageNamePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
 )
 
 const maxNPMPackageNameLength = 214
 
 // Config is the root omnidist configuration loaded from omnidist.yaml.
 type Config struct {
-	Tool                 ToolConfig                    `yaml:"tool"`
-	Version              VersionConfig                 `yaml:"version"`
-	ReadmePath           string                        `yaml:"readme-path,omitempty"`
-	Targets              []Target                      `yaml:"targets"`
-	Build                BuildConfig                   `yaml:"build"`
-	EnabledDistributions []string                      `yaml:"enabled-distributions,omitempty"`
-	Distributions        map[string]DistributionConfig `yaml:"distributions"`
-	Runtime              RuntimeConfig                 `yaml:"-"`
+	Tool          ToolConfig
+	Version       VersionConfig
+	ReadmePath    string
+	Targets       []Target
+	Build         BuildConfig
+	Distributions DistributionConfigs
+	Runtime       RuntimeConfig
+
+	selectedDistributions []DistributionName
 }
 
-var supportedDistributionNames = []string{"npm", "uv", "gem"}
+// DistributionName identifies a supported release backend.
+type DistributionName string
 
-// EnabledDistributionNames returns enabled distributions in deterministic execution order.
-// A missing enabled-distributions field preserves the legacy behavior of enabling every backend.
-func (cfg *Config) EnabledDistributionNames() ([]string, error) {
+const (
+	DistributionNPM DistributionName = "npm"
+	DistributionUV  DistributionName = "uv"
+	DistributionGem DistributionName = "gem"
+)
+
+var supportedDistributionNames = []DistributionName{
+	DistributionNPM,
+	DistributionUV,
+	DistributionGem,
+}
+
+// SupportedDistributionNames returns the canonical backend execution order.
+func SupportedDistributionNames() []DistributionName {
+	return append([]DistributionName(nil), supportedDistributionNames...)
+}
+
+// ParseDistributionName parses a backend name.
+func ParseDistributionName(raw string) (DistributionName, error) {
+	name := DistributionName(strings.ToLower(strings.TrimSpace(raw)))
+	switch name {
+	case DistributionNPM, DistributionUV, DistributionGem:
+		return name, nil
+	default:
+		return "", fmt.Errorf("invalid distribution %q: expected npm, uv, or gem", raw)
+	}
+}
+
+// DistributionNameStrings converts typed backend names to YAML/CLI strings.
+func DistributionNameStrings(names []DistributionName) []string {
+	values := make([]string, len(names))
+	for i, name := range names {
+		values[i] = string(name)
+	}
+	return values
+}
+
+// SelectedDistributionNames returns selected distributions in deterministic execution order.
+func (cfg *Config) SelectedDistributionNames() ([]DistributionName, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("config is nil")
 	}
-	if cfg.EnabledDistributions != nil && len(cfg.EnabledDistributions) == 0 {
-		return nil, fmt.Errorf("enabled-distributions must contain at least one of npm, uv, or gem")
+	if cfg.selectedDistributions != nil {
+		return append([]DistributionName(nil), cfg.selectedDistributions...), nil
 	}
-
-	configured := cfg.EnabledDistributions
-	if configured == nil {
-		configured = supportedDistributionNames
+	names := cfg.Distributions.Names()
+	if len(names) == 0 {
+		return nil, fmt.Errorf("distributions must configure at least one of npm, uv, or gem")
 	}
+	return names, nil
+}
 
-	enabled := make(map[string]bool, len(configured))
-	for _, raw := range configured {
-		name := strings.ToLower(strings.TrimSpace(raw))
-		switch name {
-		case "npm", "uv", "gem":
-		default:
-			return nil, fmt.Errorf("invalid enabled distribution %q: expected npm, uv, or gem", raw)
-		}
-		if enabled[name] {
-			return nil, fmt.Errorf("duplicate enabled distribution %q", name)
-		}
-		enabled[name] = true
+// IsSelected reports whether a backend belongs to the aggregate selection.
+func (cfg *Config) IsSelected(name DistributionName) bool {
+	names, err := cfg.SelectedDistributionNames()
+	if err != nil {
+		return false
 	}
-
-	resolved := make([]string, 0, len(enabled))
-	for _, name := range supportedDistributionNames {
-		if enabled[name] {
-			resolved = append(resolved, name)
+	for _, selected := range names {
+		if selected == name {
+			return true
 		}
 	}
-	return resolved, nil
+	return false
 }
 
 // RuntimeConfig stores resolved runtime metadata not persisted in YAML.
@@ -107,8 +140,44 @@ type Target struct {
 	Variant string `yaml:"variant,omitempty"`
 }
 
-// DistributionConfig stores distribution-specific packaging settings.
-type DistributionConfig struct {
+// DistributionConfigs stores explicitly configured release backends.
+type DistributionConfigs struct {
+	NPM *NPMDistributionConfig `yaml:"npm,omitempty"`
+	UV  *UVDistributionConfig  `yaml:"uv,omitempty"`
+	Gem *GemDistributionConfig `yaml:"gem,omitempty"`
+}
+
+// Names returns configured backend names in canonical execution order.
+func (d DistributionConfigs) Names() []DistributionName {
+	names := make([]DistributionName, 0, 3)
+	if d.NPM != nil {
+		names = append(names, DistributionNPM)
+	}
+	if d.UV != nil {
+		names = append(names, DistributionUV)
+	}
+	if d.Gem != nil {
+		names = append(names, DistributionGem)
+	}
+	return names
+}
+
+// Has reports whether a backend has an explicit configuration section.
+func (d DistributionConfigs) Has(name DistributionName) bool {
+	switch name {
+	case DistributionNPM:
+		return d.NPM != nil
+	case DistributionUV:
+		return d.UV != nil
+	case DistributionGem:
+		return d.Gem != nil
+	default:
+		return false
+	}
+}
+
+// NPMDistributionConfig stores npm packaging settings.
+type NPMDistributionConfig struct {
 	Package         string   `yaml:"package"`
 	PlatformPackage string   `yaml:"platform-package,omitempty"`
 	Registry        string   `yaml:"registry,omitempty"`
@@ -118,9 +187,178 @@ type DistributionConfig struct {
 	License         string   `yaml:"license,omitempty"`
 	Keywords        []string `yaml:"keywords,omitempty"`
 	ReadmePath      string   `yaml:"readme-path,omitempty"`
-	IndexURL        string   `yaml:"index-url,omitempty"`
-	LinuxTag        string   `yaml:"linux-tag,omitempty"`
 	IncludeREADME   *bool    `yaml:"include-readme,omitempty"`
+}
+
+// UVDistributionConfig stores uv/PyPI packaging settings.
+type UVDistributionConfig struct {
+	Package       string `yaml:"package"`
+	IndexURL      string `yaml:"index-url,omitempty"`
+	LinuxTag      string `yaml:"linux-tag,omitempty"`
+	ReadmePath    string `yaml:"readme-path,omitempty"`
+	IncludeREADME *bool  `yaml:"include-readme,omitempty"`
+}
+
+// GemDistributionConfig stores RubyGems packaging settings.
+type GemDistributionConfig struct {
+	Package       string `yaml:"package"`
+	Registry      string `yaml:"registry,omitempty"`
+	PublishAuth   string `yaml:"publish-auth,omitempty"`
+	RepositoryURL string `yaml:"repository-url,omitempty"`
+	License       string `yaml:"license,omitempty"`
+	ReadmePath    string `yaml:"readme-path,omitempty"`
+	IncludeREADME *bool  `yaml:"include-readme,omitempty"`
+}
+
+type rawNPMDistributionConfig NPMDistributionConfig
+type rawUVDistributionConfig UVDistributionConfig
+type rawGemDistributionConfig GemDistributionConfig
+
+type rawDistributionConfigs struct {
+	NPM *rawNPMDistributionConfig `yaml:"npm,omitempty"`
+	UV  *rawUVDistributionConfig  `yaml:"uv,omitempty"`
+	Gem *rawGemDistributionConfig `yaml:"gem,omitempty"`
+}
+
+type rawDistributionSelector struct {
+	present bool
+	null    bool
+	values  []string
+}
+
+type rawConfig struct {
+	Tool                 ToolConfig             `yaml:"tool"`
+	Version              VersionConfig          `yaml:"version"`
+	ReadmePath           string                 `yaml:"readme-path,omitempty"`
+	Targets              []Target               `yaml:"targets"`
+	Build                BuildConfig            `yaml:"build"`
+	EnabledDistributions yaml.Node              `yaml:"enabled-distributions,omitempty"`
+	Distributions        rawDistributionConfigs `yaml:"distributions"`
+}
+
+type rawProfilesDocument struct {
+	Profiles map[string]rawConfig `yaml:"profiles"`
+}
+
+type persistedConfig struct {
+	Tool          ToolConfig          `yaml:"tool"`
+	Version       VersionConfig       `yaml:"version"`
+	ReadmePath    string              `yaml:"readme-path,omitempty"`
+	Targets       []Target            `yaml:"targets"`
+	Build         BuildConfig         `yaml:"build"`
+	Distributions DistributionConfigs `yaml:"distributions"`
+}
+
+// MarshalYAML prevents resolved runtime configuration from being serialized as source YAML.
+func (Config) MarshalYAML() (interface{}, error) {
+	return nil, fmt.Errorf("resolved Config cannot be marshaled directly; use a configuration writer")
+}
+
+func persistedConfigFromResolved(cfg *Config) (persistedConfig, error) {
+	if cfg == nil {
+		return persistedConfig{}, fmt.Errorf("config is nil")
+	}
+	selected, err := cfg.SelectedDistributionNames()
+	if err != nil {
+		return persistedConfig{}, err
+	}
+	configured := cfg.Distributions.Names()
+	if !sameDistributionNames(selected, configured) {
+		return persistedConfig{}, fmt.Errorf("cannot write canonical config with inactive legacy distributions (selected: %s; configured: %s)", strings.Join(DistributionNameStrings(selected), ","), strings.Join(DistributionNameStrings(configured), ","))
+	}
+	return persistedConfig{
+		Tool:          cfg.Tool,
+		Version:       cfg.Version,
+		ReadmePath:    cfg.ReadmePath,
+		Targets:       append([]Target(nil), cfg.Targets...),
+		Build:         cfg.Build,
+		Distributions: cfg.Distributions,
+	}, nil
+}
+
+func sameDistributionNames(a, b []DistributionName) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// MarshalProfiles serializes one resolved configuration in profiles format.
+func MarshalProfiles(profile string, cfg *Config) ([]byte, error) {
+	if err := validateProfileName(normalizeProfile(profile)); err != nil {
+		return nil, err
+	}
+	persisted, err := persistedConfigFromResolved(cfg)
+	if err != nil {
+		return nil, err
+	}
+	file := struct {
+		Profiles map[string]persistedConfig `yaml:"profiles"`
+	}{
+		Profiles: map[string]persistedConfig{normalizeProfile(profile): persisted},
+	}
+	data, err := yaml.Marshal(file)
+	if err != nil {
+		return nil, fmt.Errorf("marshal profile config: %w", err)
+	}
+	return data, nil
+}
+
+// WriteProfiles writes a canonical profiles configuration without a legacy selector.
+func WriteProfiles(path string, profile string, cfg *Config, force bool) error {
+	data, err := MarshalProfiles(profile, cfg)
+	if err != nil {
+		return err
+	}
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("create config directory %s: %w", dir, err)
+	}
+	if !force {
+		file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
+		if err != nil {
+			return fmt.Errorf("create config file %s: %w", path, err)
+		}
+		if _, err := file.Write(data); err != nil {
+			_ = file.Close()
+			return fmt.Errorf("write config file %s: %w", path, err)
+		}
+		if err := file.Close(); err != nil {
+			return fmt.Errorf("close config file %s: %w", path, err)
+		}
+		return nil
+	}
+
+	tmp, err := os.CreateTemp(dir, ".omnidist.yaml-*")
+	if err != nil {
+		return fmt.Errorf("create temporary config in %s: %w", dir, err)
+	}
+	tmpPath := tmp.Name()
+	defer os.Remove(tmpPath)
+	if err := tmp.Chmod(0644); err != nil {
+		_ = tmp.Close()
+		return fmt.Errorf("set temporary config permissions: %w", err)
+	}
+	if _, err := tmp.Write(data); err != nil {
+		_ = tmp.Close()
+		return fmt.Errorf("write temporary config: %w", err)
+	}
+	if err := tmp.Sync(); err != nil {
+		_ = tmp.Close()
+		return fmt.Errorf("sync temporary config: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		return fmt.Errorf("close temporary config: %w", err)
+	}
+	if err := os.Rename(tmpPath, path); err != nil {
+		return fmt.Errorf("replace config file %s: %w", path, err)
+	}
+	return nil
 }
 
 // ValidateNPMPackageName checks the npm package-name grammar used by Omnidist.
@@ -158,20 +396,43 @@ func ValidateNPMPlatformPackage(base string, targets []Target) error {
 }
 
 // IncludeREADMEEnabled reports whether README.md should be included in staged artifacts.
-func (d DistributionConfig) IncludeREADMEEnabled() bool {
-	if d.IncludeREADME == nil {
+func includeREADMEEnabled(value *bool) bool {
+	if value == nil {
 		return true
 	}
-	return *d.IncludeREADME
+	return *value
+}
+
+// IncludeREADMEEnabled reports whether README.md should be included in npm artifacts.
+func (d NPMDistributionConfig) IncludeREADMEEnabled() bool {
+	return includeREADMEEnabled(d.IncludeREADME)
+}
+
+// IncludeREADMEEnabled reports whether README.md should be included in uv artifacts.
+func (d UVDistributionConfig) IncludeREADMEEnabled() bool {
+	return includeREADMEEnabled(d.IncludeREADME)
+}
+
+// IncludeREADMEEnabled reports whether README.md should be included in gem artifacts.
+func (d GemDistributionConfig) IncludeREADMEEnabled() bool {
+	return includeREADMEEnabled(d.IncludeREADME)
 }
 
 // LicenseValue reports the configured package license value after trimming whitespace.
-func (d DistributionConfig) LicenseValue() string {
+func (d NPMDistributionConfig) LicenseValue() string {
 	return strings.TrimSpace(d.License)
 }
 
+// LicenseValue reports the configured gem license value after trimming whitespace.
+func (d GemDistributionConfig) LicenseValue() string { return strings.TrimSpace(d.License) }
+
 // RepositoryURLValue reports the configured repository URL after trimming whitespace.
-func (d DistributionConfig) RepositoryURLValue() string {
+func (d NPMDistributionConfig) RepositoryURLValue() string {
+	return strings.TrimSpace(d.RepositoryURL)
+}
+
+// RepositoryURLValue reports the configured gem repository URL after trimming whitespace.
+func (d GemDistributionConfig) RepositoryURLValue() string {
 	return strings.TrimSpace(d.RepositoryURL)
 }
 
@@ -228,22 +489,21 @@ func DefaultConfig() *Config {
 			Tags:    []string{},
 			CGO:     false,
 		},
-		EnabledDistributions: append([]string(nil), supportedDistributionNames...),
-		Distributions: map[string]DistributionConfig{
-			"npm": {
+		Distributions: DistributionConfigs{
+			NPM: &NPMDistributionConfig{
 				Package:       "@omnidist/omnidist",
 				Registry:      "https://registry.npmjs.org",
 				Access:        "public",
 				PublishAuth:   "token",
 				IncludeREADME: boolPtr(true),
 			},
-			"uv": {
+			UV: &UVDistributionConfig{
 				Package:       "omnidist",
 				IndexURL:      "https://upload.pypi.org/legacy/",
 				LinuxTag:      "manylinux2014",
 				IncludeREADME: boolPtr(true),
 			},
-			"gem": {
+			Gem: &GemDistributionConfig{
 				Package:       "omnidist",
 				Registry:      "https://rubygems.org",
 				PublishAuth:   "token",
@@ -288,27 +548,23 @@ func LoadWithProfile(path string, profile string) (*Config, error) {
 }
 
 func loadLegacyConfig(path string, data []byte) (*Config, error) {
-	var cfg Config
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return nil, fmt.Errorf("parse config file %s: %w", path, err)
-	}
-
-	applyVersionDefaults(&cfg)
-	applyDistributionDefaults(&cfg)
-	if err := validate(&cfg); err != nil {
+	var raw rawConfig
+	if err := decodeStrict(path, data, &raw); err != nil {
 		return nil, err
 	}
-	applyRuntimeDefaults(&cfg, DefaultProfileName, false)
+	cfg, err := resolveRawConfig(raw)
+	if err != nil {
+		return nil, fmt.Errorf("invalid config file %s: %w", path, err)
+	}
+	applyRuntimeDefaults(cfg, DefaultProfileName, false)
 
-	return &cfg, nil
+	return cfg, nil
 }
 
 func loadProfileConfig(path string, data []byte, selected string) (*Config, error) {
-	var file struct {
-		Profiles map[string]Config `yaml:"profiles"`
-	}
-	if err := yaml.Unmarshal(data, &file); err != nil {
-		return nil, fmt.Errorf("parse config file %s: %w", path, err)
+	var file rawProfilesDocument
+	if err := decodeStrict(path, data, &file); err != nil {
+		return nil, err
 	}
 	if len(file.Profiles) == 0 {
 		return nil, fmt.Errorf("invalid config file %s: profiles map is empty", path)
@@ -319,7 +575,7 @@ func loadProfileConfig(path string, data []byte, selected string) (*Config, erro
 		return nil, err
 	}
 
-	cfg, ok := file.Profiles[selectedProfile]
+	raw, ok := file.Profiles[selectedProfile]
 	if !ok {
 		return nil, fmt.Errorf("profile %q not found in %s; available profiles: %s", selectedProfile, path, strings.Join(sortedProfileNames(file.Profiles), ", "))
 	}
@@ -330,13 +586,128 @@ func loadProfileConfig(path string, data []byte, selected string) (*Config, erro
 		}
 	}
 
-	applyVersionDefaults(&cfg)
-	applyDistributionDefaults(&cfg)
-	if err := validate(&cfg); err != nil {
+	cfg, err := resolveRawConfig(raw)
+	if err != nil {
+		return nil, fmt.Errorf("invalid config file %s: profiles.%s: %w", path, selectedProfile, err)
+	}
+	applyRuntimeDefaults(cfg, selectedProfile, true)
+	return cfg, nil
+}
+
+func decodeStrict(path string, data []byte, out interface{}) error {
+	decoder := yaml.NewDecoder(bytes.NewReader(data))
+	decoder.KnownFields(true)
+	if err := decoder.Decode(out); err != nil {
+		return fmt.Errorf("parse config file %s: %w", path, err)
+	}
+	var extra interface{}
+	if err := decoder.Decode(&extra); err != io.EOF {
+		if err == nil {
+			return fmt.Errorf("parse config file %s: multiple YAML documents are not supported", path)
+		}
+		return fmt.Errorf("parse config file %s: %w", path, err)
+	}
+	return nil
+}
+
+func resolveRawConfig(raw rawConfig) (*Config, error) {
+	cfg := &Config{
+		Tool:          raw.Tool,
+		Version:       raw.Version,
+		ReadmePath:    raw.ReadmePath,
+		Targets:       append([]Target(nil), raw.Targets...),
+		Build:         raw.Build,
+		Distributions: resolveRawDistributions(raw.Distributions),
+	}
+	selector, err := decodeRawSelector(raw.EnabledDistributions)
+	if err != nil {
 		return nil, err
 	}
-	applyRuntimeDefaults(&cfg, selectedProfile, true)
-	return &cfg, nil
+	selected, err := resolveRawSelection(selector, cfg.Distributions)
+	if err != nil {
+		return nil, err
+	}
+	cfg.selectedDistributions = selected
+	applyVersionDefaults(cfg)
+	applyDistributionDefaults(cfg)
+	if err := validate(cfg); err != nil {
+		return nil, err
+	}
+	return cfg, nil
+}
+
+func decodeRawSelector(node yaml.Node) (rawDistributionSelector, error) {
+	if node.Kind == 0 {
+		return rawDistributionSelector{}, nil
+	}
+	selector := rawDistributionSelector{present: true}
+	if node.Tag == "!!null" {
+		selector.null = true
+		return selector, nil
+	}
+	if node.Kind != yaml.SequenceNode {
+		return rawDistributionSelector{}, fmt.Errorf("enabled-distributions must be a sequence")
+	}
+	if err := node.Decode(&selector.values); err != nil {
+		return rawDistributionSelector{}, fmt.Errorf("decode enabled-distributions: %w", err)
+	}
+	return selector, nil
+}
+
+func resolveRawDistributions(raw rawDistributionConfigs) DistributionConfigs {
+	var resolved DistributionConfigs
+	if raw.NPM != nil {
+		value := NPMDistributionConfig(*raw.NPM)
+		resolved.NPM = &value
+	}
+	if raw.UV != nil {
+		value := UVDistributionConfig(*raw.UV)
+		resolved.UV = &value
+	}
+	if raw.Gem != nil {
+		value := GemDistributionConfig(*raw.Gem)
+		resolved.Gem = &value
+	}
+	return resolved
+}
+
+func resolveRawSelection(selector rawDistributionSelector, distributions DistributionConfigs) ([]DistributionName, error) {
+	if !selector.present {
+		names := distributions.Names()
+		if len(names) == 0 {
+			return nil, fmt.Errorf("distributions must configure at least one of npm, uv, or gem")
+		}
+		return names, nil
+	}
+	if selector.null {
+		return nil, fmt.Errorf("enabled-distributions must not be null")
+	}
+	if len(selector.values) == 0 {
+		return nil, fmt.Errorf("enabled-distributions must contain at least one of npm, uv, or gem")
+	}
+
+	seen := make(map[DistributionName]bool, len(selector.values))
+	for _, rawName := range selector.values {
+		name, err := ParseDistributionName(rawName)
+		if err != nil {
+			return nil, fmt.Errorf("invalid enabled distribution %q: expected npm, uv, or gem", rawName)
+		}
+		if seen[name] {
+			return nil, fmt.Errorf("duplicate enabled distribution %q", name)
+		}
+		if !distributions.Has(name) {
+			return nil, fmt.Errorf("distributions.%s is required because enabled-distributions selects %q", name, name)
+		}
+		seen[name] = true
+	}
+
+	selected := make([]DistributionName, 0, len(seen))
+	for _, name := range supportedDistributionNames {
+		if seen[name] {
+			selected = append(selected, name)
+		}
+	}
+	return selected, nil
 }
 
 func applyVersionDefaults(cfg *Config) {
@@ -390,77 +761,25 @@ func containsLegacyFixedVersionKey(raw interface{}) bool {
 }
 
 func applyDistributionDefaults(cfg *Config) {
-	if cfg.Distributions == nil {
-		cfg.Distributions = map[string]DistributionConfig{}
-	}
 	cfg.ReadmePath = strings.TrimSpace(cfg.ReadmePath)
 
-	npmDist := cfg.Distributions["npm"]
-	npmDist.Package = strings.TrimSpace(npmDist.Package)
-	npmDist.PlatformPackage = strings.TrimSpace(npmDist.PlatformPackage)
-	npmDist.Registry = strings.TrimSpace(npmDist.Registry)
-	npmDist.Access = strings.TrimSpace(npmDist.Access)
-	npmDist.PublishAuth = strings.TrimSpace(npmDist.PublishAuth)
-	npmDist.RepositoryURL = npmDist.RepositoryURLValue()
-	npmDist.License = npmDist.LicenseValue()
-	npmDist.Keywords = normalizeKeywords(npmDist.Keywords)
-	npmDist.ReadmePath = strings.TrimSpace(npmDist.ReadmePath)
-	if npmDist.Registry == "" {
-		npmDist.Registry = "https://registry.npmjs.org"
+	if cfg.Distributions.NPM != nil {
+		npmDist := *cfg.Distributions.NPM
+		normalizeNPMDistribution(&npmDist)
+		cfg.Distributions.NPM = &npmDist
 	}
-	if npmDist.Access == "" {
-		npmDist.Access = "public"
-	}
-	if npmDist.PublishAuth == "" {
-		npmDist.PublishAuth = "token"
-	}
-	if npmDist.Package == "" {
-		npmDist.Package = "@omnidist/omnidist"
-	}
-	if npmDist.IncludeREADME == nil {
-		npmDist.IncludeREADME = boolPtr(true)
-	}
-	cfg.Distributions["npm"] = npmDist
 
-	uvDist := cfg.Distributions["uv"]
-	uvDist.Package = strings.TrimSpace(uvDist.Package)
-	uvDist.ReadmePath = strings.TrimSpace(uvDist.ReadmePath)
-	uvDist.IndexURL = strings.TrimSpace(uvDist.IndexURL)
-	uvDist.LinuxTag = strings.TrimSpace(uvDist.LinuxTag)
-	if uvDist.Package == "" {
-		uvDist.Package = "omnidist"
+	if cfg.Distributions.UV != nil {
+		uvDist := *cfg.Distributions.UV
+		normalizeUVDistribution(&uvDist)
+		cfg.Distributions.UV = &uvDist
 	}
-	if uvDist.IndexURL == "" {
-		uvDist.IndexURL = "https://upload.pypi.org/legacy/"
-	}
-	if uvDist.LinuxTag == "" {
-		uvDist.LinuxTag = "manylinux2014"
-	}
-	if uvDist.IncludeREADME == nil {
-		uvDist.IncludeREADME = boolPtr(true)
-	}
-	cfg.Distributions["uv"] = uvDist
 
-	gemDist := cfg.Distributions["gem"]
-	gemDist.Package = strings.TrimSpace(gemDist.Package)
-	gemDist.Registry = strings.TrimSpace(gemDist.Registry)
-	gemDist.PublishAuth = strings.TrimSpace(gemDist.PublishAuth)
-	gemDist.RepositoryURL = gemDist.RepositoryURLValue()
-	gemDist.License = gemDist.LicenseValue()
-	gemDist.ReadmePath = strings.TrimSpace(gemDist.ReadmePath)
-	if gemDist.Package == "" {
-		gemDist.Package = "omnidist"
+	if cfg.Distributions.Gem != nil {
+		gemDist := *cfg.Distributions.Gem
+		normalizeGemDistribution(&gemDist)
+		cfg.Distributions.Gem = &gemDist
 	}
-	if gemDist.Registry == "" {
-		gemDist.Registry = "https://rubygems.org"
-	}
-	if gemDist.PublishAuth == "" {
-		gemDist.PublishAuth = "token"
-	}
-	if gemDist.IncludeREADME == nil {
-		gemDist.IncludeREADME = boolPtr(true)
-	}
-	cfg.Distributions["gem"] = gemDist
 }
 
 func boolPtr(v bool) *bool {
@@ -536,7 +855,7 @@ func validateProfileName(name string) error {
 	return nil
 }
 
-func sortedProfileNames(profiles map[string]Config) []string {
+func sortedProfileNames(profiles map[string]rawConfig) []string {
 	names := make([]string, 0, len(profiles))
 	for name := range profiles {
 		names = append(names, name)
@@ -585,14 +904,159 @@ func (cfg *Config) IsProfilesMode() bool {
 	return cfg != nil && cfg.Runtime.ProfilesMode
 }
 
+// RequireNPM returns validated npm configuration or reports that it is absent.
+func (cfg *Config) RequireNPM() (NPMDistributionConfig, error) {
+	if cfg == nil {
+		return NPMDistributionConfig{}, fmt.Errorf("config is nil")
+	}
+	if cfg.Distributions.NPM == nil {
+		return NPMDistributionConfig{}, fmt.Errorf("distributions.npm is required")
+	}
+	dist := *cfg.Distributions.NPM
+	normalizeNPMDistribution(&dist)
+	if err := validateNPMDistribution(dist, cfg.Targets); err != nil {
+		return NPMDistributionConfig{}, err
+	}
+	if dist.PlatformPackage == "" {
+		dist.PlatformPackage = dist.Package
+	}
+	return dist, nil
+}
+
+// RequireUV returns validated uv configuration or reports that it is absent.
+func (cfg *Config) RequireUV() (UVDistributionConfig, error) {
+	if cfg == nil {
+		return UVDistributionConfig{}, fmt.Errorf("config is nil")
+	}
+	if cfg.Distributions.UV == nil {
+		return UVDistributionConfig{}, fmt.Errorf("distributions.uv is required")
+	}
+	dist := *cfg.Distributions.UV
+	normalizeUVDistribution(&dist)
+	if err := validateUVDistribution(dist); err != nil {
+		return UVDistributionConfig{}, err
+	}
+	return dist, nil
+}
+
+// RequireGem returns validated RubyGems configuration or reports that it is absent.
+func (cfg *Config) RequireGem() (GemDistributionConfig, error) {
+	if cfg == nil {
+		return GemDistributionConfig{}, fmt.Errorf("config is nil")
+	}
+	if cfg.Distributions.Gem == nil {
+		return GemDistributionConfig{}, fmt.Errorf("distributions.gem is required")
+	}
+	dist := *cfg.Distributions.Gem
+	normalizeGemDistribution(&dist)
+	if err := validateGemDistribution(dist); err != nil {
+		return GemDistributionConfig{}, err
+	}
+	return dist, nil
+}
+
+func normalizeNPMDistribution(dist *NPMDistributionConfig) {
+	dist.Package = strings.TrimSpace(dist.Package)
+	dist.PlatformPackage = strings.TrimSpace(dist.PlatformPackage)
+	dist.Registry = strings.TrimSpace(dist.Registry)
+	dist.Access = strings.TrimSpace(dist.Access)
+	dist.PublishAuth = strings.TrimSpace(dist.PublishAuth)
+	dist.RepositoryURL = dist.RepositoryURLValue()
+	dist.License = dist.LicenseValue()
+	dist.Keywords = normalizeKeywords(dist.Keywords)
+	dist.ReadmePath = strings.TrimSpace(dist.ReadmePath)
+	if dist.Registry == "" {
+		dist.Registry = "https://registry.npmjs.org"
+	}
+	if dist.Access == "" {
+		dist.Access = "public"
+	}
+	if dist.PublishAuth == "" {
+		dist.PublishAuth = "token"
+	}
+	if dist.IncludeREADME == nil {
+		dist.IncludeREADME = boolPtr(true)
+	}
+}
+
+func normalizeUVDistribution(dist *UVDistributionConfig) {
+	dist.Package = strings.TrimSpace(dist.Package)
+	dist.ReadmePath = strings.TrimSpace(dist.ReadmePath)
+	dist.IndexURL = strings.TrimSpace(dist.IndexURL)
+	dist.LinuxTag = strings.TrimSpace(dist.LinuxTag)
+	if dist.IndexURL == "" {
+		dist.IndexURL = "https://upload.pypi.org/legacy/"
+	}
+	if dist.LinuxTag == "" {
+		dist.LinuxTag = "manylinux2014"
+	}
+	if dist.IncludeREADME == nil {
+		dist.IncludeREADME = boolPtr(true)
+	}
+}
+
+func normalizeGemDistribution(dist *GemDistributionConfig) {
+	dist.Package = strings.TrimSpace(dist.Package)
+	dist.Registry = strings.TrimSpace(dist.Registry)
+	dist.PublishAuth = strings.TrimSpace(dist.PublishAuth)
+	dist.RepositoryURL = dist.RepositoryURLValue()
+	dist.License = dist.LicenseValue()
+	dist.ReadmePath = strings.TrimSpace(dist.ReadmePath)
+	if dist.Registry == "" {
+		dist.Registry = "https://rubygems.org"
+	}
+	if dist.PublishAuth == "" {
+		dist.PublishAuth = "token"
+	}
+	if dist.IncludeREADME == nil {
+		dist.IncludeREADME = boolPtr(true)
+	}
+}
+
+func validateNPMDistribution(dist NPMDistributionConfig, targets []Target) error {
+	if dist.Package == "" {
+		return fmt.Errorf("distributions.npm.package is required")
+	}
+	if err := ValidateNPMPackageName(dist.Package); err != nil {
+		return fmt.Errorf("invalid distributions.npm.package %q: %w", dist.Package, err)
+	}
+	if dist.PlatformPackage != "" {
+		if err := ValidateNPMPlatformPackage(dist.PlatformPackage, targets); err != nil {
+			return fmt.Errorf("invalid distributions.npm.platform-package %q: %w", dist.PlatformPackage, err)
+		}
+	}
+	switch dist.Access {
+	case "", "public", "restricted":
+	default:
+		return fmt.Errorf("invalid distributions.npm.access %q: expected public or restricted", dist.Access)
+	}
+	switch dist.PublishAuth {
+	case "", "token", "trusted":
+	default:
+		return fmt.Errorf("invalid distributions.npm.publish-auth %q: expected token or trusted", dist.PublishAuth)
+	}
+	if dist.PublishAuth == "trusted" && dist.RepositoryURLValue() == "" {
+		return fmt.Errorf("distributions.npm.repository-url is required when distributions.npm.publish-auth is %q", "trusted")
+	}
+	return nil
+}
+
+func validateUVDistribution(dist UVDistributionConfig) error {
+	if dist.Package == "" {
+		return fmt.Errorf("distributions.uv.package is required")
+	}
+	switch dist.LinuxTag {
+	case "manylinux2014", "musllinux_1_2":
+	default:
+		return fmt.Errorf("invalid distributions.uv.linux-tag %q: expected manylinux2014 or musllinux_1_2", dist.LinuxTag)
+	}
+	return nil
+}
+
 func validate(cfg *Config) error {
 	if cfg == nil {
 		return fmt.Errorf("config is nil")
 	}
-	if _, err := cfg.EnabledDistributionNames(); err != nil {
-		return err
-	}
-
 	if err := validateTargets(cfg.Targets); err != nil {
 		return err
 	}
@@ -610,41 +1074,27 @@ func validate(cfg *Config) error {
 		return fmt.Errorf("version.fixed is required when version.source is %q", "fixed")
 	}
 
-	if npmDist, ok := cfg.Distributions["npm"]; ok {
-		if npmDist.PlatformPackage != "" {
-			if err := ValidateNPMPlatformPackage(npmDist.PlatformPackage, cfg.Targets); err != nil {
-				return fmt.Errorf("invalid distributions.npm.platform-package %q: %w", npmDist.PlatformPackage, err)
+	selectedNames, err := cfg.SelectedDistributionNames()
+	if err != nil {
+		return err
+	}
+	for _, name := range selectedNames {
+		if !cfg.Distributions.Has(name) {
+			return fmt.Errorf("distributions.%s is required because it is selected", name)
+		}
+		switch name {
+		case DistributionNPM:
+			if _, err := cfg.RequireNPM(); err != nil {
+				return err
 			}
-		}
-		switch npmDist.Access {
-		case "", "public", "restricted":
-		default:
-			return fmt.Errorf("invalid distributions.npm.access %q: expected public or restricted", npmDist.Access)
-		}
-		switch npmDist.PublishAuth {
-		case "", "token", "trusted":
-		default:
-			return fmt.Errorf("invalid distributions.npm.publish-auth %q: expected token or trusted", npmDist.PublishAuth)
-		}
-		if npmDist.PublishAuth == "trusted" && npmDist.RepositoryURLValue() == "" {
-			return fmt.Errorf("distributions.npm.repository-url is required when distributions.npm.publish-auth is %q", "trusted")
-		}
-	}
-
-	if uvDist, ok := cfg.Distributions["uv"]; ok {
-		if uvDist.Package == "" {
-			return fmt.Errorf("distributions.uv.package is required")
-		}
-		switch uvDist.LinuxTag {
-		case "manylinux2014", "musllinux_1_2":
-		default:
-			return fmt.Errorf("invalid distributions.uv.linux-tag %q: expected manylinux2014 or musllinux_1_2", uvDist.LinuxTag)
-		}
-	}
-
-	if gemDist, ok := cfg.Distributions["gem"]; ok {
-		if err := validateGemDistribution(gemDist); err != nil {
-			return err
+		case DistributionUV:
+			if _, err := cfg.RequireUV(); err != nil {
+				return err
+			}
+		case DistributionGem:
+			if _, err := cfg.RequireGem(); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -669,9 +1119,12 @@ func validateTargets(targets []Target) error {
 	return nil
 }
 
-func validateGemDistribution(dist DistributionConfig) error {
+func validateGemDistribution(dist GemDistributionConfig) error {
 	if dist.Package == "" {
 		return fmt.Errorf("distributions.gem.package is required")
+	}
+	if !gemPackageNamePattern.MatchString(dist.Package) {
+		return fmt.Errorf("invalid distributions.gem.package %q", dist.Package)
 	}
 	switch dist.PublishAuth {
 	case "", "token", "trusted":
@@ -686,10 +1139,11 @@ func validateGemDistribution(dist DistributionConfig) error {
 
 // Save writes cfg to path in YAML format, creating parent directories as needed.
 func Save(cfg *Config, path string) error {
-	if cfg == nil {
-		return fmt.Errorf("config is nil")
+	persisted, err := persistedConfigFromResolved(cfg)
+	if err != nil {
+		return err
 	}
-	data, err := yaml.Marshal(cfg)
+	data, err := yaml.Marshal(persisted)
 	if err != nil {
 		return fmt.Errorf("marshal config for %s: %w", path, err)
 	}

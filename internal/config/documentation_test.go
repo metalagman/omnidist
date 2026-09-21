@@ -41,12 +41,42 @@ func TestConfigurationReferenceProfileExampleLoads(t *testing.T) {
 	if end < 0 {
 		t.Fatal("configuration reference YAML fence is not closed")
 	}
+	example := string(data)[start : start+end]
+	if strings.Contains(example, "enabled-distributions:") {
+		t.Fatalf("canonical profiles example contains legacy enabled-distributions:\n%s", example)
+	}
 	path := filepath.Join(t.TempDir(), "omnidist.yaml")
-	if err := os.WriteFile(path, []byte(string(data)[start:start+end]), 0644); err != nil {
+	if err := os.WriteFile(path, []byte(example), 0644); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := LoadWithProfile(path, DefaultProfileName); err != nil {
 		t.Fatalf("documented profiles example does not load: %v", err)
+	}
+}
+
+func TestConfigurationReferenceRejectsStaleDistributionSemantics(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("..", "..", "docs", "configuration.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc := string(data)
+	for _, stale := range []string{
+		"Missing entries receive compatibility defaults",
+		"generated configs emit all three",
+		"compatibility defaults are `@omnidist/omnidist`",
+	} {
+		if strings.Contains(doc, stale) {
+			t.Fatalf("configuration reference contains stale claim %q", stale)
+		}
+	}
+	for _, current := range []string{
+		"Section presence enables npm, uv, or gem",
+		"loading never invents an identity",
+		"selector that names a missing section now fails",
+	} {
+		if !strings.Contains(doc, current) {
+			t.Fatalf("configuration reference missing current semantic %q", current)
+		}
 	}
 }
 

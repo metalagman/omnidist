@@ -3,6 +3,7 @@ package workflow
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -69,7 +70,7 @@ func TestGenerateGitHubReleaseWorkflow(t *testing.T) {
 	}
 }
 
-func TestGenerateGitHubReleaseWorkflowUsesEnabledDistributions(t *testing.T) {
+func TestGenerateGitHubReleaseWorkflowUsesConfiguredDistributions(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -111,7 +112,15 @@ func TestGenerateGitHubReleaseWorkflowUsesEnabledDistributions(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			cfg := config.DefaultConfig()
-			cfg.EnabledDistributions = tc.enabled
+			if !slices.Contains(tc.enabled, "npm") {
+				cfg.Distributions.NPM = nil
+			}
+			if !slices.Contains(tc.enabled, "uv") {
+				cfg.Distributions.UV = nil
+			}
+			if !slices.Contains(tc.enabled, "gem") {
+				cfg.Distributions.Gem = nil
+			}
 			content, err := GenerateGitHubReleaseWorkflow(cfg, CIWorkflowOptions{})
 			if err != nil {
 				t.Fatal(err)
@@ -124,6 +133,52 @@ func TestGenerateGitHubReleaseWorkflowUsesEnabledDistributions(t *testing.T) {
 			for _, unwanted := range tc.wantAbsent {
 				if strings.Contains(content, unwanted) {
 					t.Errorf("workflow unexpectedly contains %q\n---\n%s", unwanted, content)
+				}
+			}
+		})
+	}
+}
+
+func TestGenerateGitHubReleaseWorkflowCoversEveryDistributionSubset(t *testing.T) {
+	t.Parallel()
+
+	subsets := [][]string{
+		{"npm"},
+		{"uv"},
+		{"gem"},
+		{"npm", "uv"},
+		{"npm", "gem"},
+		{"uv", "gem"},
+		{"npm", "uv", "gem"},
+	}
+	for _, selected := range subsets {
+		selected := selected
+		t.Run(strings.Join(selected, "+"), func(t *testing.T) {
+			t.Parallel()
+			cfg := config.DefaultConfig()
+			if !slices.Contains(selected, "npm") {
+				cfg.Distributions.NPM = nil
+			}
+			if !slices.Contains(selected, "uv") {
+				cfg.Distributions.UV = nil
+			}
+			if !slices.Contains(selected, "gem") {
+				cfg.Distributions.Gem = nil
+			}
+			content, err := GenerateGitHubReleaseWorkflow(cfg, CIWorkflowOptions{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			ordered := strings.Join(selected, ",")
+			for _, command := range []string{"stage --only '" + ordered + "'", "verify --only '" + ordered + "'"} {
+				if !strings.Contains(content, command) {
+					t.Fatalf("workflow for %v missing %q", selected, command)
+				}
+			}
+			for _, backend := range []string{"npm", "uv", "gem"} {
+				hasJob := strings.Contains(content, "publish_"+backend+":")
+				if hasJob != slices.Contains(selected, backend) {
+					t.Fatalf("workflow for %v publish_%s presence = %v", selected, backend, hasJob)
 				}
 			}
 		})
@@ -183,12 +238,12 @@ func TestGenerateGitHubReleaseWorkflowTrustedPublishUsesOIDC(t *testing.T) {
 	t.Parallel()
 
 	cfg := config.DefaultConfig()
-	npmDist := cfg.Distributions["npm"]
+	npmDist := *cfg.Distributions.NPM
 	npmDist.PublishAuth = "trusted"
-	cfg.Distributions["npm"] = npmDist
-	gemDist := cfg.Distributions["gem"]
+	*cfg.Distributions.NPM = npmDist
+	gemDist := *cfg.Distributions.Gem
 	gemDist.PublishAuth = "trusted"
-	cfg.Distributions["gem"] = gemDist
+	*cfg.Distributions.Gem = gemDist
 
 	content, err := GenerateGitHubReleaseWorkflow(cfg, CIWorkflowOptions{})
 	if err != nil {

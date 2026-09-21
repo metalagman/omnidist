@@ -13,14 +13,18 @@ import (
 
 func TestDefaultConfigIncludesUVAndGem(t *testing.T) {
 	cfg := DefaultConfig()
-	wantEnabled := []string{"npm", "uv", "gem"}
-	if !reflect.DeepEqual(cfg.EnabledDistributions, wantEnabled) {
-		t.Fatalf("enabled distributions = %#v, want %#v", cfg.EnabledDistributions, wantEnabled)
+	wantSelected := []DistributionName{DistributionNPM, DistributionUV, DistributionGem}
+	gotSelected, err := cfg.SelectedDistributionNames()
+	if err != nil {
+		t.Fatalf("SelectedDistributionNames() error = %v", err)
 	}
-	npmDist, ok := cfg.Distributions["npm"]
-	if !ok {
+	if !reflect.DeepEqual(gotSelected, wantSelected) {
+		t.Fatalf("selected distributions = %#v, want %#v", gotSelected, wantSelected)
+	}
+	if cfg.Distributions.NPM == nil {
 		t.Fatalf("DefaultConfig() missing npm distribution")
 	}
+	npmDist := *cfg.Distributions.NPM
 	if !npmDist.IncludeREADMEEnabled() {
 		t.Fatalf("npm include-readme default = false, want true")
 	}
@@ -33,10 +37,10 @@ func TestDefaultConfigIncludesUVAndGem(t *testing.T) {
 	if npmDist.License != "" {
 		t.Fatalf("npm license = %q, want empty default", npmDist.License)
 	}
-	uvDist, ok := cfg.Distributions["uv"]
-	if !ok {
+	if cfg.Distributions.UV == nil {
 		t.Fatalf("DefaultConfig() missing uv distribution")
 	}
+	uvDist := *cfg.Distributions.UV
 	if uvDist.Package != "omnidist" {
 		t.Fatalf("uv package = %q, want %q", uvDist.Package, "omnidist")
 	}
@@ -46,10 +50,10 @@ func TestDefaultConfigIncludesUVAndGem(t *testing.T) {
 	if !uvDist.IncludeREADMEEnabled() {
 		t.Fatalf("uv include-readme default = false, want true")
 	}
-	gemDist, ok := cfg.Distributions["gem"]
-	if !ok {
+	if cfg.Distributions.Gem == nil {
 		t.Fatalf("DefaultConfig() missing gem distribution")
 	}
+	gemDist := *cfg.Distributions.Gem
 	if gemDist.Package != "omnidist" {
 		t.Fatalf("gem package = %q, want %q", gemDist.Package, "omnidist")
 	}
@@ -64,38 +68,52 @@ func TestDefaultConfigIncludesUVAndGem(t *testing.T) {
 	}
 }
 
-func TestEnabledDistributionNames(t *testing.T) {
+func TestResolveRawSelection(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name    string
-		values  []string
-		want    []string
-		wantErr string
+		name          string
+		selector      rawDistributionSelector
+		distributions DistributionConfigs
+		want          []DistributionName
+		wantErr       string
 	}{
-		{name: "absent_preserves_legacy_all", want: []string{"npm", "uv", "gem"}},
-		{name: "canonical_order", values: []string{" GEM ", "NPM"}, want: []string{"npm", "gem"}},
-		{name: "explicit_empty", values: []string{}, wantErr: "at least one"},
-		{name: "duplicate", values: []string{"npm", "NPM"}, wantErr: "duplicate"},
-		{name: "unknown", values: []string{"brew"}, wantErr: "invalid enabled distribution"},
+		{name: "absent_without_sections", wantErr: "must configure at least one"},
+		{
+			name:          "absent_infers_distribution_sections",
+			distributions: DistributionConfigs{NPM: &NPMDistributionConfig{}},
+			want:          []DistributionName{DistributionNPM},
+		},
+		{
+			name:     "canonical_order",
+			selector: rawDistributionSelector{present: true, values: []string{" GEM ", "NPM"}},
+			distributions: DistributionConfigs{
+				NPM: &NPMDistributionConfig{},
+				Gem: &GemDistributionConfig{},
+			},
+			want: []DistributionName{DistributionNPM, DistributionGem},
+		},
+		{name: "explicit_null", selector: rawDistributionSelector{present: true, null: true}, wantErr: "must not be null"},
+		{name: "explicit_empty", selector: rawDistributionSelector{present: true, values: []string{}}, wantErr: "at least one"},
+		{name: "duplicate", selector: rawDistributionSelector{present: true, values: []string{"npm", "NPM"}}, distributions: DistributionConfigs{NPM: &NPMDistributionConfig{}}, wantErr: "duplicate"},
+		{name: "unknown", selector: rawDistributionSelector{present: true, values: []string{"brew"}}, wantErr: "invalid enabled distribution"},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			cfg := &Config{EnabledDistributions: tc.values}
-			got, err := cfg.EnabledDistributionNames()
+			got, err := resolveRawSelection(tc.selector, tc.distributions)
 			if tc.wantErr != "" {
 				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
-					t.Fatalf("EnabledDistributionNames() error = %v, want containing %q", err, tc.wantErr)
+					t.Fatalf("resolveRawSelection() error = %v, want containing %q", err, tc.wantErr)
 				}
 				return
 			}
 			if err != nil {
-				t.Fatalf("EnabledDistributionNames() error = %v", err)
+				t.Fatalf("resolveRawSelection() error = %v", err)
 			}
 			if !reflect.DeepEqual(got, tc.want) {
-				t.Fatalf("EnabledDistributionNames() = %#v, want %#v", got, tc.want)
+				t.Fatalf("resolveRawSelection() = %#v, want %#v", got, tc.want)
 			}
 		})
 	}
@@ -110,11 +128,11 @@ func TestLoadEnabledDistributionsInLegacyAndProfilesConfig(t *testing.T) {
 	}{
 		{
 			name: "legacy",
-			yaml: "enabled-distributions:\n  - gem\n  - npm\n",
+			yaml: "enabled-distributions:\n  - gem\n  - npm\ndistributions:\n  npm:\n    package: '@scope/tool'\n  gem:\n    package: tool\n",
 		},
 		{
 			name: "profiles",
-			yaml: "profiles:\n  default:\n    enabled-distributions:\n      - gem\n      - npm\n",
+			yaml: "profiles:\n  default:\n    enabled-distributions:\n      - gem\n      - npm\n    distributions:\n      npm:\n        package: '@scope/tool'\n      gem:\n        package: tool\n",
 		},
 	}
 
@@ -130,13 +148,122 @@ func TestLoadEnabledDistributionsInLegacyAndProfilesConfig(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Load() error = %v", err)
 			}
-			got, err := cfg.EnabledDistributionNames()
+			got, err := cfg.SelectedDistributionNames()
 			if err != nil {
-				t.Fatalf("EnabledDistributionNames() error = %v", err)
+				t.Fatalf("SelectedDistributionNames() error = %v", err)
 			}
-			want := []string{"npm", "gem"}
+			want := []DistributionName{DistributionNPM, DistributionGem}
 			if !reflect.DeepEqual(got, want) {
-				t.Fatalf("EnabledDistributionNames() = %#v, want %#v", got, want)
+				t.Fatalf("SelectedDistributionNames() = %#v, want %#v", got, want)
+			}
+		})
+	}
+}
+
+func TestLoadRejectsEnabledDistributionWithoutSection(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		yaml string
+	}{
+		{
+			name: "legacy",
+			yaml: "enabled-distributions: [uv]\ndistributions:\n  npm:\n    package: '@scope/tool'\n",
+		},
+		{
+			name: "profiles",
+			yaml: "profiles:\n  default:\n    enabled-distributions: [uv]\n    distributions:\n      npm:\n        package: '@scope/tool'\n",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			path := filepath.Join(t.TempDir(), "omnidist.yaml")
+			if err := os.WriteFile(path, []byte(tc.yaml), 0644); err != nil {
+				t.Fatalf("os.WriteFile() error = %v", err)
+			}
+
+			_, err := Load(path)
+			if err == nil || !strings.Contains(err.Error(), "distributions.uv is required") {
+				t.Fatalf("Load() error = %v, want missing distributions.uv", err)
+			}
+		})
+	}
+}
+
+func TestLoadRejectsMissingDistributionPackageIdentity(t *testing.T) {
+	t.Parallel()
+
+	for _, mode := range []string{"legacy", "profiles"} {
+		for _, backend := range []string{"npm", "uv", "gem"} {
+			name := mode + "_" + backend
+			t.Run(name, func(t *testing.T) {
+				t.Parallel()
+				body := "distributions:\n  " + backend + ": {}\n"
+				if mode == "profiles" {
+					body = "profiles:\n  default:\n    distributions:\n      " + backend + ": {}\n"
+				}
+				path := filepath.Join(t.TempDir(), "omnidist.yaml")
+				if err := os.WriteFile(path, []byte(body), 0644); err != nil {
+					t.Fatalf("os.WriteFile() error = %v", err)
+				}
+
+				_, err := Load(path)
+				want := "distributions." + backend + ".package is required"
+				if err == nil || !strings.Contains(err.Error(), want) {
+					t.Fatalf("Load() error = %v, want containing %q", err, want)
+				}
+			})
+		}
+	}
+}
+
+func TestLoadInfersEnabledDistributionsFromConfiguredSections(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		yaml string
+	}{
+		{
+			name: "legacy",
+			yaml: "distributions:\n  npm:\n    package: '@scope/tool'\n",
+		},
+		{
+			name: "profiles",
+			yaml: "profiles:\n  default:\n    distributions:\n      npm:\n        package: '@scope/tool'\n",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			path := filepath.Join(t.TempDir(), "omnidist.yaml")
+			if err := os.WriteFile(path, []byte(tc.yaml), 0644); err != nil {
+				t.Fatalf("os.WriteFile() error = %v", err)
+			}
+
+			cfg, err := Load(path)
+			if err != nil {
+				t.Fatalf("Load() error = %v", err)
+			}
+			got, err := cfg.SelectedDistributionNames()
+			if err != nil {
+				t.Fatalf("SelectedDistributionNames() error = %v", err)
+			}
+			want := []DistributionName{DistributionNPM}
+			if !reflect.DeepEqual(got, want) {
+				t.Fatalf("SelectedDistributionNames() = %#v, want %#v", got, want)
+			}
+			if len(cfg.Distributions.Names()) != 1 {
+				t.Fatalf("len(Distributions.Names()) = %d, want 1", len(cfg.Distributions.Names()))
+			}
+			for _, absent := range []DistributionName{DistributionUV, DistributionGem} {
+				if cfg.Distributions.Has(absent) {
+					t.Fatalf("Load() materialized absent distributions.%s", absent)
+				}
 			}
 		})
 	}
@@ -192,7 +319,7 @@ distributions:
 		t.Fatalf("Load() error = %v", err)
 	}
 
-	uvDist := cfg.Distributions["uv"]
+	uvDist := *cfg.Distributions.UV
 	if uvDist.IndexURL != "https://upload.pypi.org/legacy/" {
 		t.Fatalf("uv index-url = %q, want default", uvDist.IndexURL)
 	}
@@ -202,7 +329,7 @@ distributions:
 	if !uvDist.IncludeREADMEEnabled() {
 		t.Fatalf("uv include-readme = false, want default true")
 	}
-	gemDist := cfg.Distributions["gem"]
+	gemDist := *cfg.Distributions.Gem
 	if gemDist.Registry != "https://rubygems.org" {
 		t.Fatalf("gem registry = %q, want default", gemDist.Registry)
 	}
@@ -213,7 +340,7 @@ distributions:
 		t.Fatalf("gem include-readme = false, want default true")
 	}
 
-	npmDist := cfg.Distributions["npm"]
+	npmDist := *cfg.Distributions.NPM
 	if !npmDist.IncludeREADMEEnabled() {
 		t.Fatalf("npm include-readme = false, want default true")
 	}
@@ -262,13 +389,13 @@ distributions:
 		t.Fatalf("Load() error = %v", err)
 	}
 
-	if cfg.Distributions["npm"].IncludeREADMEEnabled() {
+	if cfg.Distributions.NPM.IncludeREADMEEnabled() {
 		t.Fatalf("npm include-readme = true, want false")
 	}
-	if cfg.Distributions["uv"].IncludeREADMEEnabled() {
+	if cfg.Distributions.UV.IncludeREADMEEnabled() {
 		t.Fatalf("uv include-readme = true, want false")
 	}
-	if cfg.Distributions["gem"].IncludeREADMEEnabled() {
+	if cfg.Distributions.Gem.IncludeREADMEEnabled() {
 		t.Fatalf("gem include-readme = true, want false")
 	}
 }
@@ -314,10 +441,10 @@ distributions:
 	if got := cfg.ReadmePath; got != "docs/README.md" {
 		t.Fatalf("readme-path = %q, want %q", got, "docs/README.md")
 	}
-	if got := cfg.Distributions["npm"].ReadmePath; got != "docs/npm.md" {
+	if got := cfg.Distributions.NPM.ReadmePath; got != "docs/npm.md" {
 		t.Fatalf("distributions.npm.readme-path = %q, want %q", got, "docs/npm.md")
 	}
-	if got := cfg.Distributions["uv"].ReadmePath; got != "docs/uv.md" {
+	if got := cfg.Distributions.UV.ReadmePath; got != "docs/uv.md" {
 		t.Fatalf("distributions.uv.readme-path = %q, want %q", got, "docs/uv.md")
 	}
 }
@@ -356,7 +483,7 @@ distributions:
 		t.Fatalf("Load() error = %v", err)
 	}
 
-	if got := cfg.Distributions["npm"].License; got != "Apache-2.0" {
+	if got := cfg.Distributions.NPM.License; got != "Apache-2.0" {
 		t.Fatalf("npm license = %q, want %q", got, "Apache-2.0")
 	}
 }
@@ -396,10 +523,10 @@ distributions:
 		t.Fatalf("Load() error = %v", err)
 	}
 
-	if got := cfg.Distributions["npm"].PublishAuth; got != "trusted" {
+	if got := cfg.Distributions.NPM.PublishAuth; got != "trusted" {
 		t.Fatalf("npm publish-auth = %q, want %q", got, "trusted")
 	}
-	if got := cfg.Distributions["npm"].RepositoryURL; got != "git+https://github.com/example/tool.git" {
+	if got := cfg.Distributions.NPM.RepositoryURL; got != "git+https://github.com/example/tool.git" {
 		t.Fatalf("npm repository-url = %q, want %q", got, "git+https://github.com/example/tool.git")
 	}
 }
@@ -439,7 +566,7 @@ distributions:
 		t.Fatalf("Load() error = %v", err)
 	}
 
-	if got := cfg.Distributions["npm"].RepositoryURL; got != "git+https://github.com/example/tool.git" {
+	if got := cfg.Distributions.NPM.RepositoryURL; got != "git+https://github.com/example/tool.git" {
 		t.Fatalf("npm repository-url = %q, want %q", got, "git+https://github.com/example/tool.git")
 	}
 }
@@ -485,7 +612,7 @@ distributions:
 	}
 
 	want := []string{"ai", "llm", "cli"}
-	if got := cfg.Distributions["npm"].Keywords; !reflect.DeepEqual(got, want) {
+	if got := cfg.Distributions.NPM.Keywords; !reflect.DeepEqual(got, want) {
 		t.Fatalf("npm keywords = %#v, want %#v", got, want)
 	}
 }
@@ -510,6 +637,9 @@ build:
   ldflags: -s -w
   tags: []
   cgo: false
+distributions:
+  npm:
+    package: "@scope/tool"
 `
 
 	if err := os.WriteFile(path, []byte(yaml), 0644); err != nil {
@@ -548,6 +678,9 @@ build:
   ldflags: -s -w
   tags: []
   cgo: false
+distributions:
+  npm:
+    package: "@scope/tool"
 `
 
 	if err := os.WriteFile(path, []byte(yaml), 0644); err != nil {
@@ -583,6 +716,9 @@ build:
   ldflags: -s -w
   tags: []
   cgo: false
+distributions:
+  npm:
+    package: "@scope/tool"
 `
 
 	if err := os.WriteFile(path, []byte(yaml), 0644); err != nil {
@@ -617,6 +753,9 @@ build:
   ldflags: -s -w
   tags: []
   cgo: false
+distributions:
+  npm:
+    package: "@scope/tool"
 `
 
 	if err := os.WriteFile(path, []byte(yaml), 0644); err != nil {
@@ -652,6 +791,9 @@ build:
   ldflags: -s -w
   tags: []
   cgo: false
+distributions:
+  npm:
+    package: "@scope/tool"
 `
 
 	if err := os.WriteFile(path, []byte(yaml), 0644); err != nil {
@@ -686,6 +828,9 @@ build:
   ldflags: -s -w
   tags: []
   cgo: false
+distributions:
+  npm:
+    package: "@scope/tool"
 `
 
 	if err := os.WriteFile(path, []byte(yaml), 0644); err != nil {
@@ -797,7 +942,7 @@ func TestNPMPlatformPackageConfig(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Load() error = %v", err)
 		}
-		got := cfg.Distributions["npm"]
+		got := *cfg.Distributions.NPM
 		if got.Package != "omnidist" {
 			t.Fatalf("npm package = %q, want %q", got.Package, "omnidist")
 		}
@@ -827,7 +972,7 @@ distributions:
 		if err != nil {
 			t.Fatalf("Load() error = %v", err)
 		}
-		if got := cfg.Distributions["npm"].PlatformPackage; got != "" {
+		if got := cfg.Distributions.NPM.PlatformPackage; got != "" {
 			t.Fatalf("npm platform-package = %q, want empty fallback marker", got)
 		}
 
@@ -927,8 +1072,8 @@ func TestValidate(t *testing.T) {
 			name: "invalid npm access",
 			cfg: &Config{
 				Targets: []Target{{OS: "linux", Arch: "amd64"}},
-				Distributions: map[string]DistributionConfig{
-					"npm": {Access: "invalid"},
+				Distributions: DistributionConfigs{
+					NPM: &NPMDistributionConfig{Package: "@scope/tool", Access: "invalid"},
 				},
 			},
 			wantErr: "invalid distributions.npm.access \"invalid\"",
@@ -937,8 +1082,8 @@ func TestValidate(t *testing.T) {
 			name: "invalid npm platform package",
 			cfg: &Config{
 				Targets: []Target{{OS: "linux", Arch: "amd64"}},
-				Distributions: map[string]DistributionConfig{
-					"npm": {PlatformPackage: "@scope/Invalid"},
+				Distributions: DistributionConfigs{
+					NPM: &NPMDistributionConfig{Package: "@scope/tool", PlatformPackage: "@scope/Invalid"},
 				},
 			},
 			wantErr: "invalid distributions.npm.platform-package \"@scope/Invalid\"",
@@ -947,8 +1092,8 @@ func TestValidate(t *testing.T) {
 			name: "npm platform package target name too long",
 			cfg: &Config{
 				Targets: []Target{{OS: "linux", Arch: "amd64"}},
-				Distributions: map[string]DistributionConfig{
-					"npm": {PlatformPackage: strings.Repeat("a", 205)},
+				Distributions: DistributionConfigs{
+					NPM: &NPMDistributionConfig{Package: "@scope/tool", PlatformPackage: strings.Repeat("a", 205)},
 				},
 			},
 			wantErr: "generated package",
@@ -957,8 +1102,8 @@ func TestValidate(t *testing.T) {
 			name: "invalid npm publish auth",
 			cfg: &Config{
 				Targets: []Target{{OS: "linux", Arch: "amd64"}},
-				Distributions: map[string]DistributionConfig{
-					"npm": {PublishAuth: "oidc"},
+				Distributions: DistributionConfigs{
+					NPM: &NPMDistributionConfig{Package: "@scope/tool", PublishAuth: "oidc"},
 				},
 			},
 			wantErr: "invalid distributions.npm.publish-auth \"oidc\"",
@@ -967,8 +1112,8 @@ func TestValidate(t *testing.T) {
 			name: "trusted npm publish missing repository url",
 			cfg: &Config{
 				Targets: []Target{{OS: "linux", Arch: "amd64"}},
-				Distributions: map[string]DistributionConfig{
-					"npm": {PublishAuth: "trusted"},
+				Distributions: DistributionConfigs{
+					NPM: &NPMDistributionConfig{Package: "@scope/tool", PublishAuth: "trusted"},
 				},
 			},
 			wantErr: "distributions.npm.repository-url is required",
@@ -997,6 +1142,9 @@ func TestValidate(t *testing.T) {
 					Fixed:  "1.2.3",
 				},
 				Targets: []Target{{OS: "linux", Arch: "amd64"}},
+				Distributions: DistributionConfigs{
+					NPM: &NPMDistributionConfig{Package: "@scope/tool"},
+				},
 			},
 		},
 		{
@@ -1004,14 +1152,17 @@ func TestValidate(t *testing.T) {
 			cfg: &Config{
 				Version: VersionConfig{Source: "file"},
 				Targets: []Target{{OS: "linux", Arch: "amd64"}},
+				Distributions: DistributionConfigs{
+					NPM: &NPMDistributionConfig{Package: "@scope/tool"},
+				},
 			},
 		},
 		{
 			name: "missing uv package",
 			cfg: &Config{
 				Targets: []Target{{OS: "linux", Arch: "amd64"}},
-				Distributions: map[string]DistributionConfig{
-					"uv": {LinuxTag: "manylinux2014"},
+				Distributions: DistributionConfigs{
+					UV: &UVDistributionConfig{LinuxTag: "manylinux2014"},
 				},
 			},
 			wantErr: "distributions.uv.package is required",
@@ -1189,6 +1340,9 @@ build:
   ldflags: -s -w
   tags: []
   cgo: false
+distributions:
+  npm:
+    package: "@scope/legacy"
 `); err != nil {
 		t.Fatalf("configFile() error = %v", err)
 	}
@@ -1230,6 +1384,9 @@ func TestLoadWithProfileProfilesModeSelection(t *testing.T) {
       ldflags: -s -w
       tags: []
       cgo: false
+    distributions:
+      npm:
+        package: "@scope/default"
   release:
     tool:
       name: app-release
@@ -1244,6 +1401,9 @@ func TestLoadWithProfileProfilesModeSelection(t *testing.T) {
       ldflags: -s -w
       tags: []
       cgo: false
+    distributions:
+      npm:
+        package: "@scope/release"
 `); err != nil {
 		t.Fatalf("configFile() error = %v", err)
 	}
@@ -1288,6 +1448,9 @@ func TestLoadWithProfileProfilesModeDefaultSelection(t *testing.T) {
       ldflags: -s -w
       tags: []
       cgo: false
+    distributions:
+      npm:
+        package: "@scope/default"
 `); err != nil {
 		t.Fatalf("configFile() error = %v", err)
 	}

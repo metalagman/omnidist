@@ -144,13 +144,23 @@ func TestCICommandDryRunPrintsWorkflow(t *testing.T) {
 	}
 }
 
-func TestCICommandDryRunRespectsEnabledDistributions(t *testing.T) {
+func TestCICommandDryRunRespectsConfiguredDistributions(t *testing.T) {
 	for _, selected := range []string{"npm", "uv", "gem"} {
 		t.Run(selected, func(t *testing.T) {
 			dir := t.TempDir()
 			t.Chdir(dir)
 			cfg := config.DefaultConfig()
-			cfg.EnabledDistributions = []string{selected}
+			switch selected {
+			case "npm":
+				cfg.Distributions.UV = nil
+				cfg.Distributions.Gem = nil
+			case "uv":
+				cfg.Distributions.NPM = nil
+				cfg.Distributions.Gem = nil
+			case "gem":
+				cfg.Distributions.NPM = nil
+				cfg.Distributions.UV = nil
+			}
 			if err := config.Save(cfg, paths.ConfigPath); err != nil {
 				t.Fatal(err)
 			}
@@ -170,5 +180,33 @@ func TestCICommandDryRunRespectsEnabledDistributions(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestCICommandDryRunInfersSelectedDistributionsFromLegacyConfig(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+
+	cfg := config.DefaultConfig()
+	cfg.Distributions = config.DistributionConfigs{
+		NPM: cfg.Distributions.NPM,
+	}
+	if err := config.Save(cfg, paths.ConfigPath); err != nil {
+		t.Fatal(err)
+	}
+
+	output, err := executeCommand("ci", "--dry-run")
+	if err != nil {
+		t.Fatalf("executeCommand(ci --dry-run) error = %v", err)
+	}
+	for _, want := range []string{"stage --only 'npm'", "publish_npm:"} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("legacy npm-only workflow missing %q: %s", want, output)
+		}
+	}
+	for _, unwanted := range []string{"publish_uv:", "publish_gem:"} {
+		if strings.Contains(output, unwanted) {
+			t.Fatalf("legacy npm-only workflow contains %q: %s", unwanted, output)
+		}
 	}
 }

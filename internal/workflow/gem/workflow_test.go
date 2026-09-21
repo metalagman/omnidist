@@ -77,7 +77,7 @@ func TestGemPlatform(t *testing.T) {
 func TestGemspecContent(t *testing.T) {
 	t.Parallel()
 
-	dist := config.DistributionConfig{
+	dist := config.GemDistributionConfig{
 		Package:       "omnidist",
 		Registry:      "https://rubygems.org",
 		RepositoryURL: "https://github.com/metalagman/omnidist",
@@ -103,7 +103,7 @@ func TestGemspecContent(t *testing.T) {
 func TestGemspecContentAddsAllowedPushHostForCustomRegistry(t *testing.T) {
 	t.Parallel()
 
-	dist := config.DistributionConfig{
+	dist := config.GemDistributionConfig{
 		Package:       "tool",
 		Registry:      "https://gems.example.com",
 		RepositoryURL: "https://example.com/tool",
@@ -119,7 +119,7 @@ func TestPublishEnv(t *testing.T) {
 	t.Run("token_requires_key", func(t *testing.T) {
 		t.Setenv(gemHostAPIKeyEnv, "")
 		t.Setenv(rubygemsAPIKeyEnv, "")
-		_, err := publishEnv(config.DistributionConfig{PublishAuth: "token"}, PublishOptions{})
+		_, err := publishEnv(config.GemDistributionConfig{PublishAuth: "token"}, PublishOptions{})
 		if err == nil {
 			t.Fatalf("publishEnv(token) error = nil, want error")
 		}
@@ -128,7 +128,7 @@ func TestPublishEnv(t *testing.T) {
 	t.Run("trusted_allows_missing_key", func(t *testing.T) {
 		t.Setenv(gemHostAPIKeyEnv, "")
 		t.Setenv(rubygemsAPIKeyEnv, "")
-		env, err := publishEnv(config.DistributionConfig{PublishAuth: "trusted"}, PublishOptions{})
+		env, err := publishEnv(config.GemDistributionConfig{PublishAuth: "trusted"}, PublishOptions{})
 		if err != nil {
 			t.Fatalf("publishEnv(trusted) error = %v", err)
 		}
@@ -156,7 +156,7 @@ func TestPublishProgressIdentifiesLastSuccessfulGem(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	dist := cfg.Distributions["gem"]
+	dist := *cfg.Distributions.Gem
 	layout := layoutForConfig(cfg)
 	artifacts := []string{
 		gemArtifactPath(layout, dist, cfg.Targets[0], "1.2.3"),

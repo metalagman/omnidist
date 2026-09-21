@@ -8,28 +8,24 @@ import (
 	"github.com/metalagman/omnidist/internal/config"
 )
 
-type distribution string
+type distribution = config.DistributionName
 
 const (
-	distributionNPM distribution = "npm"
-	distributionUV  distribution = "uv"
-	distributionGem distribution = "gem"
+	distributionNPM = config.DistributionNPM
+	distributionUV  = config.DistributionUV
+	distributionGem = config.DistributionGem
 )
 
-var distributionExecutionOrder = []distribution{
-	distributionNPM,
-	distributionUV,
-	distributionGem,
-}
+var distributionExecutionOrder = config.SupportedDistributionNames()
 
 func resolveDistributions(cfg *config.Config, only string) ([]distribution, error) {
-	enabledNames, err := cfg.EnabledDistributionNames()
+	availableNames, err := cfg.SelectedDistributionNames()
 	if err != nil {
 		return nil, err
 	}
-	enabled := make(map[distribution]bool, len(enabledNames))
-	for _, name := range enabledNames {
-		enabled[distribution(name)] = true
+	available := make(map[distribution]bool, len(availableNames))
+	for _, name := range availableNames {
+		available[name] = true
 	}
 
 	selected := map[distribution]bool{
@@ -40,9 +36,9 @@ func resolveDistributions(cfg *config.Config, only string) ([]distribution, erro
 
 	filter := strings.TrimSpace(only)
 	if filter == "" {
-		resolved := make([]distribution, 0, len(enabled))
+		resolved := make([]distribution, 0, len(available))
 		for _, dist := range distributionExecutionOrder {
-			if enabled[dist] {
+			if available[dist] {
 				resolved = append(resolved, dist)
 			}
 		}
@@ -54,8 +50,8 @@ func resolveDistributions(cfg *config.Config, only string) ([]distribution, erro
 		name := distribution(strings.ToLower(strings.TrimSpace(part)))
 		switch name {
 		case distributionNPM, distributionUV, distributionGem:
-			if !enabled[name] {
-				return nil, fmt.Errorf("invalid --only value %q: distribution %q is disabled (enabled: %s)", only, name, strings.Join(enabledNames, ","))
+			if !available[name] {
+				return nil, fmt.Errorf("invalid --only value %q: distribution %q is unavailable (selected: %s)", only, name, strings.Join(config.DistributionNameStrings(availableNames), ","))
 			}
 			selected[name] = true
 		case "":

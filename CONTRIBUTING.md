@@ -17,7 +17,7 @@ Some integration paths need ecosystem tools:
 - uv for uv stage/publish flows;
 - Ruby/RubyGems for gem stage/publish flows.
 
-Most unit tests isolate external commands with fakes. CI installs uv; release environments must install only the tools needed by enabled backends.
+Most unit tests isolate external commands with fakes. CI installs uv; release environments must install only the tools needed by selected backends.
 
 ## Quality gates
 
@@ -86,7 +86,7 @@ Regenerate it intentionally with `--force`; avoid hand-editing generated section
 ## Change guidelines
 
 - Add or update tests for behavior changes, including negative paths and actionable errors.
-- Preserve configs that omit `enabled-distributions`; they enable all backends for compatibility.
+- Treat `distributions` section presence as the canonical backend set. Preserve legacy non-empty `enabled-distributions` files without allowing the selector to invent a missing section.
 - Test both profile and legacy paths when changing layout or config loading.
 - Keep npm packages free of install-time scripts/downloaders.
 - Keep README concise; place field-level facts in `docs/configuration.md`, release operations in `docs/releases.md`, and platform mappings in `docs/targets.md`.

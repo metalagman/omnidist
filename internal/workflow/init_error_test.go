@@ -12,15 +12,15 @@ import (
 
 func TestCreateNPMStructureSkipsWhenMissing(t *testing.T) {
 	cfg := &config.Config{
-		Distributions: map[string]config.DistributionConfig{},
+		Distributions: config.DistributionConfigs{},
 	}
 	if err := CreateNPMStructure(cfg); err != nil {
 		t.Fatalf("CreateNPMStructure() with no npm dist error = %v", err)
 	}
 
 	cfg = &config.Config{
-		Distributions: map[string]config.DistributionConfig{
-			"npm": {Package: "  "},
+		Distributions: config.DistributionConfigs{
+			NPM: &config.NPMDistributionConfig{Package: "  "},
 		},
 	}
 	if err := CreateNPMStructure(cfg); err != nil {
@@ -30,15 +30,15 @@ func TestCreateNPMStructureSkipsWhenMissing(t *testing.T) {
 
 func TestCreateUVStructureSkipsWhenMissing(t *testing.T) {
 	cfg := &config.Config{
-		Distributions: map[string]config.DistributionConfig{},
+		Distributions: config.DistributionConfigs{},
 	}
 	if err := CreateUVStructure(cfg); err != nil {
 		t.Fatalf("CreateUVStructure() with no uv dist error = %v", err)
 	}
 
 	cfg = &config.Config{
-		Distributions: map[string]config.DistributionConfig{
-			"uv": {Package: "  "},
+		Distributions: config.DistributionConfigs{
+			UV: &config.UVDistributionConfig{Package: "  "},
 		},
 	}
 	if err := CreateUVStructure(cfg); err != nil {

@@ -271,33 +271,8 @@ func isPyPIIndexURL(indexURL string) bool {
 	return host == "upload.pypi.org" || host == "test.pypi.org"
 }
 
-func uvDistribution(cfg *config.Config) (config.DistributionConfig, error) {
-	if cfg == nil {
-		return config.DistributionConfig{}, fmt.Errorf("config is nil")
-	}
-
-	dist, ok := cfg.Distributions["uv"]
-	if !ok {
-		return config.DistributionConfig{}, fmt.Errorf("missing required distribution: uv")
-	}
-
-	dist.Package = strings.TrimSpace(dist.Package)
-	dist.IndexURL = strings.TrimSpace(dist.IndexURL)
-	dist.LinuxTag = strings.TrimSpace(dist.LinuxTag)
-
-	if dist.Package == "" {
-		return config.DistributionConfig{}, fmt.Errorf("uv distribution package is required")
-	}
-
-	if dist.LinuxTag == "" {
-		dist.LinuxTag = shared.DefaultUVLinuxTag
-	}
-
-	if !isSupportedLinuxTag(dist.LinuxTag) {
-		return config.DistributionConfig{}, fmt.Errorf("invalid uv linux-tag %q: expected one of %s", dist.LinuxTag, strings.Join(supportedLinuxTags(), ", "))
-	}
-
-	return dist, nil
+func uvDistribution(cfg *config.Config) (config.UVDistributionConfig, error) {
+	return cfg.RequireUV()
 }
 
 func supportedLinuxTags() []string {
@@ -434,11 +409,11 @@ func readStagingPyprojectVersionWithLayout(layout paths.Layout) (string, error) 
 	return version, nil
 }
 
-func stageWheel(cfg *config.Config, uvDist config.DistributionConfig, target config.Target, version string) error {
+func stageWheel(cfg *config.Config, uvDist config.UVDistributionConfig, target config.Target, version string) error {
 	return stageWheelWithLayout(layoutForConfig(cfg), cfg, uvDist, target, version)
 }
 
-func stageWheelWithLayout(layout paths.Layout, cfg *config.Config, uvDist config.DistributionConfig, target config.Target, version string) error {
+func stageWheelWithLayout(layout paths.Layout, cfg *config.Config, uvDist config.UVDistributionConfig, target config.Target, version string) error {
 	goOS, _ := shared.NormalizeGoTarget(target)
 	binaryName := shared.BinaryName(cfg.Tool.Name, goOS)
 	sourceBinary := filepath.Join(layout.DistDir, target.OS, target.Arch, binaryName)
@@ -460,11 +435,11 @@ func stageWheelWithLayout(layout paths.Layout, cfg *config.Config, uvDist config
 	return nil
 }
 
-func wheelPathForTarget(uvDist config.DistributionConfig, target config.Target, version string) (string, error) {
+func wheelPathForTarget(uvDist config.UVDistributionConfig, target config.Target, version string) (string, error) {
 	return wheelPathForTargetWithLayout(paths.NewLayout(config.DefaultWorkspaceDir), uvDist, target, version)
 }
 
-func wheelPathForTargetWithLayout(layout paths.Layout, uvDist config.DistributionConfig, target config.Target, version string) (string, error) {
+func wheelPathForTargetWithLayout(layout paths.Layout, uvDist config.UVDistributionConfig, target config.Target, version string) (string, error) {
 	filename, err := shared.WheelFilename(uvDist.Package, version, target, uvDist.LinuxTag)
 	if err != nil {
 		return "", err
@@ -472,7 +447,7 @@ func wheelPathForTargetWithLayout(layout paths.Layout, uvDist config.Distributio
 	return filepath.Join(layout.UVDistDir, filename), nil
 }
 
-func writeWheel(wheelPath string, cfg *config.Config, uvDist config.DistributionConfig, target config.Target, version string, binaryData []byte) error {
+func writeWheel(wheelPath string, cfg *config.Config, uvDist config.UVDistributionConfig, target config.Target, version string, binaryData []byte) error {
 	platformTag, err := shared.WheelPlatformTag(target, uvDist.LinuxTag)
 	if err != nil {
 		return err
@@ -532,7 +507,7 @@ func addZipFile(zipWriter rawZipWriter, name string, data []byte, mode os.FileMo
 	return nil
 }
 
-func writeWheelArchive(w io.Writer, platformTag string, cfg *config.Config, uvDist config.DistributionConfig, target config.Target, version string, binaryData []byte) (retErr error) {
+func writeWheelArchive(w io.Writer, platformTag string, cfg *config.Config, uvDist config.UVDistributionConfig, target config.Target, version string, binaryData []byte) (retErr error) {
 	zipWriter := newWheelZipWriter(w)
 	defer func() {
 		if err := zipWriter.Close(); err != nil && retErr == nil {
@@ -636,7 +611,7 @@ func wheelRecordLine(name string, data []byte) string {
 	return fmt.Sprintf("%s,sha256=%s,%d\n", name, digest, len(data))
 }
 
-func verifyWheel(cfg *config.Config, uvDist config.DistributionConfig, target config.Target, version string, wheelPath string) error {
+func verifyWheel(cfg *config.Config, uvDist config.UVDistributionConfig, target config.Target, version string, wheelPath string) error {
 	zipReader, err := zip.OpenReader(wheelPath)
 	if err != nil {
 		return fmt.Errorf("open wheel %s: %w", wheelPath, err)
@@ -781,11 +756,11 @@ func readZipFile(f *zip.File) ([]byte, error) {
 	return io.ReadAll(rc)
 }
 
-func collectWheelArtifacts(cfg *config.Config, uvDist config.DistributionConfig, version string) ([]string, error) {
+func collectWheelArtifacts(cfg *config.Config, uvDist config.UVDistributionConfig, version string) ([]string, error) {
 	return collectWheelArtifactsWithLayout(layoutForConfig(cfg), cfg, uvDist, version)
 }
 
-func collectWheelArtifactsWithLayout(layout paths.Layout, cfg *config.Config, uvDist config.DistributionConfig, version string) ([]string, error) {
+func collectWheelArtifactsWithLayout(layout paths.Layout, cfg *config.Config, uvDist config.UVDistributionConfig, version string) ([]string, error) {
 	artifacts := make([]string, 0, len(cfg.Targets))
 	for _, target := range cfg.Targets {
 		wheelPath, err := wheelPathForTargetWithLayout(layout, uvDist, target, version)

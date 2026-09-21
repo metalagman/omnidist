@@ -94,7 +94,7 @@ func TestStageIncludesProjectREADMEByDefaultWhenPresent(t *testing.T) {
 		t.Fatalf("Stage() error = %v", err)
 	}
 
-	uvDist := cfg.Distributions["uv"]
+	uvDist := *cfg.Distributions.UV
 	wheelPath, err := wheelPathForTarget(uvDist, cfg.Targets[0], "1.2.3")
 	if err != nil {
 		t.Fatalf("wheelPathForTarget() error = %v", err)
@@ -117,9 +117,9 @@ func TestStageSkipsProjectREADMEWhenDisabled(t *testing.T) {
 	t.Setenv(shared.EnvVersionName, "1.2.3")
 
 	cfg := testConfig()
-	uvDist := cfg.Distributions["uv"]
+	uvDist := *cfg.Distributions.UV
 	uvDist.IncludeREADME = boolPtr(false)
-	cfg.Distributions["uv"] = uvDist
+	*cfg.Distributions.UV = uvDist
 
 	if err := createDistArtifacts(cfg); err != nil {
 		t.Fatalf("createDistArtifacts() error = %v", err)
@@ -132,7 +132,7 @@ func TestStageSkipsProjectREADMEWhenDisabled(t *testing.T) {
 		t.Fatalf("Stage() error = %v", err)
 	}
 
-	wheelPath, err := wheelPathForTarget(cfg.Distributions["uv"], cfg.Targets[0], "1.2.3")
+	wheelPath, err := wheelPathForTarget(*cfg.Distributions.UV, cfg.Targets[0], "1.2.3")
 	if err != nil {
 		t.Fatalf("wheelPathForTarget() error = %v", err)
 	}
@@ -151,9 +151,9 @@ func TestStageUsesConfiguredDistributionReadmePath(t *testing.T) {
 	t.Setenv(shared.EnvVersionName, "1.2.3")
 
 	cfg := testConfig()
-	uvDist := cfg.Distributions["uv"]
+	uvDist := *cfg.Distributions.UV
 	uvDist.ReadmePath = "docs/uv-readme.md"
-	cfg.Distributions["uv"] = uvDist
+	*cfg.Distributions.UV = uvDist
 
 	if err := createDistArtifacts(cfg); err != nil {
 		t.Fatalf("createDistArtifacts() error = %v", err)
@@ -169,7 +169,7 @@ func TestStageUsesConfiguredDistributionReadmePath(t *testing.T) {
 		t.Fatalf("Stage() error = %v", err)
 	}
 
-	wheelPath, err := wheelPathForTarget(cfg.Distributions["uv"], cfg.Targets[0], "1.2.3")
+	wheelPath, err := wheelPathForTarget(*cfg.Distributions.UV, cfg.Targets[0], "1.2.3")
 	if err != nil {
 		t.Fatalf("wheelPathForTarget() error = %v", err)
 	}
@@ -200,7 +200,7 @@ func TestStageUsesGlobalReadmePathWhenDistributionReadmePathUnset(t *testing.T) 
 		t.Fatalf("Stage() error = %v", err)
 	}
 
-	wheelPath, err := wheelPathForTarget(cfg.Distributions["uv"], cfg.Targets[0], "1.2.3")
+	wheelPath, err := wheelPathForTarget(*cfg.Distributions.UV, cfg.Targets[0], "1.2.3")
 	if err != nil {
 		t.Fatalf("wheelPathForTarget() error = %v", err)
 	}
@@ -216,9 +216,9 @@ func TestStageFailsWhenConfiguredReadmePathMissing(t *testing.T) {
 	t.Setenv(shared.EnvVersionName, "1.2.3")
 
 	cfg := testConfig()
-	uvDist := cfg.Distributions["uv"]
+	uvDist := *cfg.Distributions.UV
 	uvDist.ReadmePath = "docs/missing.md"
-	cfg.Distributions["uv"] = uvDist
+	*cfg.Distributions.UV = uvDist
 
 	if err := createDistArtifacts(cfg); err != nil {
 		t.Fatalf("createDistArtifacts() error = %v", err)
@@ -236,10 +236,10 @@ func TestStageSkipsConfiguredReadmePathWhenIncludeReadmeDisabled(t *testing.T) {
 	t.Setenv(shared.EnvVersionName, "1.2.3")
 
 	cfg := testConfig()
-	uvDist := cfg.Distributions["uv"]
+	uvDist := *cfg.Distributions.UV
 	uvDist.IncludeREADME = boolPtr(false)
 	uvDist.ReadmePath = "docs/missing.md"
-	cfg.Distributions["uv"] = uvDist
+	*cfg.Distributions.UV = uvDist
 
 	if err := createDistArtifacts(cfg); err != nil {
 		t.Fatalf("createDistArtifacts() error = %v", err)
@@ -263,7 +263,7 @@ func TestVerifyDetectsMissingBinary(t *testing.T) {
 		t.Fatalf("Stage() error = %v", err)
 	}
 
-	uvDist := cfg.Distributions["uv"]
+	uvDist := *cfg.Distributions.UV
 	version := "1.2.3"
 	wheelPath, err := wheelPathForTarget(uvDist, cfg.Targets[0], version)
 	if err != nil {
@@ -329,7 +329,7 @@ func TestStageWheelsHaveNoDataDescriptors(t *testing.T) {
 		t.Fatalf("Stage() error = %v", err)
 	}
 
-	uvDist := cfg.Distributions["uv"]
+	uvDist := *cfg.Distributions.UV
 	for _, target := range cfg.Targets {
 		wheelPath, err := wheelPathForTarget(uvDist, target, "1.2.3")
 		if err != nil {
@@ -362,7 +362,7 @@ func TestStageWheelsRecordMatchesContents(t *testing.T) {
 		t.Fatalf("Stage() error = %v", err)
 	}
 
-	uvDist := cfg.Distributions["uv"]
+	uvDist := *cfg.Distributions.UV
 	for _, target := range cfg.Targets {
 		wheelPath, err := wheelPathForTarget(uvDist, target, "1.2.3")
 		if err != nil {
@@ -551,7 +551,7 @@ func wheelFileData(t *testing.T, wheelPath string, want string) []byte {
 func metadataFilePath(t *testing.T, cfg *config.Config, version string) string {
 	t.Helper()
 
-	uvDist := cfg.Distributions["uv"]
+	uvDist := *cfg.Distributions.UV
 	distName := shared.NormalizePythonDistributionName(uvDist.Package)
 	return distName + "-" + version + ".dist-info/METADATA"
 }
@@ -573,17 +573,17 @@ func TestUVDistValidation(t *testing.T) {
 		},
 		{
 			name: "empty_package",
-			cfg: &config.Config{Distributions: map[string]config.DistributionConfig{
-				"uv": {Package: "", LinuxTag: "manylinux2014"},
+			cfg: &config.Config{Distributions: config.DistributionConfigs{
+				UV: &config.UVDistributionConfig{Package: "", LinuxTag: "manylinux2014"},
 			}},
-			wantErr: "uv distribution package is required",
+			wantErr: "distributions.uv.package is required",
 		},
 		{
 			name: "invalid_linux_tag",
-			cfg: &config.Config{Distributions: map[string]config.DistributionConfig{
-				"uv": {Package: "omnidist", LinuxTag: "bad"},
+			cfg: &config.Config{Distributions: config.DistributionConfigs{
+				UV: &config.UVDistributionConfig{Package: "omnidist", LinuxTag: "bad"},
 			}},
-			wantErr: "invalid uv linux-tag",
+			wantErr: "invalid distributions.uv.linux-tag",
 		},
 	}
 
@@ -852,7 +852,7 @@ func TestWriteWheelArchivePropagatesZipCloseError(t *testing.T) {
 
 	cfg := testConfig()
 	target := cfg.Targets[0]
-	uvDist := cfg.Distributions["uv"]
+	uvDist := *cfg.Distributions.UV
 
 	platformTag, err := shared.WheelPlatformTag(target, uvDist.LinuxTag)
 	if err != nil {
@@ -898,8 +898,8 @@ func testConfig() *config.Config {
 			{OS: "linux", Arch: "amd64"},
 			{OS: "windows", Arch: "amd64"},
 		},
-		Distributions: map[string]config.DistributionConfig{
-			"uv": {
+		Distributions: config.DistributionConfigs{
+			UV: &config.UVDistributionConfig{
 				Package:  "omnidist",
 				IndexURL: "https://upload.pypi.org/legacy/",
 				LinuxTag: "manylinux2014",

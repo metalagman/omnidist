@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/metalagman/omnidist/internal/config"
+	"github.com/metalagman/omnidist/internal/paths"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
@@ -45,6 +46,75 @@ func TestUVPublishHelpFlags(t *testing.T) {
 		if !strings.Contains(output, flag) {
 			t.Fatalf("publish help missing %q: %s", flag, output)
 		}
+	}
+}
+
+func TestDirectBackendStageRejectsAbsentDistributionBeforeSideEffects(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+
+	cfg := config.DefaultConfig()
+	cfg.Distributions = config.DistributionConfigs{
+		NPM: cfg.Distributions.NPM,
+	}
+	if err := config.Save(cfg, paths.ConfigPath); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, tc := range []struct {
+		backend string
+		path    string
+	}{
+		{backend: "uv", path: paths.UVDir},
+		{backend: "gem", path: paths.GemDir},
+	} {
+		t.Run(tc.backend, func(t *testing.T) {
+			_, err := executeCommand(tc.backend, "stage")
+			if err == nil || !strings.Contains(err.Error(), "distributions."+tc.backend+" is required") {
+				t.Fatalf("executeCommand(%s stage) error = %v, want missing distribution", tc.backend, err)
+			}
+			if _, statErr := os.Stat(tc.path); !os.IsNotExist(statErr) {
+				t.Fatalf("executeCommand(%s stage) created %s before validation: %v", tc.backend, tc.path, statErr)
+			}
+		})
+	}
+}
+
+func TestInactiveLegacyBackendValidatedOnlyWhenInvoked(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	if err := os.MkdirAll(filepath.Dir(paths.ConfigPath), 0755); err != nil {
+		t.Fatal(err)
+	}
+	content := `enabled-distributions: [npm]
+version:
+  source: fixed
+  fixed: 1.2.3
+distributions:
+  npm:
+    package: "@scope/tool"
+  uv:
+    package: tool
+    linux-tag: invalid
+`
+	if err := os.WriteFile(paths.ConfigPath, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	output, err := executeCommand("ci", "--dry-run")
+	if err != nil {
+		t.Fatalf("executeCommand(ci --dry-run) error = %v", err)
+	}
+	if strings.Contains(output, "publish_uv:") {
+		t.Fatalf("inactive uv backend leaked into aggregate CI: %s", output)
+	}
+
+	_, err = executeCommand("uv", "stage")
+	if err == nil || !strings.Contains(err.Error(), "distributions.uv.linux-tag") {
+		t.Fatalf("executeCommand(uv stage) error = %v, want uv validation error", err)
+	}
+	if _, statErr := os.Stat(paths.UVDir); !os.IsNotExist(statErr) {
+		t.Fatalf("uv stage created %s before validation: %v", paths.UVDir, statErr)
 	}
 }
 
@@ -274,6 +344,9 @@ func TestGlobalProfileFromEnv(t *testing.T) {
       ldflags: -s -w
       tags: []
       cgo: false
+    distributions:
+      npm:
+        package: "@scope/app"
   release:
     tool:
       name: app
@@ -288,6 +361,9 @@ func TestGlobalProfileFromEnv(t *testing.T) {
       ldflags: -s -w
       tags: []
       cgo: false
+    distributions:
+      npm:
+        package: "@scope/app"
 `
 	if err := os.WriteFile(configPath, []byte(content), 0644); err != nil {
 		t.Fatalf("os.WriteFile(%q) error = %v", configPath, err)

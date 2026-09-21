@@ -93,10 +93,10 @@ func TestTrustedPublishingPlanUsesIndependentPlatformPackage(t *testing.T) {
 		{OS: "linux", Arch: "amd64"},
 		{OS: "darwin", Arch: "arm64"},
 	}
-	npmDist := cfg.Distributions["npm"]
+	npmDist := *cfg.Distributions.NPM
 	npmDist.Package = "omnidist"
 	npmDist.PlatformPackage = "@omnidist/omnidist"
-	cfg.Distributions["npm"] = npmDist
+	*cfg.Distributions.NPM = npmDist
 
 	plan, err := TrustedPublishingPlan(cfg, TrustOptions{})
 	if err != nil {
@@ -117,9 +117,9 @@ func TestTrustedPublishingPlanErrors(t *testing.T) {
 	t.Parallel()
 
 	cfg := testConfig()
-	npmDist := cfg.Distributions["npm"]
+	npmDist := *cfg.Distributions.NPM
 	npmDist.RepositoryURL = ""
-	cfg.Distributions["npm"] = npmDist
+	*cfg.Distributions.NPM = npmDist
 
 	tests := []struct {
 		name    string
@@ -143,8 +143,8 @@ func TestTrustedPublishingPlanErrors(t *testing.T) {
 			name: "non_github_repository",
 			cfg: &config.Config{
 				Targets: testConfig().Targets,
-				Distributions: map[string]config.DistributionConfig{
-					"npm": {
+				Distributions: config.DistributionConfigs{
+					NPM: &config.NPMDistributionConfig{
 						Package:       "@omnidist/omnidist",
 						Access:        "public",
 						PublishAuth:   "trusted",

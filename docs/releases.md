@@ -17,9 +17,9 @@ Never commit tokens or place them in generated workflow YAML. The CI generator r
 ## First-release checklist
 
 1. Confirm package names are available and registry accounts have permission to publish them. When npm `platform-package` uses a different scope from the root `package`, verify ownership of both identities; public scoped packages require `access: public`.
-2. Review `.omnidist/omnidist.yaml`, especially `enabled-distributions`, package names, repository URLs, access, authentication modes, and target matrix.
+2. Review `.omnidist/omnidist.yaml`, especially the present `distributions` sections, package names, repository URLs, access, authentication modes, and target matrix.
 3. For npm trusted mode, run `omnidist npm trust` to inspect setup commands for the root and every platform package; use `--apply` only after reviewing them.
-4. Configure CI secrets or trusted publishers for every enabled backend.
+4. Configure CI secrets or trusted publishers for every selected backend.
 5. Generate and review CI without writing first: `omnidist ci --dry-run`.
 6. Build, stage, verify, and exercise publish preflight:
 
@@ -59,7 +59,7 @@ omnidist uv publish --publish-url https://test.pypi.org/legacy/
 omnidist gem publish --host https://rubygems.org
 ```
 
-These commands are also the recovery path for a backend disabled from aggregate execution.
+These commands are also the recovery path for a configured backend excluded by a legacy selector. A direct command cannot run a backend whose section is absent.
 
 ## Partial-release recovery
 
@@ -77,6 +77,6 @@ Omnidist does not delete or overwrite registry releases automatically.
 
 ## CI releases
 
-`omnidist ci` generates `.github/workflows/omnidist-release.yml`. It uses only the enabled backends, stages and verifies with an explicit `--only` list, creates backend publish jobs, and creates a separate GitHub Release job for binaries/checksums.
+`omnidist ci` generates `.github/workflows/omnidist-release.yml`. It uses only the resolved selected backends, stages and verifies with an explicit `--only` list, creates backend publish jobs, and creates a separate GitHub Release job for binaries/checksums.
 
 Separate publish jobs can fail independently after another registry succeeds. Treat the GitHub Actions run as a coordinated workflow, not a cross-registry transaction, and use the recovery procedure above.

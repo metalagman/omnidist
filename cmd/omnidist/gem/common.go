@@ -29,5 +29,12 @@ func getSelectedProfile() string {
 }
 
 func loadConfig() (*config.Config, error) {
-	return config.LoadWithProfile(getConfigPath(), getSelectedProfile())
+	cfg, err := config.LoadWithProfile(getConfigPath(), getSelectedProfile())
+	if err != nil {
+		return nil, err
+	}
+	if _, err := cfg.RequireGem(); err != nil {
+		return nil, err
+	}
+	return cfg, nil
 }

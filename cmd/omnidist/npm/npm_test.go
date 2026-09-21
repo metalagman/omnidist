@@ -261,10 +261,10 @@ func TestTrustCommandPrintsAllPackages(t *testing.T) {
 	flagTrustApply = false
 
 	cfg := config.DefaultConfig()
-	npmDist := cfg.Distributions["npm"]
+	npmDist := *cfg.Distributions.NPM
 	npmDist.PublishAuth = "trusted"
 	npmDist.RepositoryURL = "git+https://github.com/metalagman/omnidist.git"
-	cfg.Distributions["npm"] = npmDist
+	*cfg.Distributions.NPM = npmDist
 	if err := config.Save(cfg, paths.ConfigPath); err != nil {
 		t.Fatalf("config.Save(%q) error = %v", paths.ConfigPath, err)
 	}

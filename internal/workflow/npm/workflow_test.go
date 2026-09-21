@@ -66,36 +66,36 @@ func TestNPMDistribution(t *testing.T) {
 		{
 			name: "missing_npm_distribution",
 			cfg: &config.Config{
-				Distributions: map[string]config.DistributionConfig{},
+				Distributions: config.DistributionConfigs{},
 			},
-			wantErr: "missing required distribution: npm",
+			wantErr: "distributions.npm is required",
 		},
 		{
 			name: "empty_package",
 			cfg: &config.Config{
-				Distributions: map[string]config.DistributionConfig{
-					"npm": {Package: "   "},
+				Distributions: config.DistributionConfigs{
+					NPM: &config.NPMDistributionConfig{Package: "   "},
 				},
 			},
-			wantErr: "npm distribution package is required",
+			wantErr: "distributions.npm.package is required",
 		},
 		{
 			name: "invalid_access",
 			cfg: &config.Config{
-				Distributions: map[string]config.DistributionConfig{
-					"npm": {Package: "@scope/pkg", Access: "private"},
+				Distributions: config.DistributionConfigs{
+					NPM: &config.NPMDistributionConfig{Package: "@scope/pkg", Access: "private"},
 				},
 			},
-			wantErr: "invalid npm access",
+			wantErr: "invalid distributions.npm.access",
 		},
 		{
 			name: "invalid_platform_package",
 			cfg: &config.Config{
-				Distributions: map[string]config.DistributionConfig{
-					"npm": {Package: "omnidist", PlatformPackage: "@scope/Invalid"},
+				Distributions: config.DistributionConfigs{
+					NPM: &config.NPMDistributionConfig{Package: "omnidist", PlatformPackage: "@scope/Invalid"},
 				},
 			},
-			wantErr: "invalid npm platform package",
+			wantErr: "invalid distributions.npm.platform-package",
 		},
 	}
 
@@ -115,13 +115,14 @@ func TestNPMDistributionTrimsFields(t *testing.T) {
 	t.Parallel()
 
 	cfg := &config.Config{
-		Distributions: map[string]config.DistributionConfig{
-			"npm": {
+		Distributions: config.DistributionConfigs{
+			NPM: &config.NPMDistributionConfig{
 				Package:         " omnidist ",
 				PlatformPackage: " @omnidist/omnidist ",
 				Registry:        " https://registry.npmjs.org ",
 				Access:          " public ",
 				PublishAuth:     " trusted ",
+				RepositoryURL:   " https://github.com/example/omnidist ",
 			},
 		},
 	}
@@ -152,8 +153,8 @@ func TestNPMDistributionDefaultsPlatformPackageToMetaPackage(t *testing.T) {
 	t.Parallel()
 
 	for _, packageName := range []string{"omnidist", "@omnidist/omnidist"} {
-		cfg := &config.Config{Distributions: map[string]config.DistributionConfig{
-			"npm": {Package: packageName, PlatformPackage: "   "},
+		cfg := &config.Config{Distributions: config.DistributionConfigs{
+			NPM: &config.NPMDistributionConfig{Package: packageName, PlatformPackage: "   "},
 		}}
 		dist, err := npmDistribution(cfg)
 		if err != nil {
@@ -228,9 +229,10 @@ func TestCheckAuthTrustedPublishingSkipsWhoami(t *testing.T) {
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 
 	cfg := config.DefaultConfig()
-	npmDist := cfg.Distributions["npm"]
+	npmDist := *cfg.Distributions.NPM
 	npmDist.PublishAuth = npmPublishAuthTrusted
-	cfg.Distributions["npm"] = npmDist
+	npmDist.RepositoryURL = "https://github.com/metalagman/omnidist"
+	*cfg.Distributions.NPM = npmDist
 
 	if err := CheckAuth(cfg, "", false); err != nil {
 		t.Fatalf("CheckAuth(trusted) error = %v", err)
@@ -383,10 +385,10 @@ func TestPublishDryRunPublishesStagedPackages(t *testing.T) {
 	t.Setenv(shared.EnvVersionName, "1.2.3-dev.4.gabc123")
 
 	cfg := testConfig()
-	npmDist := cfg.Distributions["npm"]
+	npmDist := *cfg.Distributions.NPM
 	npmDist.Package = "omnidist"
 	npmDist.PlatformPackage = "@omnidist/omnidist"
-	cfg.Distributions["npm"] = npmDist
+	*cfg.Distributions.NPM = npmDist
 	if err := createDistArtifacts(cfg); err != nil {
 		t.Fatalf("createDistArtifacts() error = %v", err)
 	}
@@ -760,7 +762,7 @@ func TestResolveNPMVersion(t *testing.T) {
 			t.Fatalf("shared.WriteBuildVersion() error = %v", err)
 		}
 
-		metaDir := filepath.Join(paths.NPMDir, cfg.Distributions["npm"].Package)
+		metaDir := filepath.Join(paths.NPMDir, cfg.Distributions.NPM.Package)
 		if err := os.MkdirAll(metaDir, 0755); err != nil {
 			t.Fatalf("os.MkdirAll(%q) error = %v", metaDir, err)
 		}
@@ -787,7 +789,7 @@ func TestResolveNPMVersion(t *testing.T) {
 			t.Fatalf("shared.WriteBuildVersion() error = %v", err)
 		}
 
-		metaDir := filepath.Join(paths.NPMDir, cfg.Distributions["npm"].Package)
+		metaDir := filepath.Join(paths.NPMDir, cfg.Distributions.NPM.Package)
 		got, err := resolveNPMVersion(cfg, metaDir)
 		if err != nil {
 			t.Fatalf("resolveNPMVersion() error = %v", err)
@@ -887,10 +889,10 @@ func TestStageAndVerifyMixedScopePackages(t *testing.T) {
 
 	cfg := testConfig()
 	cfg.Targets = []config.Target{{OS: "linux", Arch: "amd64"}}
-	npmDist := cfg.Distributions["npm"]
+	npmDist := *cfg.Distributions.NPM
 	npmDist.Package = "omnidist"
 	npmDist.PlatformPackage = "@omnidist/omnidist"
-	cfg.Distributions["npm"] = npmDist
+	*cfg.Distributions.NPM = npmDist
 
 	if err := createDistArtifacts(cfg); err != nil {
 		t.Fatalf("createDistArtifacts() error = %v", err)
@@ -965,7 +967,7 @@ func TestStageAssignsCLIBinOnlyToMetaPackage(t *testing.T) {
 		t.Fatalf("Stage() error = %v", err)
 	}
 
-	metaDir := filepath.Join(paths.NPMDir, cfg.Distributions["npm"].Package)
+	metaDir := filepath.Join(paths.NPMDir, cfg.Distributions.NPM.Package)
 	metaJSON, err := readPackageJSON(metaDir)
 	if err != nil {
 		t.Fatalf("readPackageJSON(%q) error = %v", metaDir, err)
@@ -976,7 +978,7 @@ func TestStageAssignsCLIBinOnlyToMetaPackage(t *testing.T) {
 	}
 
 	for _, target := range cfg.Targets {
-		pkgName := platformPackageName(cfg.Distributions["npm"].Package, target)
+		pkgName := platformPackageName(cfg.Distributions.NPM.Package, target)
 		assertNPMPackageFieldAbsent(t, filepath.Join(paths.NPMDir, pkgName), "bin")
 	}
 }
@@ -1014,13 +1016,13 @@ func TestStageIncludesProjectREADMEByDefaultWhenPresent(t *testing.T) {
 		t.Fatalf("Stage() error = %v", err)
 	}
 
-	metaDir := filepath.Join(paths.NPMDir, cfg.Distributions["npm"].Package)
+	metaDir := filepath.Join(paths.NPMDir, cfg.Distributions.NPM.Package)
 	if _, err := os.Stat(filepath.Join(metaDir, "README.md")); err != nil {
 		t.Fatalf("meta README missing: %v", err)
 	}
 
 	target := cfg.Targets[0]
-	pkgName := platformPackageName(cfg.Distributions["npm"].Package, target)
+	pkgName := platformPackageName(cfg.Distributions.NPM.Package, target)
 	pkgDir := filepath.Join(paths.NPMDir, pkgName)
 	if _, err := os.Stat(filepath.Join(pkgDir, "README.md")); err != nil {
 		t.Fatalf("platform README missing: %v", err)
@@ -1036,9 +1038,9 @@ func TestStageSkipsProjectREADMEWhenDisabled(t *testing.T) {
 	t.Setenv(shared.EnvVersionName, "1.2.3")
 
 	cfg := testConfig()
-	npmDist := cfg.Distributions["npm"]
+	npmDist := *cfg.Distributions.NPM
 	npmDist.IncludeREADME = boolPtr(false)
-	cfg.Distributions["npm"] = npmDist
+	*cfg.Distributions.NPM = npmDist
 
 	if err := createDistArtifacts(cfg); err != nil {
 		t.Fatalf("createDistArtifacts() error = %v", err)
@@ -1054,13 +1056,13 @@ func TestStageSkipsProjectREADMEWhenDisabled(t *testing.T) {
 		t.Fatalf("Stage() error = %v", err)
 	}
 
-	metaDir := filepath.Join(paths.NPMDir, cfg.Distributions["npm"].Package)
+	metaDir := filepath.Join(paths.NPMDir, cfg.Distributions.NPM.Package)
 	if _, err := os.Stat(filepath.Join(metaDir, "README.md")); !os.IsNotExist(err) {
 		t.Fatalf("meta README stat err = %v, want not exists", err)
 	}
 
 	target := cfg.Targets[0]
-	pkgName := platformPackageName(cfg.Distributions["npm"].Package, target)
+	pkgName := platformPackageName(cfg.Distributions.NPM.Package, target)
 	pkgDir := filepath.Join(paths.NPMDir, pkgName)
 	if _, err := os.Stat(filepath.Join(pkgDir, "README.md")); !os.IsNotExist(err) {
 		t.Fatalf("platform README stat err = %v, want not exists", err)
@@ -1073,9 +1075,9 @@ func TestStageUsesConfiguredDistributionReadmePath(t *testing.T) {
 	t.Setenv(shared.EnvVersionName, "1.2.3")
 
 	cfg := testConfig()
-	npmDist := cfg.Distributions["npm"]
+	npmDist := *cfg.Distributions.NPM
 	npmDist.ReadmePath = "docs/npm-readme.md"
-	cfg.Distributions["npm"] = npmDist
+	*cfg.Distributions.NPM = npmDist
 
 	if err := createDistArtifacts(cfg); err != nil {
 		t.Fatalf("createDistArtifacts() error = %v", err)
@@ -1094,7 +1096,7 @@ func TestStageUsesConfiguredDistributionReadmePath(t *testing.T) {
 		t.Fatalf("Stage() error = %v", err)
 	}
 
-	metaDir := filepath.Join(paths.NPMDir, cfg.Distributions["npm"].Package)
+	metaDir := filepath.Join(paths.NPMDir, cfg.Distributions.NPM.Package)
 	readme, err := os.ReadFile(filepath.Join(metaDir, "README.md"))
 	if err != nil {
 		t.Fatalf("os.ReadFile(meta README) error = %v", err)
@@ -1128,7 +1130,7 @@ func TestStageUsesGlobalReadmePathWhenDistributionReadmePathUnset(t *testing.T) 
 		t.Fatalf("Stage() error = %v", err)
 	}
 
-	metaDir := filepath.Join(paths.NPMDir, cfg.Distributions["npm"].Package)
+	metaDir := filepath.Join(paths.NPMDir, cfg.Distributions.NPM.Package)
 	readme, err := os.ReadFile(filepath.Join(metaDir, "README.md"))
 	if err != nil {
 		t.Fatalf("os.ReadFile(meta README) error = %v", err)
@@ -1144,9 +1146,9 @@ func TestStageFailsWhenConfiguredReadmePathMissing(t *testing.T) {
 	t.Setenv(shared.EnvVersionName, "1.2.3")
 
 	cfg := testConfig()
-	npmDist := cfg.Distributions["npm"]
+	npmDist := *cfg.Distributions.NPM
 	npmDist.ReadmePath = "docs/missing.md"
-	cfg.Distributions["npm"] = npmDist
+	*cfg.Distributions.NPM = npmDist
 
 	if err := createDistArtifacts(cfg); err != nil {
 		t.Fatalf("createDistArtifacts() error = %v", err)
@@ -1167,10 +1169,10 @@ func TestStageSkipsConfiguredReadmePathWhenIncludeReadmeDisabled(t *testing.T) {
 	t.Setenv(shared.EnvVersionName, "1.2.3")
 
 	cfg := testConfig()
-	npmDist := cfg.Distributions["npm"]
+	npmDist := *cfg.Distributions.NPM
 	npmDist.IncludeREADME = boolPtr(false)
 	npmDist.ReadmePath = "docs/missing.md"
-	cfg.Distributions["npm"] = npmDist
+	*cfg.Distributions.NPM = npmDist
 
 	if err := createDistArtifacts(cfg); err != nil {
 		t.Fatalf("createDistArtifacts() error = %v", err)
@@ -1190,9 +1192,9 @@ func TestStageIncludesConfiguredKeywordsInMetaPackage(t *testing.T) {
 	t.Setenv(shared.EnvVersionName, "1.2.3")
 
 	cfg := testConfig()
-	npmDist := cfg.Distributions["npm"]
+	npmDist := *cfg.Distributions.NPM
 	npmDist.Keywords = []string{"ai", "llm", "cli"}
-	cfg.Distributions["npm"] = npmDist
+	*cfg.Distributions.NPM = npmDist
 
 	if err := createDistArtifacts(cfg); err != nil {
 		t.Fatalf("createDistArtifacts() error = %v", err)
@@ -1205,11 +1207,11 @@ func TestStageIncludesConfiguredKeywordsInMetaPackage(t *testing.T) {
 		t.Fatalf("Stage() error = %v", err)
 	}
 
-	metaDir := filepath.Join(paths.NPMDir, cfg.Distributions["npm"].Package)
+	metaDir := filepath.Join(paths.NPMDir, cfg.Distributions.NPM.Package)
 	assertNPMPackageKeywordsEquals(t, metaDir, []string{"ai", "llm", "cli"})
 
 	target := cfg.Targets[0]
-	pkgName := platformPackageName(cfg.Distributions["npm"].Package, target)
+	pkgName := platformPackageName(cfg.Distributions.NPM.Package, target)
 	pkgDir := filepath.Join(paths.NPMDir, pkgName)
 	assertNPMPackageFieldAbsent(t, pkgDir, "keywords")
 }
@@ -1231,11 +1233,11 @@ func TestStageIncludesConfiguredRepositoryURL(t *testing.T) {
 		t.Fatalf("Stage() error = %v", err)
 	}
 
-	metaDir := filepath.Join(paths.NPMDir, cfg.Distributions["npm"].Package)
+	metaDir := filepath.Join(paths.NPMDir, cfg.Distributions.NPM.Package)
 	assertNPMPackageRepositoryURLEquals(t, metaDir, "git+https://github.com/metalagman/omnidist.git")
 
 	target := cfg.Targets[0]
-	pkgName := platformPackageName(cfg.Distributions["npm"].Package, target)
+	pkgName := platformPackageName(cfg.Distributions.NPM.Package, target)
 	pkgDir := filepath.Join(paths.NPMDir, pkgName)
 	assertNPMPackageRepositoryURLEquals(t, pkgDir, "git+https://github.com/metalagman/omnidist.git")
 }
@@ -1260,7 +1262,7 @@ func TestStageIncludesProjectLicenseAndMetadata(t *testing.T) {
 		t.Fatalf("Stage() error = %v", err)
 	}
 
-	metaDir := filepath.Join(paths.NPMDir, cfg.Distributions["npm"].Package)
+	metaDir := filepath.Join(paths.NPMDir, cfg.Distributions.NPM.Package)
 	if _, err := os.Stat(filepath.Join(metaDir, "LICENSE.md")); err != nil {
 		t.Fatalf("meta license missing: %v", err)
 	}
@@ -1268,7 +1270,7 @@ func TestStageIncludesProjectLicenseAndMetadata(t *testing.T) {
 	assertNPMPackageLicenseEquals(t, metaDir, "SEE LICENSE IN LICENSE.md")
 
 	target := cfg.Targets[0]
-	pkgName := platformPackageName(cfg.Distributions["npm"].Package, target)
+	pkgName := platformPackageName(cfg.Distributions.NPM.Package, target)
 	pkgDir := filepath.Join(paths.NPMDir, pkgName)
 	if _, err := os.Stat(filepath.Join(pkgDir, "LICENSE.md")); err != nil {
 		t.Fatalf("platform license missing: %v", err)
@@ -1283,9 +1285,9 @@ func TestStageUsesConfiguredLicenseOverride(t *testing.T) {
 	t.Setenv(shared.EnvVersionName, "1.2.3")
 
 	cfg := testConfig()
-	npmDist := cfg.Distributions["npm"]
+	npmDist := *cfg.Distributions.NPM
 	npmDist.License = "MIT"
-	cfg.Distributions["npm"] = npmDist
+	*cfg.Distributions.NPM = npmDist
 	if err := createDistArtifacts(cfg); err != nil {
 		t.Fatalf("createDistArtifacts() error = %v", err)
 	}
@@ -1300,7 +1302,7 @@ func TestStageUsesConfiguredLicenseOverride(t *testing.T) {
 		t.Fatalf("Stage() error = %v", err)
 	}
 
-	metaDir := filepath.Join(paths.NPMDir, cfg.Distributions["npm"].Package)
+	metaDir := filepath.Join(paths.NPMDir, cfg.Distributions.NPM.Package)
 	if _, err := os.Stat(filepath.Join(metaDir, "LICENSE.md")); err != nil {
 		t.Fatalf("meta license missing: %v", err)
 	}
@@ -1308,7 +1310,7 @@ func TestStageUsesConfiguredLicenseOverride(t *testing.T) {
 	assertNPMPackageLicenseEquals(t, metaDir, "MIT")
 
 	target := cfg.Targets[0]
-	pkgName := platformPackageName(cfg.Distributions["npm"].Package, target)
+	pkgName := platformPackageName(cfg.Distributions.NPM.Package, target)
 	pkgDir := filepath.Join(paths.NPMDir, pkgName)
 	if _, err := os.Stat(filepath.Join(pkgDir, "LICENSE.md")); err != nil {
 		t.Fatalf("platform license missing: %v", err)
@@ -1323,9 +1325,9 @@ func TestStageUsesConfiguredLicenseWithoutProjectLicenseFile(t *testing.T) {
 	t.Setenv(shared.EnvVersionName, "1.2.3")
 
 	cfg := testConfig()
-	npmDist := cfg.Distributions["npm"]
+	npmDist := *cfg.Distributions.NPM
 	npmDist.License = "Apache-2.0"
-	cfg.Distributions["npm"] = npmDist
+	*cfg.Distributions.NPM = npmDist
 	if err := createDistArtifacts(cfg); err != nil {
 		t.Fatalf("createDistArtifacts() error = %v", err)
 	}
@@ -1337,11 +1339,11 @@ func TestStageUsesConfiguredLicenseWithoutProjectLicenseFile(t *testing.T) {
 		t.Fatalf("Stage() error = %v", err)
 	}
 
-	metaDir := filepath.Join(paths.NPMDir, cfg.Distributions["npm"].Package)
+	metaDir := filepath.Join(paths.NPMDir, cfg.Distributions.NPM.Package)
 	assertNPMPackageLicenseEquals(t, metaDir, "Apache-2.0")
 
 	target := cfg.Targets[0]
-	pkgName := platformPackageName(cfg.Distributions["npm"].Package, target)
+	pkgName := platformPackageName(cfg.Distributions.NPM.Package, target)
 	pkgDir := filepath.Join(paths.NPMDir, pkgName)
 	assertNPMPackageLicenseEquals(t, pkgDir, "Apache-2.0")
 }
@@ -1372,7 +1374,7 @@ func TestStagePrefersLicenseOverLicenseVariants(t *testing.T) {
 		t.Fatalf("Stage() error = %v", err)
 	}
 
-	metaDir := filepath.Join(paths.NPMDir, cfg.Distributions["npm"].Package)
+	metaDir := filepath.Join(paths.NPMDir, cfg.Distributions.NPM.Package)
 	assertNPMPackageFilesContains(t, metaDir, "LICENSE")
 	assertNPMPackageLicenseEquals(t, metaDir, "SEE LICENSE IN LICENSE")
 	if _, err := os.Stat(filepath.Join(metaDir, "LICENSE.md")); !os.IsNotExist(err) {
@@ -1400,7 +1402,7 @@ func TestVerifyDetectsPlatformVersionMismatch(t *testing.T) {
 	}
 
 	target := cfg.Targets[0]
-	pkgName := platformPackageName(cfg.Distributions["npm"].Package, target)
+	pkgName := platformPackageName(cfg.Distributions.NPM.Package, target)
 	pkgDir := filepath.Join(paths.NPMDir, pkgName)
 	pkgJSON, err := readPackageJSON(pkgDir)
 	if err != nil {
@@ -1450,9 +1452,9 @@ func TestVerifyDetectsMissingRepositoryURLForTrustedPublishing(t *testing.T) {
 	t.Setenv(shared.EnvVersionName, "1.2.3")
 
 	cfg := testConfig()
-	npmDist := cfg.Distributions["npm"]
+	npmDist := *cfg.Distributions.NPM
 	npmDist.PublishAuth = npmPublishAuthTrusted
-	cfg.Distributions["npm"] = npmDist
+	*cfg.Distributions.NPM = npmDist
 
 	if err := createDistArtifacts(cfg); err != nil {
 		t.Fatalf("createDistArtifacts() error = %v", err)
@@ -1464,7 +1466,7 @@ func TestVerifyDetectsMissingRepositoryURLForTrustedPublishing(t *testing.T) {
 		t.Fatalf("Stage() error = %v", err)
 	}
 
-	metaDir := filepath.Join(paths.NPMDir, cfg.Distributions["npm"].Package)
+	metaDir := filepath.Join(paths.NPMDir, cfg.Distributions.NPM.Package)
 	pkgJSON, err := readPackageJSON(metaDir)
 	if err != nil {
 		t.Fatalf("readPackageJSON(%q) error = %v", metaDir, err)
@@ -1500,9 +1502,9 @@ func TestPublishTrustedPublishingDoesNotForceUserConfig(t *testing.T) {
 	t.Setenv(shared.EnvVersionName, "1.2.3")
 
 	cfg := testConfig()
-	npmDist := cfg.Distributions["npm"]
+	npmDist := *cfg.Distributions.NPM
 	npmDist.PublishAuth = npmPublishAuthTrusted
-	cfg.Distributions["npm"] = npmDist
+	*cfg.Distributions.NPM = npmDist
 
 	if err := createDistArtifacts(cfg); err != nil {
 		t.Fatalf("createDistArtifacts() error = %v", err)
@@ -1567,8 +1569,8 @@ func testConfig() *config.Config {
 			{OS: "linux", Arch: "amd64"},
 			{OS: "windows", Arch: "amd64"},
 		},
-		Distributions: map[string]config.DistributionConfig{
-			"npm": {
+		Distributions: config.DistributionConfigs{
+			NPM: &config.NPMDistributionConfig{
 				Package:       "@omnidist/omnidist",
 				Registry:      "https://registry.npmjs.org",
 				Access:        "public",

@@ -16,8 +16,8 @@ func TestVerifyCoverage(t *testing.T) {
 		// config with file source but no file present
 		cfg := &config.Config{
 			Version: config.VersionConfig{Source: "file"},
-			Distributions: map[string]config.DistributionConfig{
-				"uv": {Package: "omnidist"},
+			Distributions: config.DistributionConfigs{
+				UV: &config.UVDistributionConfig{Package: "omnidist"},
 			},
 		}
 		result := Verify(cfg)
@@ -60,7 +60,7 @@ func TestVerifyCoverage(t *testing.T) {
 		Stage(cfg, StageOptions{})
 
 		// Corrupt a wheel
-		uvDist := cfg.Distributions["uv"]
+		uvDist := *cfg.Distributions.UV
 		wheelPath, _ := wheelPathForTarget(uvDist, cfg.Targets[0], "1.2.3")
 		os.WriteFile(wheelPath, []byte("not-a-zip"), 0644)
 
@@ -73,7 +73,7 @@ func TestVerifyCoverage(t *testing.T) {
 }
 
 func TestWheelPathForTargetErrors(t *testing.T) {
-	uvDist := config.DistributionConfig{
+	uvDist := config.UVDistributionConfig{
 		Package:  "pkg",
 		LinuxTag: "manylinux2014",
 	}

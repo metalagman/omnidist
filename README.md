@@ -36,7 +36,7 @@ go install github.com/metalagman/omnidist/cmd/omnidist@latest
 | gem stage/verify/publish | Ruby and RubyGems (`gem`) |
 | Token publish | The selected backend's token environment variable |
 
-You do not need tooling for disabled backends.
+You do not need tooling for backends absent from the selected set.
 
 ## Safe quick start
 
@@ -64,7 +64,6 @@ The generated file uses profiles mode and stores artifacts beneath `.omnidist/de
 ```yaml
 profiles:
   default:
-    enabled-distributions: [npm, uv]
     tool:
       name: mytool
       main: ./cmd/mytool
@@ -82,11 +81,9 @@ profiles:
         package: "@my-org/mytool"
       uv:
         package: mytool
-      gem:
-        package: mytool
 ```
 
-Valid enabled values are `npm`, `uv`, and `gem`. An omitted field preserves compatibility by enabling all three. Aggregate commands always execute in npm → uv → gem order. `--only` can narrow the configured set but cannot enable a disabled backend; backend-specific commands remain available for repair and recovery.
+The `npm` and `uv` sections select those two backends. Add or remove `npm`, `uv`, and `gem` sections to define the canonical aggregate set. Existing files with a non-empty `enabled-distributions` selector remain readable, but every selected backend must have its own section. Aggregate commands always execute in npm → uv → gem order. `--only` can narrow the configured set but cannot enable an unavailable backend; backend-specific commands also require an explicit section.
 
 To keep the npm package installed by users unscoped while publishing platform binaries under a scope, set an independent platform-package base:
 
@@ -119,7 +116,7 @@ omnidist ci
 # use --force only to intentionally replace the generated workflow
 ```
 
-The workflow contains setup, credentials, and publish jobs only for enabled backends, plus a GitHub Release job for the built binaries.
+The workflow contains setup, credentials, and publish jobs only for selected backends, plus a GitHub Release job for the built binaries.
 
 ## Reference
 
