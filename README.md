@@ -85,17 +85,26 @@ profiles:
 
 The `npm` and `uv` sections select those two backends. Add or remove `npm`, `uv`, and `gem` sections to define the canonical aggregate set. Existing files with a non-empty `enabled-distributions` selector remain readable, but every selected backend must have its own section. Aggregate commands always execute in npm → uv → gem order. `--only` can narrow the configured set but cannot enable an unavailable backend; backend-specific commands also require an explicit section.
 
-To keep the npm package installed by users unscoped while publishing platform binaries under a scope, set an independent platform-package base:
+To offer both unscoped and scoped install names while publishing one shared platform package set, configure the unscoped package as primary, add the scoped name to `aliases`, and use the scoped base for platform packages:
 
 ```yaml
 distributions:
   npm:
     package: omnidist
+    aliases:
+      - "@omnidist/omnidist"
     platform-package: "@omnidist/omnidist"
     access: public
 ```
 
-This produces platform packages such as `@omnidist/omnidist-linux-x64`, while the root package remains `omnidist`. If `platform-package` is omitted or blank, it defaults to `package`, preserving existing package names. The configured npm identity must be allowed to publish the unscoped name and every package in the selected scope; trusted publishing must be configured for every generated package.
+Users can then install either equivalent meta package:
+
+```bash
+npm install -g omnidist
+npm install -g @omnidist/omnidist
+```
+
+Both meta packages reference platform packages such as `@omnidist/omnidist-linux-x64`; the binaries are not duplicated under each meta-package name. `package` is published first among meta packages, followed by `aliases` in configured order, after all unique platform packages. If `aliases` is omitted, Omnidist publishes only `package`. If `platform-package` is omitted or blank, it defaults to `package`, preserving existing package names. The configured npm identity must be allowed to publish every meta and platform name; trusted publishing must be configured for every generated package.
 
 ## Release flow
 

@@ -179,6 +179,7 @@ func (d DistributionConfigs) Has(name DistributionName) bool {
 // NPMDistributionConfig stores npm packaging settings.
 type NPMDistributionConfig struct {
 	Package         string   `yaml:"package"`
+	Aliases         []string `yaml:"aliases,omitempty"`
 	PlatformPackage string   `yaml:"platform-package,omitempty"`
 	Registry        string   `yaml:"registry,omitempty"`
 	Access          string   `yaml:"access,omitempty"`
@@ -406,6 +407,13 @@ func includeREADMEEnabled(value *bool) bool {
 // IncludeREADMEEnabled reports whether README.md should be included in npm artifacts.
 func (d NPMDistributionConfig) IncludeREADMEEnabled() bool {
 	return includeREADMEEnabled(d.IncludeREADME)
+}
+
+// MetaPackages returns the primary npm package followed by configured aliases.
+func (d NPMDistributionConfig) MetaPackages() []string {
+	packages := make([]string, 1, len(d.Aliases)+1)
+	packages[0] = d.Package
+	return append(packages, d.Aliases...)
 }
 
 // IncludeREADMEEnabled reports whether README.md should be included in uv artifacts.
@@ -957,6 +965,10 @@ func (cfg *Config) RequireGem() (GemDistributionConfig, error) {
 
 func normalizeNPMDistribution(dist *NPMDistributionConfig) {
 	dist.Package = strings.TrimSpace(dist.Package)
+	dist.Aliases = append([]string(nil), dist.Aliases...)
+	for i := range dist.Aliases {
+		dist.Aliases[i] = strings.TrimSpace(dist.Aliases[i])
+	}
 	dist.PlatformPackage = strings.TrimSpace(dist.PlatformPackage)
 	dist.Registry = strings.TrimSpace(dist.Registry)
 	dist.Access = strings.TrimSpace(dist.Access)
@@ -1019,6 +1031,19 @@ func validateNPMDistribution(dist NPMDistributionConfig, targets []Target) error
 	}
 	if err := ValidateNPMPackageName(dist.Package); err != nil {
 		return fmt.Errorf("invalid distributions.npm.package %q: %w", dist.Package, err)
+	}
+	seenAliases := map[string]int{dist.Package: -1}
+	for i, alias := range dist.Aliases {
+		if err := ValidateNPMPackageName(alias); err != nil {
+			return fmt.Errorf("invalid distributions.npm.aliases[%d] %q: %w", i, alias, err)
+		}
+		if previous, ok := seenAliases[alias]; ok {
+			if previous == -1 {
+				return fmt.Errorf("distributions.npm.aliases[%d] duplicates distributions.npm.package %q", i, alias)
+			}
+			return fmt.Errorf("distributions.npm.aliases[%d] duplicates distributions.npm.aliases[%d] %q", i, previous, alias)
+		}
+		seenAliases[alias] = i
 	}
 	if dist.PlatformPackage != "" {
 		if err := ValidateNPMPlatformPackage(dist.PlatformPackage, targets); err != nil {

@@ -16,9 +16,9 @@ Never commit tokens or place them in generated workflow YAML. The CI generator r
 
 ## First-release checklist
 
-1. Confirm package names are available and registry accounts have permission to publish them. When npm `platform-package` uses a different scope from the root `package`, verify ownership of both identities; public scoped packages require `access: public`.
+1. Confirm package names are available and registry accounts have permission to publish them. When npm `aliases` or `platform-package` use different scopes from `package`, verify ownership of every identity; public scoped packages require `access: public`.
 2. Review `.omnidist/omnidist.yaml`, especially the present `distributions` sections, package names, repository URLs, access, authentication modes, and target matrix.
-3. For npm trusted mode, run `omnidist npm trust` to inspect setup commands for the root and every platform package; use `--apply` only after reviewing them.
+3. For npm trusted mode, run `omnidist npm trust` to inspect setup commands for every meta package and platform package; use `--apply` only after reviewing them. For a previously unpublished name, review whether `--allow-stage-publish` is needed before the first release.
 4. Configure CI secrets or trusted publishers for every selected backend.
 5. Generate and review CI without writing first: `omnidist ci --dry-run`.
 6. Build, stage, verify, and exercise publish preflight:
@@ -49,7 +49,7 @@ Preflight cannot reserve names or versions, attest remote OIDC configuration, pr
 
 ## Publishing and progress
 
-Aggregate upload order is npm, then uv, then gem, independent of YAML order. npm publishes platform packages before the meta package; gems are sorted deterministically. Progress messages name completed units/backends. Preserve the complete log when a failure occurs.
+Aggregate upload order is npm, then uv, then gem, independent of YAML order. npm publishes each unique platform package first, then the primary package followed by aliases in configured order; gems are sorted deterministically. Progress messages name completed units/backends. Preserve the complete log when a failure occurs.
 
 Use backend commands when options differ by registry:
 
@@ -66,7 +66,7 @@ These commands are also the recovery path for a configured backend excluded by a
 Do not delete tags, retag a different build with the same version, or assume retry is an atomic rollback.
 
 1. Stop automated retries and retain the publish log.
-2. Inspect each registry to identify exactly which package/version units exist. npm may have some platform packages but not the meta package; when `platform-package` uses another scope, inspect both the root namespace and that scope. RubyGems may have only some platforms.
+2. Inspect each registry to identify exactly which package/version units exist. A partial npm release may have some platform packages or meta packages but not others; inspect the primary name, every alias namespace, and the `platform-package` namespace. RubyGems may have only some platforms.
 3. Compare accepted artifacts with the locally verified staged artifacts and checksums.
 4. Correct the local or remote cause without rebuilding the same version differently.
 5. Retry only the missing backend with its backend-specific publish command. Registry clients commonly reject already-existing versions, so use the progress log and registry state to avoid blindly replaying accepted units.

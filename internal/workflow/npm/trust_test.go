@@ -113,6 +113,38 @@ func TestTrustedPublishingPlanUsesIndependentPlatformPackage(t *testing.T) {
 	}
 }
 
+func TestTrustedPublishingPlanIncludesAliasesBeforePlatforms(t *testing.T) {
+	t.Parallel()
+
+	cfg := testConfig()
+	cfg.Targets = []config.Target{
+		{OS: "linux", Arch: "amd64"},
+		{OS: "darwin", Arch: "arm64"},
+		{OS: "linux", Arch: "amd64"},
+	}
+	npmDist := *cfg.Distributions.NPM
+	npmDist.Package = "omnidist"
+	npmDist.Aliases = []string{"@omnidist/omnidist", "omnidist-cli"}
+	npmDist.PlatformPackage = "@omnidist/omnidist"
+	*cfg.Distributions.NPM = npmDist
+
+	plan, err := TrustedPublishingPlan(cfg, TrustOptions{})
+	if err != nil {
+		t.Fatalf("TrustedPublishingPlan() error = %v", err)
+	}
+
+	want := []string{
+		"omnidist",
+		"@omnidist/omnidist",
+		"omnidist-cli",
+		"@omnidist/omnidist-darwin-arm64",
+		"@omnidist/omnidist-linux-x64",
+	}
+	if !reflect.DeepEqual(plan.Packages, want) {
+		t.Fatalf("plan.Packages = %v, want %v", plan.Packages, want)
+	}
+}
+
 func TestTrustedPublishingPlanErrors(t *testing.T) {
 	t.Parallel()
 

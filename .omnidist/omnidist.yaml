@@ -20,7 +20,10 @@ build:
     cgo: false
 distributions:
     npm:
-        package: '@omnidist/omnidist'
+        package: omnidist
+        aliases:
+            - '@omnidist/omnidist'
+        platform-package: '@omnidist/omnidist'
         registry: https://registry.npmjs.org
         access: public
         publish-auth: trusted

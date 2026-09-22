@@ -84,7 +84,7 @@ func TrustedPublishingPlan(cfg *config.Config, opts TrustOptions) (*TrustPlan, e
 		allowPublish = true
 	}
 
-	packages := trustPackages(cfg, npmDist.Package, npmDist.PlatformPackage)
+	packages := trustPackages(cfg, npmDist.MetaPackages(), npmDist.PlatformPackage)
 	if len(packages) == 0 {
 		return nil, fmt.Errorf("no npm packages configured for trusted publishing")
 	}
@@ -99,13 +99,21 @@ func TrustedPublishingPlan(cfg *config.Config, opts TrustOptions) (*TrustPlan, e
 	}, nil
 }
 
-func trustPackages(cfg *config.Config, metaPackage, platformPackage string) []string {
+func trustPackages(cfg *config.Config, metaPackages []string, platformPackage string) []string {
 	if cfg == nil {
 		return nil
 	}
 
-	packages := []string{metaPackage}
-	seen := map[string]struct{}{metaPackage: {}}
+	packages := make([]string, 0, len(metaPackages)+len(cfg.Targets))
+	seen := make(map[string]struct{}, len(metaPackages)+len(cfg.Targets))
+	for _, metaPackage := range metaPackages {
+		if _, ok := seen[metaPackage]; ok {
+			continue
+		}
+		seen[metaPackage] = struct{}{}
+		packages = append(packages, metaPackage)
+	}
+	metaPackageCount := len(packages)
 	for _, target := range cfg.Targets {
 		pkgName := platformPackageName(platformPackage, target)
 		if _, ok := seen[pkgName]; ok {
@@ -115,9 +123,9 @@ func trustPackages(cfg *config.Config, metaPackage, platformPackage string) []st
 		packages = append(packages, pkgName)
 	}
 
-	platformPackages := append([]string{}, packages[1:]...)
+	platformPackages := append([]string{}, packages[metaPackageCount:]...)
 	sort.Strings(platformPackages)
-	return append([]string{metaPackage}, platformPackages...)
+	return append(packages[:metaPackageCount], platformPackages...)
 }
 
 func githubRepositoryFromURL(raw string) (string, error) {

@@ -128,7 +128,7 @@ func checkAuth(cfg *config.Config, registryOverride string, dryRun bool, tempora
 	return nil
 }
 
-// Stage assembles npm platform packages and the meta package from built artifacts.
+// Stage assembles npm platform and meta packages from built artifacts.
 func Stage(cfg *config.Config, opts StageOptions) error {
 	npmDist, err := npmDistribution(cfg)
 	if err != nil {
@@ -147,8 +147,10 @@ func Stage(cfg *config.Config, opts StageOptions) error {
 		}
 	}
 
-	if err := stageMetaPackage(layout, cfg, npmDist, version); err != nil {
-		return fmt.Errorf("failed to stage meta package: %w", err)
+	for _, metaPackage := range npmDist.MetaPackages() {
+		if err := stageMetaPackage(layout, cfg, npmDist, metaPackage, version); err != nil {
+			return fmt.Errorf("failed to stage meta package %s: %w", metaPackage, err)
+		}
 	}
 
 	return nil
@@ -204,9 +206,10 @@ func Verify(cfg *config.Config) *VerificationResult {
 		result.Valid = false
 	}
 
-	if err := verifyMetaPackage(layout, cfg, npmDist, version, result); err != nil {
-		result.Errors = append(result.Errors, err.Error())
-		result.Valid = false
+	for _, metaPackage := range npmDist.MetaPackages() {
+		if err := verifyMetaPackage(layout, cfg, npmDist, metaPackage, version, result); err != nil {
+			result.Valid = false
+		}
 	}
 
 	return result
@@ -247,8 +250,13 @@ func Publish(cfg *config.Config, opts PublishOptions) error {
 	}
 
 	platformPackages := []string{}
+	seenPlatformPackages := make(map[string]struct{}, len(cfg.Targets))
 	for _, target := range cfg.Targets {
 		pkgName := platformPackageName(npmDist.PlatformPackage, target)
+		if _, ok := seenPlatformPackages[pkgName]; ok {
+			continue
+		}
+		seenPlatformPackages[pkgName] = struct{}{}
 		platformPackages = append(platformPackages, pkgName)
 	}
 
@@ -266,11 +274,14 @@ func Publish(cfg *config.Config, opts PublishOptions) error {
 		writeProgressf(opts.Progress, "Published: %s\n", pkgName)
 	}
 
-	writeProgressf(opts.Progress, "Publishing meta package...\n")
-	if err := publishPackage(metaDir, npmDist.Registry, access, publishOpts, npmrcPath, token, version); err != nil {
-		return wrapPublishError("meta package", err, usesTrustedPublishing(npmDist))
+	writeProgressf(opts.Progress, "Publishing meta packages...\n")
+	for _, metaPackage := range npmDist.MetaPackages() {
+		metaPackageDir := filepath.Join(layout.NPMDir, metaPackage)
+		if err := publishPackage(metaPackageDir, npmDist.Registry, access, publishOpts, npmrcPath, token, version); err != nil {
+			return wrapPublishError(metaPackage, err, usesTrustedPublishing(npmDist))
+		}
+		writeProgressf(opts.Progress, "Published: %s\n", metaPackage)
 	}
-	writeProgressf(opts.Progress, "Published: %s\n", npmDist.Package)
 
 	return nil
 }
@@ -497,8 +508,8 @@ func stagePlatformPackage(layout paths.Layout, cfg *config.Config, npmDist confi
 	return writePackageJSON(pkgDir, pkgJSON)
 }
 
-func stageMetaPackage(layout paths.Layout, cfg *config.Config, npmDist config.NPMDistributionConfig, version string) error {
-	metaDir := filepath.Join(layout.NPMDir, npmDist.Package)
+func stageMetaPackage(layout paths.Layout, cfg *config.Config, npmDist config.NPMDistributionConfig, metaPackage, version string) error {
+	metaDir := filepath.Join(layout.NPMDir, metaPackage)
 
 	if err := os.MkdirAll(metaDir, 0755); err != nil {
 		return err
@@ -525,7 +536,7 @@ func stageMetaPackage(layout paths.Layout, cfg *config.Config, npmDist config.NP
 	}
 
 	pkgJSON := map[string]interface{}{
-		"name":                 npmDist.Package,
+		"name":                 metaPackage,
 		"version":              version,
 		"description":          "Meta package for " + cfg.Tool.Name,
 		"bin":                  map[string]string{cfg.Tool.Name: cfg.Tool.Name + ".js"},
@@ -667,88 +678,86 @@ func addVerificationErrorf(result *VerificationResult, format string, args ...in
 	result.Valid = false
 }
 
-func verifyMetaPackage(layout paths.Layout, cfg *config.Config, npmDist config.NPMDistributionConfig, version string, result *VerificationResult) error {
-	metaDir := filepath.Join(layout.NPMDir, npmDist.Package)
+func verifyMetaPackage(layout paths.Layout, cfg *config.Config, npmDist config.NPMDistributionConfig, metaPackage, version string, result *VerificationResult) error {
+	metaDir := filepath.Join(layout.NPMDir, metaPackage)
 	expectedRepositoryURL := npmDist.RepositoryURLValue()
 
 	pkgJSON, err := readPackageJSON(metaDir)
 	if err != nil {
-		result.Errors = append(result.Errors, "Missing meta package.json")
-		result.Valid = false
+		addVerificationErrorf(result, "Missing meta package.json for %s", metaPackage)
 		return err
 	}
 
 	if pkgJSON["version"] != version {
-		result.Errors = append(result.Errors, fmt.Sprintf("Meta package version mismatch: got %s, expected %s", pkgJSON["version"], version))
-		result.Valid = false
+		addVerificationErrorf(result, "Meta package version mismatch in %s: got %s, expected %s", metaPackage, pkgJSON["version"], version)
+	}
+	if pkgJSON["name"] != metaPackage {
+		addVerificationErrorf(result, "Meta package name mismatch in %s: got %v, expected %s", metaPackage, pkgJSON["name"], metaPackage)
 	}
 
-	verifyMetaPackageBin(result, pkgJSON, cfg.Tool.Name)
+	verifyMetaPackageBin(result, metaPackage, pkgJSON, cfg.Tool.Name)
 
 	if scripts, ok := pkgJSON["scripts"].(map[string]interface{}); ok {
 		if _, hasPostinstall := scripts["postinstall"]; hasPostinstall {
-			result.Errors = append(result.Errors, "Scripts.postinstall found in meta package (not allowed)")
-			result.Valid = false
+			addVerificationErrorf(result, "Scripts.postinstall found in meta package %s (not allowed)", metaPackage)
 		}
 	}
 
 	if expectedLicense := npmDist.LicenseValue(); expectedLicense != "" {
 		if pkgJSON["license"] != expectedLicense {
-			result.Errors = append(result.Errors, fmt.Sprintf("Meta package license mismatch: got %v, expected %s", pkgJSON["license"], expectedLicense))
-			result.Valid = false
+			addVerificationErrorf(result, "Meta package license mismatch in %s: got %v, expected %s", metaPackage, pkgJSON["license"], expectedLicense)
 		}
 	}
 	if len(npmDist.Keywords) > 0 {
 		keywords, ok := packageStringList(pkgJSON["keywords"])
 		if !ok {
-			result.Errors = append(result.Errors, "Missing keywords in meta package")
-			result.Valid = false
+			addVerificationErrorf(result, "Missing keywords in meta package %s", metaPackage)
 		} else if !equalStringLists(keywords, npmDist.Keywords) {
-			result.Errors = append(result.Errors, fmt.Sprintf("Meta package keywords mismatch: got %v, expected %v", keywords, npmDist.Keywords))
-			result.Valid = false
+			addVerificationErrorf(result, "Meta package keywords mismatch in %s: got %v, expected %v", metaPackage, keywords, npmDist.Keywords)
 		}
 	}
 	if expectedRepositoryURL != "" {
 		if actualRepositoryURL, ok := packageRepositoryURL(pkgJSON); !ok {
-			result.Errors = append(result.Errors, "Missing repository.url in meta package")
-			result.Valid = false
+			addVerificationErrorf(result, "Missing repository.url in meta package %s", metaPackage)
 		} else if actualRepositoryURL != expectedRepositoryURL {
-			result.Errors = append(result.Errors, fmt.Sprintf("Meta package repository.url mismatch: got %s, expected %s", actualRepositoryURL, expectedRepositoryURL))
-			result.Valid = false
+			addVerificationErrorf(result, "Meta package repository.url mismatch in %s: got %s, expected %s", metaPackage, actualRepositoryURL, expectedRepositoryURL)
 		}
 	}
 
 	optionalDeps, ok := pkgJSON["optionalDependencies"].(map[string]interface{})
 	if !ok {
-		result.Errors = append(result.Errors, "Missing optionalDependencies in meta package")
-		result.Valid = false
+		addVerificationErrorf(result, "Missing optionalDependencies in meta package %s", metaPackage)
 	} else {
 		for _, target := range cfg.Targets {
 			pkgName := platformPackageName(npmDist.PlatformPackage, target)
 			if _, exists := optionalDeps[pkgName]; !exists {
-				result.Errors = append(result.Errors, fmt.Sprintf("Missing %s in optionalDependencies", pkgName))
-				result.Valid = false
+				addVerificationErrorf(result, "Missing %s in optionalDependencies for meta package %s", pkgName, metaPackage)
 			} else if optionalDeps[pkgName] != version {
-				result.Errors = append(result.Errors, fmt.Sprintf("Version mismatch for %s in optionalDependencies: got %s, expected %s", pkgName, optionalDeps[pkgName], version))
-				result.Valid = false
+				addVerificationErrorf(result, "Version mismatch for %s in optionalDependencies for meta package %s: got %s, expected %s", pkgName, metaPackage, optionalDeps[pkgName], version)
 			}
 		}
 	}
 
 	shimPath := filepath.Join(metaDir, cfg.Tool.Name+".js")
-	if _, err := os.Stat(shimPath); os.IsNotExist(err) {
-		result.Errors = append(result.Errors, "Missing shim in meta package")
-		result.Valid = false
+	shim, err := os.ReadFile(shimPath)
+	if errors.Is(err, os.ErrNotExist) {
+		addVerificationErrorf(result, "Missing shim in meta package %s", metaPackage)
+	} else if err != nil {
+		addVerificationErrorf(result, "Read shim in meta package %s: %v", metaPackage, err)
+	} else {
+		expectedPlatformBase := fmt.Sprintf("const platformPkgName = '%s-' + platformKey;", npmDist.PlatformPackage)
+		if !strings.Contains(string(shim), expectedPlatformBase) {
+			addVerificationErrorf(result, "Shim in meta package %s does not resolve platform package base %s", metaPackage, npmDist.PlatformPackage)
+		}
 	}
 
 	return nil
 }
 
-func verifyMetaPackageBin(result *VerificationResult, pkgJSON map[string]interface{}, toolName string) {
+func verifyMetaPackageBin(result *VerificationResult, metaPackage string, pkgJSON map[string]interface{}, toolName string) {
 	bins, ok := pkgJSON["bin"].(map[string]interface{})
 	if !ok || bins[toolName] != toolName+".js" {
-		result.Errors = append(result.Errors, fmt.Sprintf("Meta package bin must map %s to %s.js", toolName, toolName))
-		result.Valid = false
+		addVerificationErrorf(result, "Meta package bin must map %s to %s.js in %s", toolName, toolName, metaPackage)
 	}
 }
 

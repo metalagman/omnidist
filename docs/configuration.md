@@ -109,6 +109,7 @@ Every backend-specific field is listed below. A dash means the field is invalid 
 | Field | npm | uv | gem | Default / condition |
 | --- | --- | --- | --- | --- |
 | `package` | Meta package name | Python distribution name | Gem name | Required in every configured backend. `omnidist init` writes a project-derived value; loading never invents an identity. |
+| `aliases` | Additional equivalent meta package names | — | — | Empty. npm stages and publishes the primary `package` followed by aliases in configured order. Values must be unique valid npm names. |
 | `platform-package` | Base name for target-specific packages | — | — | Empty; falls back to npm `package`, preserving legacy names. |
 | `registry` | npm registry | — | Gem host | npm registry / `https://rubygems.org`. |
 | `access` | `public` or `restricted` | — | — | `public`. |
@@ -122,6 +123,25 @@ Every backend-specific field is listed below. A dash means the field is invalid 
 | `include-readme` | Include README | Include README | Include README | `true`; set `false` to omit it. |
 
 If an explicitly configured README cannot be read, staging fails. Metadata fields that a backend does not consume should be omitted.
+
+### Multiple npm meta packages
+
+`aliases` adds equivalent user-installable meta packages without duplicating target binaries. Every meta package shares the npm distribution metadata, release version, CLI shim, and optional dependencies on one shared platform package set:
+
+```yaml
+distributions:
+  npm:
+    package: omnidist
+    aliases:
+      - "@omnidist/omnidist"
+    platform-package: "@omnidist/omnidist"
+    registry: https://registry.npmjs.org
+    access: public
+```
+
+For a Linux amd64 target, this stages the primary package followed by aliases—`omnidist` and `@omnidist/omnidist`—plus one binary package, `@omnidist/omnidist-linux-x64`. Both meta packages list the same scoped binary package in `optionalDependencies` and resolve it at runtime. Meta aliases do not redirect through or depend on the primary package.
+
+Aliases are optional. Existing configs with only `package`, including configs that already use an independent `platform-package`, retain their current artifacts and publication order. An alias may be scoped or unscoped, but it must not duplicate `package` or another alias after whitespace normalization.
 
 ### Independent npm platform package names
 
@@ -138,9 +158,9 @@ distributions:
 
 For a Linux amd64 target, this stages the root package as `omnidist` and the binary package as `@omnidist/omnidist-linux-x64`. The root package lists that scoped name in `optionalDependencies`, and its shim resolves the same name at runtime.
 
-The field is opt-in. If it is absent, empty, or whitespace-only, target names continue to derive from `package` exactly as in earlier configurations. No migration is required for existing files. Root and platform packages still share one version, registry, authentication mode, access setting, and platform-first publish order.
+The field is opt-in. If it is absent, empty, or whitespace-only, target names continue to derive from `package` exactly as in earlier configurations. No migration is required for existing files. All meta and platform packages still share one version, registry, authentication mode, access setting, and platform-first publish order. Platform packages publish first; the primary package followed by aliases publishes afterward.
 
-For public scoped platform packages, keep `access: public`. The publishing npm account or organization must own the scope and also have permission to publish the unscoped root name. In trusted mode, configure every generated root and platform package as a trusted publisher; `omnidist npm trust` derives the complete package set.
+For public scoped packages, keep `access: public`. The publishing npm account or organization must own every configured scope and have permission to publish each unscoped name. In trusted mode, configure every meta package and platform package as a trusted publisher; `omnidist npm trust` derives the complete package set.
 
 ## Versions and build variables
 

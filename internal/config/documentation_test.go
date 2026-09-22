@@ -17,13 +17,68 @@ func TestConfigurationReferenceCoversPersistedFields(t *testing.T) {
 		"tool.name", "tool.main", "version.source", "version.file", "version.fixed",
 		"readme-path", "targets[].os", "targets[].arch", "targets[].variant",
 		"build.ldflags", "build.tags", "build.cgo", "enabled-distributions", "distributions",
-		"package", "registry", "access", "publish-auth", "repository-url", "license",
+		"package", "aliases", "registry", "access", "publish-auth", "repository-url", "license",
 		"keywords", "index-url", "linux-tag", "include-readme",
 	}
 	for _, field := range fields {
 		if !strings.Contains(doc, "`"+field+"`") {
 			t.Errorf("configuration reference does not document %s", field)
 		}
+	}
+}
+
+func TestDualNPMMetaPackageDocumentation(t *testing.T) {
+	tests := []struct {
+		path string
+		want []string
+	}{
+		{
+			path: filepath.Join("..", "..", "README.md"),
+			want: []string{"aliases:", "npm install -g omnidist", "npm install -g @omnidist/omnidist"},
+		},
+		{
+			path: filepath.Join("..", "..", "docs", "configuration.md"),
+			want: []string{"`aliases`", "primary package followed by aliases", "shared platform package set"},
+		},
+		{
+			path: filepath.Join("..", "..", "docs", "releases.md"),
+			want: []string{"every meta package and platform package", "primary package followed by aliases", "partial npm release"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.path, func(t *testing.T) {
+			data, err := os.ReadFile(tt.path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			doc := string(data)
+			for _, want := range tt.want {
+				if !strings.Contains(doc, want) {
+					t.Errorf("%s missing dual npm package documentation %q", tt.path, want)
+				}
+			}
+		})
+	}
+}
+
+func TestRepositoryConfigUsesDualNPMMetaPackages(t *testing.T) {
+	cfg, err := Load(filepath.Join("..", "..", ".omnidist", "omnidist.yaml"))
+	if err != nil {
+		t.Fatalf("Load(repository config) error = %v", err)
+	}
+	npmDist, err := cfg.RequireNPM()
+	if err != nil {
+		t.Fatalf("RequireNPM() error = %v", err)
+	}
+	if npmDist.Package != "omnidist" {
+		t.Errorf("npm package = %q, want omnidist", npmDist.Package)
+	}
+	if len(npmDist.Aliases) != 1 || npmDist.Aliases[0] != "@omnidist/omnidist" {
+		t.Errorf("npm aliases = %q, want [@omnidist/omnidist]", npmDist.Aliases)
+	}
+	if npmDist.PlatformPackage != "@omnidist/omnidist" {
+		t.Errorf("npm platform-package = %q, want @omnidist/omnidist", npmDist.PlatformPackage)
 	}
 }
 

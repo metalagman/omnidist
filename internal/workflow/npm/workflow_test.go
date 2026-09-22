@@ -448,6 +448,74 @@ func TestPublishDryRunPublishesStagedPackages(t *testing.T) {
 	}
 }
 
+func TestPublishDryRunPublishesAliasesAfterPlatforms(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell script test")
+	}
+
+	dir := t.TempDir()
+	t.Chdir(dir)
+	cfg := testConfig()
+	cfg.Targets = []config.Target{
+		{OS: "linux", Arch: "amd64"},
+		{OS: "linux", Arch: "amd64"},
+	}
+	npmDist := *cfg.Distributions.NPM
+	npmDist.Package = "omnidist"
+	npmDist.Aliases = []string{"@omnidist/omnidist", "omnidist-cli"}
+	npmDist.PlatformPackage = "@omnidist/omnidist"
+	*cfg.Distributions.NPM = npmDist
+
+	if err := createDistArtifacts(cfg); err != nil {
+		t.Fatalf("createDistArtifacts() error = %v", err)
+	}
+	if err := shared.WriteBuildVersionForConfig(cfg, "1.2.3"); err != nil {
+		t.Fatalf("shared.WriteBuildVersionForConfig() error = %v", err)
+	}
+	if err := Stage(cfg, StageOptions{}); err != nil {
+		t.Fatalf("Stage() error = %v", err)
+	}
+
+	binDir := filepath.Join(dir, "bin")
+	if err := os.MkdirAll(binDir, 0755); err != nil {
+		t.Fatalf("os.MkdirAll(%q) error = %v", binDir, err)
+	}
+	logPath := filepath.Join(dir, "npm-publish-dirs.log")
+	npmPath := filepath.Join(binDir, "npm")
+	script := "#!/bin/sh\n" +
+		"pwd >> " + logPath + "\n" +
+		"exit 0\n"
+	if err := os.WriteFile(npmPath, []byte(script), 0755); err != nil {
+		t.Fatalf("os.WriteFile(%q) error = %v", npmPath, err)
+	}
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	var progress bytes.Buffer
+	if err := Publish(cfg, PublishOptions{DryRun: true, Progress: &progress}); err != nil {
+		t.Fatalf("Publish(dry-run) error = %v", err)
+	}
+
+	logData, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatalf("os.ReadFile(%q) error = %v", logPath, err)
+	}
+	lines := strings.Split(strings.TrimSpace(string(logData)), "\n")
+	want := []string{
+		filepath.Join(dir, paths.NPMDir, "@omnidist/omnidist-linux-x64"),
+		filepath.Join(dir, paths.NPMDir, "omnidist"),
+		filepath.Join(dir, paths.NPMDir, "@omnidist/omnidist"),
+		filepath.Join(dir, paths.NPMDir, "omnidist-cli"),
+	}
+	if !reflect.DeepEqual(lines, want) {
+		t.Fatalf("npm publish directories = %q, want %q", lines, want)
+	}
+	for _, packageName := range npmDist.MetaPackages() {
+		if !strings.Contains(progress.String(), "Published: "+packageName) {
+			t.Errorf("Publish progress missing meta package %q: %q", packageName, progress.String())
+		}
+	}
+}
+
 func TestBuildPublishArgsFlagOverrides(t *testing.T) {
 	t.Parallel()
 
@@ -948,6 +1016,190 @@ func TestStageAndVerifyMixedScopePackages(t *testing.T) {
 	result = Verify(cfg)
 	if result.Valid || !strings.Contains(strings.Join(result.Errors, "\n"), "@omnidist/omnidist-linux-x64") {
 		t.Fatalf("Verify() after removal = valid %v, errors %v; want scoped package diagnostic", result.Valid, result.Errors)
+	}
+}
+
+func TestStageAndVerifyAliases(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+
+	cfg := testConfig()
+	cfg.Targets = []config.Target{{OS: "linux", Arch: "amd64"}}
+	npmDist := *cfg.Distributions.NPM
+	npmDist.Package = "omnidist"
+	npmDist.Aliases = []string{"@omnidist/omnidist"}
+	npmDist.PlatformPackage = "@omnidist/omnidist"
+	*cfg.Distributions.NPM = npmDist
+
+	if err := createDistArtifacts(cfg); err != nil {
+		t.Fatalf("createDistArtifacts() error = %v", err)
+	}
+	if err := shared.WriteBuildVersionForConfig(cfg, "1.2.3"); err != nil {
+		t.Fatalf("shared.WriteBuildVersionForConfig() error = %v", err)
+	}
+	if err := Stage(cfg, StageOptions{}); err != nil {
+		t.Fatalf("Stage() error = %v", err)
+	}
+
+	wantOptionalDeps := map[string]interface{}{"@omnidist/omnidist-linux-x64": "1.2.3"}
+	for _, packageName := range []string{"omnidist", "@omnidist/omnidist"} {
+		metaDir := filepath.Join(paths.NPMDir, packageName)
+		metaJSON, err := readPackageJSON(metaDir)
+		if err != nil {
+			t.Fatalf("readPackageJSON(%q) error = %v", packageName, err)
+		}
+		if got := metaJSON["name"]; got != packageName {
+			t.Errorf("meta package name = %v, want %q", got, packageName)
+		}
+		if got := metaJSON["version"]; got != "1.2.3" {
+			t.Errorf("meta package %s version = %v, want 1.2.3", packageName, got)
+		}
+		if got := metaJSON["optionalDependencies"]; !reflect.DeepEqual(got, wantOptionalDeps) {
+			t.Errorf("meta package %s optionalDependencies = %#v, want %#v", packageName, got, wantOptionalDeps)
+		}
+		if _, err := os.Stat(filepath.Join(metaDir, cfg.Tool.Name+".js")); err != nil {
+			t.Errorf("meta package %s shim error = %v", packageName, err)
+		}
+	}
+
+	platformDir := filepath.Join(paths.NPMDir, "@omnidist/omnidist-linux-x64")
+	if _, err := os.Stat(filepath.Join(platformDir, "package.json")); err != nil {
+		t.Fatalf("shared platform package error = %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(paths.NPMDir, "omnidist-linux-x64")); !os.IsNotExist(err) {
+		t.Fatalf("unexpected duplicate unscoped platform package: stat error = %v", err)
+	}
+
+	result := Verify(cfg)
+	if !result.Valid {
+		t.Fatalf("Verify().Valid = false, errors = %v", result.Errors)
+	}
+}
+
+func TestVerifyAliasFailuresNamePackage(t *testing.T) {
+	const alias = "@omnidist/omnidist"
+	tests := []struct {
+		name     string
+		mutate   func(t *testing.T, metaDir, platformPackage string)
+		wantText string
+	}{
+		{
+			name: "missing package json",
+			mutate: func(t *testing.T, metaDir, _ string) {
+				t.Helper()
+				if err := os.Remove(filepath.Join(metaDir, "package.json")); err != nil {
+					t.Fatalf("os.Remove(package.json) error = %v", err)
+				}
+			},
+			wantText: "Missing meta package.json",
+		},
+		{
+			name: "version mismatch",
+			mutate: func(t *testing.T, metaDir, _ string) {
+				t.Helper()
+				pkgJSON, err := readPackageJSON(metaDir)
+				if err != nil {
+					t.Fatalf("readPackageJSON() error = %v", err)
+				}
+				pkgJSON["version"] = "9.9.9"
+				if err := writePackageJSON(metaDir, pkgJSON); err != nil {
+					t.Fatalf("writePackageJSON() error = %v", err)
+				}
+			},
+			wantText: "version mismatch",
+		},
+		{
+			name: "manifest name mismatch",
+			mutate: func(t *testing.T, metaDir, _ string) {
+				t.Helper()
+				pkgJSON, err := readPackageJSON(metaDir)
+				if err != nil {
+					t.Fatalf("readPackageJSON() error = %v", err)
+				}
+				pkgJSON["name"] = "omnidist"
+				if err := writePackageJSON(metaDir, pkgJSON); err != nil {
+					t.Fatalf("writePackageJSON() error = %v", err)
+				}
+			},
+			wantText: "name mismatch",
+		},
+		{
+			name: "postinstall forbidden",
+			mutate: func(t *testing.T, metaDir, _ string) {
+				t.Helper()
+				pkgJSON, err := readPackageJSON(metaDir)
+				if err != nil {
+					t.Fatalf("readPackageJSON() error = %v", err)
+				}
+				pkgJSON["scripts"] = map[string]interface{}{"postinstall": "download"}
+				if err := writePackageJSON(metaDir, pkgJSON); err != nil {
+					t.Fatalf("writePackageJSON() error = %v", err)
+				}
+			},
+			wantText: "Scripts.postinstall",
+		},
+		{
+			name: "platform dependency version mismatch",
+			mutate: func(t *testing.T, metaDir, platformPackage string) {
+				t.Helper()
+				pkgJSON, err := readPackageJSON(metaDir)
+				if err != nil {
+					t.Fatalf("readPackageJSON() error = %v", err)
+				}
+				optionalDeps := pkgJSON["optionalDependencies"].(map[string]interface{})
+				optionalDeps[platformPackage] = "9.9.9"
+				if err := writePackageJSON(metaDir, pkgJSON); err != nil {
+					t.Fatalf("writePackageJSON() error = %v", err)
+				}
+			},
+			wantText: "Version mismatch",
+		},
+		{
+			name: "incorrect shim platform base",
+			mutate: func(t *testing.T, metaDir, _ string) {
+				t.Helper()
+				shimPath := filepath.Join(metaDir, "omnidist.js")
+				if err := os.WriteFile(shimPath, []byte("const platformPkgName = 'wrong-' + platformKey;"), 0755); err != nil {
+					t.Fatalf("os.WriteFile(shim) error = %v", err)
+				}
+			},
+			wantText: "platform package base",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			cfg := testConfig()
+			cfg.Targets = []config.Target{{OS: "linux", Arch: "amd64"}}
+			npmDist := *cfg.Distributions.NPM
+			npmDist.Package = "omnidist"
+			npmDist.Aliases = []string{alias}
+			npmDist.PlatformPackage = alias
+			*cfg.Distributions.NPM = npmDist
+
+			if err := createDistArtifacts(cfg); err != nil {
+				t.Fatalf("createDistArtifacts() error = %v", err)
+			}
+			if err := shared.WriteBuildVersionForConfig(cfg, "1.2.3"); err != nil {
+				t.Fatalf("shared.WriteBuildVersionForConfig() error = %v", err)
+			}
+			if err := Stage(cfg, StageOptions{}); err != nil {
+				t.Fatalf("Stage() error = %v", err)
+			}
+
+			platformPackage := "@omnidist/omnidist-linux-x64"
+			tt.mutate(t, filepath.Join(paths.NPMDir, alias), platformPackage)
+
+			result := Verify(cfg)
+			if result.Valid {
+				t.Fatalf("Verify().Valid = true, want false")
+			}
+			errorsText := strings.Join(result.Errors, "\n")
+			if !strings.Contains(errorsText, alias) || !strings.Contains(errorsText, tt.wantText) {
+				t.Fatalf("Verify() errors = %v, want alias %q and %q", result.Errors, alias, tt.wantText)
+			}
+		})
 	}
 }
 

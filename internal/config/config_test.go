@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -988,6 +989,115 @@ distributions:
 			t.Fatalf("saved config unexpectedly contains empty platform-package:\n%s", saved)
 		}
 	})
+}
+
+func TestNPMAliasesConfig(t *testing.T) {
+	t.Run("normalizes and round trips aliases", func(t *testing.T) {
+		dir := t.TempDir()
+		configPath := filepath.Join(dir, "omnidist.yaml")
+		contents := `profiles:
+  default:
+    version:
+      source: env
+    targets:
+      - os: linux
+        arch: amd64
+    distributions:
+      npm:
+        package: omnidist
+        aliases:
+          - "  @omnidist/omnidist  "
+          - "omnidist-cli"
+`
+		if err := os.WriteFile(configPath, []byte(contents), 0644); err != nil {
+			t.Fatalf("os.WriteFile() error = %v", err)
+		}
+
+		cfg, err := Load(configPath)
+		if err != nil {
+			t.Fatalf("Load() error = %v", err)
+		}
+		wantAliases := []string{"@omnidist/omnidist", "omnidist-cli"}
+		if got := cfg.Distributions.NPM.Aliases; !slices.Equal(got, wantAliases) {
+			t.Fatalf("npm aliases = %q, want %q", got, wantAliases)
+		}
+
+		npmDist, err := cfg.RequireNPM()
+		if err != nil {
+			t.Fatalf("RequireNPM() error = %v", err)
+		}
+		wantMetaPackages := []string{"omnidist", "@omnidist/omnidist", "omnidist-cli"}
+		metaPackages := npmDist.MetaPackages()
+		if !slices.Equal(metaPackages, wantMetaPackages) {
+			t.Fatalf("MetaPackages() = %q, want %q", metaPackages, wantMetaPackages)
+		}
+		metaPackages[0] = "changed"
+		if got := npmDist.MetaPackages()[0]; got != "omnidist" {
+			t.Fatalf("MetaPackages() returned mutable storage: first package = %q", got)
+		}
+
+		savedPath := filepath.Join(dir, "saved.yaml")
+		if err := Save(cfg, savedPath); err != nil {
+			t.Fatalf("Save() error = %v", err)
+		}
+		roundTripped, err := Load(savedPath)
+		if err != nil {
+			t.Fatalf("Load(saved) error = %v", err)
+		}
+		if got := roundTripped.Distributions.NPM.Aliases; !slices.Equal(got, wantAliases) {
+			t.Fatalf("round-tripped npm aliases = %q, want %q", got, wantAliases)
+		}
+	})
+
+	tests := []struct {
+		name    string
+		aliases string
+		wantErr string
+	}{
+		{
+			name:    "empty alias",
+			aliases: "      - '   '\n",
+			wantErr: "invalid distributions.npm.aliases[0]",
+		},
+		{
+			name:    "invalid alias",
+			aliases: "      - '@scope/Invalid'\n",
+			wantErr: "invalid distributions.npm.aliases[0]",
+		},
+		{
+			name:    "duplicates primary",
+			aliases: "      - ' omnidist '\n",
+			wantErr: "distributions.npm.aliases[0] duplicates distributions.npm.package",
+		},
+		{
+			name:    "duplicates earlier alias",
+			aliases: "      - '@omnidist/omnidist'\n      - ' @omnidist/omnidist '\n",
+			wantErr: "distributions.npm.aliases[1] duplicates distributions.npm.aliases[0]",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			configPath := filepath.Join(t.TempDir(), "omnidist.yaml")
+			contents := `version:
+  source: env
+targets:
+  - os: linux
+    arch: amd64
+distributions:
+  npm:
+    package: omnidist
+    aliases:
+` + tt.aliases
+			if err := os.WriteFile(configPath, []byte(contents), 0644); err != nil {
+				t.Fatalf("os.WriteFile() error = %v", err)
+			}
+
+			_, err := Load(configPath)
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("Load() error = %v, want to contain %q", err, tt.wantErr)
+			}
+		})
+	}
 }
 
 func TestValidateNPMPackageName(t *testing.T) {
