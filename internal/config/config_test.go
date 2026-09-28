@@ -618,6 +618,39 @@ distributions:
 	}
 }
 
+func TestLoadNormalizesNPMDescription(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, paths.ConfigPath)
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		t.Fatalf("os.MkdirAll() error = %v", err)
+	}
+
+	yaml := `tool:
+  name: omnidist
+  main: ./cmd/omnidist
+version:
+  source: env
+targets:
+  - os: linux
+    arch: amd64
+distributions:
+  npm:
+    package: "@scope/tool"
+    description: "  Review committed changes  "
+`
+	if err := os.WriteFile(path, []byte(yaml), 0644); err != nil {
+		t.Fatalf("os.WriteFile() error = %v", err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if got := cfg.Distributions.NPM.Description; got != "Review committed changes" {
+		t.Fatalf("npm description = %q, want trimmed text", got)
+	}
+}
+
 func TestLoadSupportsFixedVersionSource(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, paths.ConfigPath)

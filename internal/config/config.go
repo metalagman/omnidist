@@ -181,6 +181,7 @@ type NPMDistributionConfig struct {
 	Package         string   `yaml:"package"`
 	Aliases         []string `yaml:"aliases,omitempty"`
 	PlatformPackage string   `yaml:"platform-package,omitempty"`
+	Description     string   `yaml:"description,omitempty"`
 	Registry        string   `yaml:"registry,omitempty"`
 	Access          string   `yaml:"access,omitempty"`
 	PublishAuth     string   `yaml:"publish-auth,omitempty"`
@@ -970,6 +971,7 @@ func normalizeNPMDistribution(dist *NPMDistributionConfig) {
 		dist.Aliases[i] = strings.TrimSpace(dist.Aliases[i])
 	}
 	dist.PlatformPackage = strings.TrimSpace(dist.PlatformPackage)
+	dist.Description = strings.TrimSpace(dist.Description)
 	dist.Registry = strings.TrimSpace(dist.Registry)
 	dist.Access = strings.TrimSpace(dist.Access)
 	dist.PublishAuth = strings.TrimSpace(dist.PublishAuth)

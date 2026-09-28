@@ -508,6 +508,13 @@ func stagePlatformPackage(layout paths.Layout, cfg *config.Config, npmDist confi
 	return writePackageJSON(pkgDir, pkgJSON)
 }
 
+func metaPackageDescription(dist config.NPMDistributionConfig, toolName string) string {
+	if dist.Description != "" {
+		return dist.Description
+	}
+	return "Meta package for " + toolName
+}
+
 func stageMetaPackage(layout paths.Layout, cfg *config.Config, npmDist config.NPMDistributionConfig, metaPackage, version string) error {
 	metaDir := filepath.Join(layout.NPMDir, metaPackage)
 
@@ -538,7 +545,7 @@ func stageMetaPackage(layout paths.Layout, cfg *config.Config, npmDist config.NP
 	pkgJSON := map[string]interface{}{
 		"name":                 metaPackage,
 		"version":              version,
-		"description":          "Meta package for " + cfg.Tool.Name,
+		"description":          metaPackageDescription(npmDist, cfg.Tool.Name),
 		"bin":                  map[string]string{cfg.Tool.Name: cfg.Tool.Name + ".js"},
 		"optionalDependencies": optionalDeps,
 		"engines":              map[string]string{"node": ">=16"},
@@ -693,6 +700,10 @@ func verifyMetaPackage(layout paths.Layout, cfg *config.Config, npmDist config.N
 	}
 	if pkgJSON["name"] != metaPackage {
 		addVerificationErrorf(result, "Meta package name mismatch in %s: got %v, expected %s", metaPackage, pkgJSON["name"], metaPackage)
+	}
+	expectedDescription := metaPackageDescription(npmDist, cfg.Tool.Name)
+	if pkgJSON["description"] != expectedDescription {
+		addVerificationErrorf(result, "Meta package description mismatch in %s: got %v, expected %s", metaPackage, pkgJSON["description"], expectedDescription)
 	}
 
 	verifyMetaPackageBin(result, metaPackage, pkgJSON, cfg.Tool.Name)

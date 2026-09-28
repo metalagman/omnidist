@@ -111,6 +111,7 @@ Every backend-specific field is listed below. A dash means the field is invalid 
 | `package` | Meta package name | Python distribution name | Gem name | Required in every configured backend. `omnidist init` writes a project-derived value; loading never invents an identity. |
 | `aliases` | Additional equivalent meta package names | — | — | Empty. npm stages and publishes the primary `package` followed by aliases in configured order. Values must be unique valid npm names. |
 | `platform-package` | Base name for target-specific packages | — | — | Empty; falls back to npm `package`, preserving legacy names. |
+| `description` | Description for every npm meta package | — | — | Empty; defaults to `Meta package for <tool.name>`. Surrounding whitespace is removed. |
 | `registry` | npm registry | — | Gem host | npm registry / `https://rubygems.org`. |
 | `access` | `public` or `restricted` | — | — | `public`. |
 | `publish-auth` | `token` or `trusted` | — | `token` or `trusted` | `token`. Gem trusted mode requires rubygems.org; npm trusted mode requires `repository-url`. |

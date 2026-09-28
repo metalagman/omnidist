@@ -944,6 +944,14 @@ func TestStageAndVerifyPasses(t *testing.T) {
 	if err := Stage(cfg, StageOptions{}); err != nil {
 		t.Fatalf("Stage() error = %v", err)
 	}
+	metaDir := filepath.Join(paths.NPMDir, cfg.Distributions.NPM.Package)
+	metaJSON, err := readPackageJSON(metaDir)
+	if err != nil {
+		t.Fatalf("readPackageJSON(meta) error = %v", err)
+	}
+	if got := metaJSON["description"]; got != "Meta package for "+cfg.Tool.Name {
+		t.Fatalf("default meta description = %v, want compatibility default", got)
+	}
 
 	result := Verify(cfg)
 	if !result.Valid {
@@ -1029,6 +1037,7 @@ func TestStageAndVerifyAliases(t *testing.T) {
 	npmDist.Package = "omnidist"
 	npmDist.Aliases = []string{"@omnidist/omnidist"}
 	npmDist.PlatformPackage = "@omnidist/omnidist"
+	npmDist.Description = "Review committed changes against project rules"
 	*cfg.Distributions.NPM = npmDist
 
 	if err := createDistArtifacts(cfg); err != nil {
@@ -1054,6 +1063,9 @@ func TestStageAndVerifyAliases(t *testing.T) {
 		if got := metaJSON["version"]; got != "1.2.3" {
 			t.Errorf("meta package %s version = %v, want 1.2.3", packageName, got)
 		}
+		if got := metaJSON["description"]; got != npmDist.Description {
+			t.Errorf("meta package %s description = %v, want %q", packageName, got, npmDist.Description)
+		}
 		if got := metaJSON["optionalDependencies"]; !reflect.DeepEqual(got, wantOptionalDeps) {
 			t.Errorf("meta package %s optionalDependencies = %#v, want %#v", packageName, got, wantOptionalDeps)
 		}
@@ -1073,6 +1085,20 @@ func TestStageAndVerifyAliases(t *testing.T) {
 	result := Verify(cfg)
 	if !result.Valid {
 		t.Fatalf("Verify().Valid = false, errors = %v", result.Errors)
+	}
+
+	aliasDir := filepath.Join(paths.NPMDir, "@omnidist/omnidist")
+	aliasJSON, err := readPackageJSON(aliasDir)
+	if err != nil {
+		t.Fatalf("readPackageJSON(alias) error = %v", err)
+	}
+	aliasJSON["description"] = "Meta package for omnidist"
+	if err := writePackageJSON(aliasDir, aliasJSON); err != nil {
+		t.Fatalf("writePackageJSON(alias) error = %v", err)
+	}
+	result = Verify(cfg)
+	if result.Valid || !strings.Contains(strings.Join(result.Errors, "\n"), "Meta package description mismatch in @omnidist/omnidist") {
+		t.Fatalf("Verify() after description change = valid %v, errors %v; want description mismatch", result.Valid, result.Errors)
 	}
 }
 
