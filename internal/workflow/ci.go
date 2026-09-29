@@ -267,7 +267,7 @@ func renderReleaseJob(workspaceDistDir string) string {
       - name: Generate checksums
         run: |
           cd release-assets
-          sha256sum * > checksums.txt
+          sha256sum -- ./* > checksums.txt
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
         with:

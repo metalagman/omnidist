@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -59,7 +60,7 @@ func TestGenerateGitHubReleaseWorkflow(t *testing.T) {
 		`merge-multiple: true`,
 		`run: |`,
 		`find .omnidist/dist -type f ! -name VERSION -print0 | sort -z`,
-		`sha256sum * > checksums.txt`,
+		`sha256sum -- ./* > checksums.txt`,
 		`uses: softprops/action-gh-release@v2`,
 		`release-assets/*`,
 		`generate_release_notes: true`,
@@ -67,6 +68,74 @@ func TestGenerateGitHubReleaseWorkflow(t *testing.T) {
 		if !strings.Contains(content, want) {
 			t.Fatalf("workflow content missing %q\n---\n%s", want, content)
 		}
+	}
+}
+
+func TestGeneratedReleaseWorkflowChecksums(t *testing.T) {
+	t.Parallel()
+
+	for _, tool := range []string{"bash", "sha256sum"} {
+		if _, err := exec.LookPath(tool); err != nil {
+			t.Skipf("%s is unavailable: %v", tool, err)
+		}
+	}
+
+	content, err := GenerateGitHubReleaseWorkflow(config.DefaultConfig(), CIWorkflowOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	const stepStart = "      - name: Generate checksums\n        run: |\n"
+	_, following, ok := strings.Cut(content, stepStart)
+	if !ok {
+		t.Fatal("generated workflow has no checksum step")
+	}
+	step, _, ok := strings.Cut(following, "      - name:")
+	if !ok {
+		t.Fatal("checksum step is not followed by another step")
+	}
+	lines := strings.Split(strings.TrimSuffix(step, "\n"), "\n")
+	for i, line := range lines {
+		lines[i] = strings.TrimPrefix(line, "          ")
+	}
+
+	root := t.TempDir()
+	assets := filepath.Join(root, "release-assets")
+	if err := os.Mkdir(assets, 0755); err != nil {
+		t.Fatal(err)
+	}
+	binaries := []string{"tool-linux-amd64", "tool-windows-amd64.exe", "-tool-darwin-arm64"}
+	for _, name := range binaries {
+		if err := os.WriteFile(filepath.Join(assets, name), []byte("binary: "+name), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	cmd := exec.Command("bash", "-e", "-c", strings.Join(lines, "\n"))
+	cmd.Dir = root
+	if output, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("generated checksum step failed: %v\n%s", err, output)
+	}
+
+	manifest, err := os.ReadFile(filepath.Join(assets, "checksums.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := len(strings.Split(strings.TrimSpace(string(manifest)), "\n")), len(binaries); got != want {
+		t.Fatalf("checksum entries = %d, want %d:\n%s", got, want, manifest)
+	}
+	for _, name := range binaries {
+		if !strings.Contains(string(manifest), "  ./"+name+"\n") {
+			t.Errorf("checksum manifest missing %q:\n%s", name, manifest)
+		}
+	}
+	if strings.Contains(string(manifest), "  ./checksums.txt\n") {
+		t.Fatalf("checksum manifest includes itself:\n%s", manifest)
+	}
+
+	check := exec.Command("sha256sum", "-c", "checksums.txt")
+	check.Dir = assets
+	if output, err := check.CombinedOutput(); err != nil {
+		t.Fatalf("sha256sum -c checksums.txt failed: %v\n%s", err, output)
 	}
 }
 

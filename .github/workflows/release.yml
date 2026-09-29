@@ -89,7 +89,7 @@ jobs:
       - name: Generate checksums
         run: |
           cd dist
-          sha256sum * > checksums.txt
+          sha256sum -- ./* > checksums.txt
 
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v2

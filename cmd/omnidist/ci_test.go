@@ -51,7 +51,7 @@ func TestCICommandCreatesWorkflow(t *testing.T) {
 		`run: go run ./cmd/omnidist uv publish`,
 		`actions/setup-node@v6`,
 		`node-version: '24'`,
-		`sha256sum * > checksums.txt`,
+		`sha256sum -- ./* > checksums.txt`,
 		`uses: softprops/action-gh-release@v2`,
 	} {
 		if !strings.Contains(content, want) {
