@@ -1,0 +1,36 @@
+name: Repair v0.1.39 checksums
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - '.github/workflows/repair-v0.1.39-checksums.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Replace incomplete checksum manifest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir assets
+          gh release download v0.1.39 --repo "$GITHUB_REPOSITORY" --pattern 'omnidist-*' --dir assets
+          cd assets
+          expected=(
+            omnidist-darwin-amd64
+            omnidist-darwin-arm64
+            omnidist-linux-amd64
+            omnidist-linux-arm64
+            omnidist-windows-amd64.exe
+          )
+          for file in "${expected[@]}"; do
+            test -f "$file"
+          done
+          test "$(find . -maxdepth 1 -type f | wc -l)" -eq "${#expected[@]}"
+          sha256sum -- ./* > checksums.txt
+          sha256sum -c checksums.txt
+          gh release upload v0.1.39 checksums.txt --clobber --repo "$GITHUB_REPOSITORY"
