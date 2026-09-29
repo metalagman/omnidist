@@ -74,6 +74,9 @@ func TestRepositoryConfigUsesDualNPMMetaPackages(t *testing.T) {
 	if npmDist.Package != "omnidist" {
 		t.Errorf("npm package = %q, want omnidist", npmDist.Package)
 	}
+	if want := "Build Go binaries and distribute them through npm, PyPI, and RubyGems"; npmDist.Description != want {
+		t.Errorf("npm description = %q, want %q", npmDist.Description, want)
+	}
 	if len(npmDist.Aliases) != 1 || npmDist.Aliases[0] != "@omnidist/omnidist" {
 		t.Errorf("npm aliases = %q, want [@omnidist/omnidist]", npmDist.Aliases)
 	}

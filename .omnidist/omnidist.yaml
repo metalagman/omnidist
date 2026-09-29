@@ -21,6 +21,7 @@ build:
 distributions:
     npm:
         package: omnidist
+        description: Build Go binaries and distribute them through npm, PyPI, and RubyGems
         aliases:
             - '@omnidist/omnidist'
         platform-package: '@omnidist/omnidist'
