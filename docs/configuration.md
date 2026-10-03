@@ -5,6 +5,9 @@ Omnidist reads `.omnidist/omnidist.yaml` unless `--config` or `OMNIDIST_CONFIG` 
 ```yaml
 profiles:
   default:
+    description: Build and distribute mytool binaries
+    keywords: [golang, cli, prebuilt-binaries]
+    license: MIT
     tool:
       name: mytool
       main: ./cmd/mytool
@@ -58,6 +61,9 @@ Do not mix `profiles` with top-level runtime fields. Existing legacy files remai
 Legacy-only shape, shown for compatibility rather than new projects:
 
 ```yaml
+description: Build and distribute mytool binaries
+keywords: [golang, cli]
+license: MIT
 tool:
   name: mytool
   main: ./cmd/mytool
@@ -81,6 +87,9 @@ distributions:
 
 | Field | Type | Default / required condition | Meaning |
 | --- | --- | --- | --- |
+| `description` | string | Empty | Project description/summary, inherited by distributions. |
+| `keywords` | string list | Empty | Project discovery tags, inherited by distributions. Whitespace, blanks and duplicates are removed. |
+| `license` | string | Empty | Project license, inherited where applicable; backend license rules still apply. |
 | `tool` | object | Required | Binary identity and Go entrypoint. |
 | `tool.name` | string | Generated from detected command; required for useful output | Binary/command name embedded in packages. |
 | `tool.main` | string | Generated from detected `cmd/*`; required | Package passed to `go build`, for example `./cmd/mytool`. |
@@ -111,19 +120,57 @@ Every backend-specific field is listed below. A dash means the field is invalid 
 | `package` | Meta package name | Python distribution name | Gem name | Required in every configured backend. `omnidist init` writes a project-derived value; loading never invents an identity. |
 | `aliases` | Additional equivalent meta package names | — | — | Empty. npm stages and publishes the primary `package` followed by aliases in configured order. Values must be unique valid npm names. |
 | `platform-package` | Base name for target-specific packages | — | — | Empty; falls back to npm `package`, preserving legacy names. |
-| `description` | Description for every npm meta package | — | — | Empty; defaults to `Meta package for <tool.name>`. Surrounding whitespace is removed. |
+| `description` | Description for every npm meta package | Wheel Summary | Gem summary and expanded description | Inherits project `description`; surrounding whitespace is removed. Empty effective values use existing generic descriptions. |
 | `registry` | npm registry | — | Gem host | npm registry / `https://rubygems.org`. |
 | `access` | `public` or `restricted` | — | — | `public`. |
 | `publish-auth` | `token` or `trusted` | — | `token` or `trusted` | `token`. Gem trusted mode requires rubygems.org; npm trusted mode requires `repository-url`. |
 | `repository-url` | package metadata and trusted publishing identity | — | gem metadata | Empty; required for npm trusted publishing and strongly recommended for gem trusted publishing. |
-| `license` | npm package license metadata | — | gem license metadata | Empty; npm can infer/include a project license file. |
-| `keywords` | npm meta package keywords | — | — | Empty; whitespace and duplicates are removed. |
+| `license` | npm package license metadata | SPDX License-Expression | Gem licenses entry | Inherits project `license`; empty effective values keep backend fallbacks. |
+| `keywords` | npm meta package keywords | Wheel Keywords | Custom gem metadata | Inherits project `keywords`; an override replaces the list. Whitespace and duplicates are removed. |
 | `readme-path` | README override | README override | README override | Empty; precedence is backend field → top-level `readme-path` → `README.md`. |
 | `index-url` | — | Upload endpoint | — | `https://upload.pypi.org/legacy/`. |
 | `linux-tag` | — | Linux wheel policy | — | `manylinux2014`; also accepts `musllinux_1_2`. |
 | `include-readme` | Include README | Include README | Include README | `true`; set `false` to omit it. |
 
 If an explicitly configured README cannot be read, staging fails. Metadata fields that a backend does not consume should be omitted.
+
+### Project metadata and distribution overrides
+
+Project metadata belongs at `profiles.<name>` alongside `tool`, or at the document root in legacy mode. The YAML names are `description`, `keywords` (tags), and `license`. Each field resolves independently: an explicit distribution override → the project value → the existing backend fallback when the effective value is empty.
+
+An omitted or `null` distribution field inherits. Explicit `description: ""`, `license: ""`, or `keywords: []` clears the project default for that field. Blank-only values also clear after normalization. Keyword overrides replace the entire list; they do not merge. Saving configuration preserves omissions and explicit clears, so later project edits continue to affect inheriting distributions.
+
+```yaml
+profiles:
+  default:
+    description: Build and distribute mytool binaries
+    keywords: [golang, cli]
+    license: MIT
+    tool:
+      name: mytool
+      main: ./cmd/mytool
+    distributions:
+      npm:
+        package: "@my-org/mytool"
+        description: Install mytool through npm
+        keywords: [npm, cli]
+      uv:
+        package: mytool
+        description: null  # inherits project description
+        keywords: []      # clears project keywords
+        license: Apache-2.0 OR MIT
+      gem:
+        package: mytool
+        license: ""       # clears MIT, then uses the existing gem fallback
+```
+
+npm applies effective metadata to the primary package and aliases. Binary packages retain their platform descriptions and receive the effective license. When the effective license is empty, npm includes a detected `LICENSE`, `LICENSE.md`, or `LICENSE.txt` and uses `SEE LICENSE IN <file>`; without a license file it omits the license field.
+
+uv emits a non-empty effective license as `License-Expression` with metadata version 2.4; without a license it retains version 2.1. Licenses must be valid SPDX expressions. Custom `LicenseRef-` identifiers may contain letters, digits, `.` and `-`; `DocumentRef-` references are rejected. The deprecated `License` header is not emitted. A cleared description uses `Binary distribution for <tool.name>`, and cleared keywords/license produce no corresponding headers. README content remains the wheel's long description.
+
+Gem uses the effective description as its summary and appends `. Includes prebuilt binaries for the current platform.` for its longer description so `gem build --strict` succeeds. An empty description retains the existing separate generic summary/description. Keywords are stored in custom gem metadata, not standardized searchable RubyGems tags; the joined value must fit within 1024 bytes. An empty license retains the existing `MIT` fallback. Gem's license field is one license entry, and strict RubyGems builds reject unsupported compound SPDX expressions; use a gem-specific override when a project expression is incompatible. Omnidist does not split or reinterpret license expressions.
+
+uv and gem descriptions/keywords must be single-line values; individual keywords cannot contain commas. Verification checks resolved values and rejects stale metadata after project edits or explicit clears. Configurations without project metadata retain existing distribution defaults. GitHub description/topics can be aligned manually from project metadata; releases do not synchronize them automatically.
 
 ### Multiple npm meta packages
 

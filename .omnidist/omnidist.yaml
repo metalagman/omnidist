@@ -1,3 +1,15 @@
+description: Build Go binaries and distribute them through npm, PyPI, and RubyGems
+keywords:
+    - golang
+    - cli
+    - cross-platform
+    - prebuilt-binaries
+    - release-automation
+    - npm
+    - pypi
+    - uv
+    - rubygems
+license: MIT
 tool:
     name: omnidist
     main: ./cmd/omnidist
@@ -21,7 +33,6 @@ build:
 distributions:
     npm:
         package: omnidist
-        description: Build Go binaries and distribute them through npm, PyPI, and RubyGems
         aliases:
             - '@omnidist/omnidist'
         platform-package: '@omnidist/omnidist'
@@ -39,4 +50,3 @@ distributions:
         registry: https://rubygems.org
         publish-auth: trusted
         repository-url: https://github.com/metalagman/omnidist
-        license: MIT

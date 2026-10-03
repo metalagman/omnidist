@@ -14,6 +14,8 @@ import (
 	"sort"
 	"strings"
 
+	"gopkg.in/yaml.v3"
+
 	"github.com/metalagman/omnidist/internal/config"
 	"github.com/metalagman/omnidist/internal/paths"
 	"github.com/metalagman/omnidist/internal/workflow/shared"
@@ -132,7 +134,7 @@ func Verify(cfg *config.Config) *VerificationResult {
 			result.Errors = append(result.Errors, fmt.Sprintf("missing gem artifact: %s", artifact))
 			continue
 		}
-		if err := verifyGemArchive(artifact, cfg.Tool.Name); err != nil {
+		if err := verifyGemArchive(artifact, cfg.Tool.Name, dist); err != nil {
 			result.Valid = false
 			result.Errors = append(result.Errors, err.Error())
 		}
@@ -314,6 +316,17 @@ func stageGemForTarget(layout paths.Layout, cfg *config.Config, dist config.GemD
 }
 
 func gemspecContent(dist config.GemDistributionConfig, executable string, version string, platform string) string {
+	summaryText, descriptionText := gemDescriptions(dist, executable)
+	summary := fmt.Sprintf("%q", summaryText)
+	description := fmt.Sprintf("%q", descriptionText)
+	if dist.Description != "" {
+		summary = rubyStringLiteral(summaryText)
+		description = rubyStringLiteral(descriptionText)
+	}
+	keywordsLine := ""
+	if len(dist.Keywords) > 0 {
+		keywordsLine = "    \"keywords\" => " + rubyStringLiteral(strings.Join(dist.Keywords, ",")) + ",\n"
+	}
 	license := dist.LicenseValue()
 	if license == "" {
 		license = "MIT"
@@ -330,10 +343,10 @@ func gemspecContent(dist config.GemDistributionConfig, executable string, versio
 	return fmt.Sprintf(`Gem::Specification.new do |spec|
   spec.name = %q
   spec.version = %q
-  spec.summary = %q
-  spec.description = %q
+  spec.summary = %s
+  spec.description = %s
   spec.authors = ["omnidist"]
-  spec.licenses = [%q]
+  spec.licenses = [%s]
   spec.homepage = %q
   spec.platform = Gem::Platform.new(%q)
   spec.required_ruby_version = ">= 3.1"
@@ -344,10 +357,21 @@ func gemspecContent(dist config.GemDistributionConfig, executable string, versio
   spec.metadata = {
     "rubygems_mfa_required" => "true",
     "source_code_uri" => %q,
-%s  }
+%s%s  }
 %s  spec.files << "LICENSE" if File.exist?("LICENSE")
 end
-`, dist.Package, version, fmt.Sprintf("Prebuilt %s CLI packaged by omnidist", executable), fmt.Sprintf("Prebuilt %s CLI packaged by omnidist with platform-specific binaries", executable), license, repositoryURL, platform, executable, repositoryURL, allowedPushHostLine, readmeLine)
+`, dist.Package, version, summary, description, rubyStringLiteral(license), repositoryURL, platform, executable, repositoryURL, allowedPushHostLine, keywordsLine, readmeLine)
+}
+
+func gemDescriptions(dist config.GemDistributionConfig, executable string) (string, string) {
+	if dist.Description != "" {
+		return dist.Description, dist.Description + ". Includes prebuilt binaries for the current platform."
+	}
+	return fmt.Sprintf("Prebuilt %s CLI packaged by omnidist", executable), fmt.Sprintf("Prebuilt %s CLI packaged by omnidist with platform-specific binaries", executable)
+}
+
+func rubyStringLiteral(value string) string {
+	return "'" + strings.NewReplacer("\\", "\\\\", "'", "\\'").Replace(value) + "'"
 }
 
 func repositoryURLOrDefault(dist config.GemDistributionConfig) string {
@@ -437,7 +461,7 @@ func readOptionalProjectLicense() ([]byte, error) {
 	return nil, nil
 }
 
-func verifyGemArchive(path string, executable string) error {
+func verifyGemArchive(path string, executable string, dist config.GemDistributionConfig) error {
 	file, err := os.Open(path)
 	if err != nil {
 		return fmt.Errorf("open gem artifact %s: %w", path, err)
@@ -456,6 +480,11 @@ func verifyGemArchive(path string, executable string) error {
 		}
 		if hdr.Name == "metadata.gz" {
 			foundMetadataGz = true
+			if dist.DescriptionConfigured() || dist.KeywordsConfigured() || dist.LicenseConfigured() {
+				if err := verifyConfiguredGemMetadata(io.LimitReader(tr, hdr.Size), dist, executable); err != nil {
+					return fmt.Errorf("invalid gem artifact %s: %w", path, err)
+				}
+			}
 		}
 		if hdr.Name == "data.tar.gz" {
 			foundDataTar = true
@@ -473,6 +502,53 @@ func verifyGemArchive(path string, executable string) error {
 	}
 	if !foundMetadataGz {
 		return fmt.Errorf("invalid gem artifact %s: missing metadata.gz", path)
+	}
+	return nil
+}
+
+func verifyConfiguredGemMetadata(reader io.Reader, dist config.GemDistributionConfig, executable string) error {
+	gzr, err := gzip.NewReader(reader)
+	if err != nil {
+		return fmt.Errorf("open gem metadata gzip: %w", err)
+	}
+	defer gzr.Close()
+	data, err := io.ReadAll(gzr)
+	if err != nil {
+		return fmt.Errorf("read gem metadata: %w", err)
+	}
+	var metadata struct {
+		Summary     string            `yaml:"summary"`
+		Description string            `yaml:"description"`
+		Metadata    map[string]string `yaml:"metadata"`
+		Licenses    []string          `yaml:"licenses"`
+	}
+	if err := yaml.Unmarshal(data, &metadata); err != nil {
+		return fmt.Errorf("parse gem metadata: %w", err)
+	}
+	summary, description := gemDescriptions(dist, executable)
+	for _, field := range []struct {
+		name, got, expected string
+		configured          bool
+	}{
+		{"summary", metadata.Summary, summary, dist.DescriptionConfigured()},
+		{"description", metadata.Description, description, dist.DescriptionConfigured()},
+		{"keywords", metadata.Metadata["keywords"], strings.Join(dist.Keywords, ","), dist.KeywordsConfigured()},
+	} {
+		if field.configured && field.got != field.expected {
+			return fmt.Errorf("%s mismatch: got %q, want %q", field.name, field.got, field.expected)
+		}
+	}
+	if dist.KeywordsConfigured() && len(dist.Keywords) == 0 {
+		if _, exists := metadata.Metadata["keywords"]; exists {
+			return fmt.Errorf("keywords mismatch: expected no keywords metadata")
+		}
+	}
+	license := dist.LicenseValue()
+	if license == "" {
+		license = "MIT"
+	}
+	if dist.LicenseConfigured() && (len(metadata.Licenses) != 1 || metadata.Licenses[0] != license) {
+		return fmt.Errorf("licenses mismatch: got %q, want [%q]", metadata.Licenses, license)
 	}
 	return nil
 }

@@ -592,7 +592,7 @@ func verifyPlatformPackages(layout paths.Layout, cfg *config.Config, npmDist con
 		verifyPlatformPackageHasNoBin(result, pkgName, pkgJSON)
 		verifyPlatformPackageScripts(result, pkgName, pkgJSON)
 		verifyPlatformPackageRepository(result, pkgName, pkgJSON, expectedRepositoryURL)
-		verifyPlatformPackageLicense(result, pkgName, pkgJSON, npmDist.LicenseValue())
+		verifyPackageLicense(result, pkgName, pkgJSON, npmDist, "")
 	}
 
 	return nil
@@ -671,12 +671,23 @@ func verifyPlatformPackageRepository(result *VerificationResult, pkgName string,
 	}
 }
 
-func verifyPlatformPackageLicense(result *VerificationResult, pkgName string, pkgJSON map[string]interface{}, expectedLicense string) {
-	if expectedLicense == "" {
+func verifyPackageLicense(result *VerificationResult, pkgName string, pkgJSON map[string]interface{}, dist config.NPMDistributionConfig, prefix string) {
+	if !dist.LicenseConfigured() {
 		return
 	}
-	if pkgJSON["license"] != expectedLicense {
-		addVerificationErrorf(result, "license mismatch in %s: got %v, expected %s", pkgName, pkgJSON["license"], expectedLicense)
+	expectedLicense := dist.LicenseValue()
+	expectedPresence := expectedLicense != ""
+	if !expectedPresence {
+		name, _, included, err := readOptionalProjectLicense()
+		if err != nil {
+			addVerificationErrorf(result, "read project license for %s: %v", pkgName, err)
+			return
+		}
+		expectedLicense, expectedPresence = packageLicenseValue(dist, name, included)
+	}
+	actual, present := pkgJSON["license"]
+	if present != expectedPresence || expectedPresence && actual != expectedLicense {
+		addVerificationErrorf(result, "%slicense mismatch in %s: got %v, expected %s", prefix, pkgName, pkgJSON["license"], expectedLicense)
 	}
 }
 
@@ -714,17 +725,17 @@ func verifyMetaPackage(layout paths.Layout, cfg *config.Config, npmDist config.N
 		}
 	}
 
-	if expectedLicense := npmDist.LicenseValue(); expectedLicense != "" {
-		if pkgJSON["license"] != expectedLicense {
-			addVerificationErrorf(result, "Meta package license mismatch in %s: got %v, expected %s", metaPackage, pkgJSON["license"], expectedLicense)
-		}
-	}
+	verifyPackageLicense(result, metaPackage, pkgJSON, npmDist, "Meta package ")
 	if len(npmDist.Keywords) > 0 {
 		keywords, ok := packageStringList(pkgJSON["keywords"])
 		if !ok {
 			addVerificationErrorf(result, "Missing keywords in meta package %s", metaPackage)
 		} else if !equalStringLists(keywords, npmDist.Keywords) {
 			addVerificationErrorf(result, "Meta package keywords mismatch in %s: got %v, expected %v", metaPackage, keywords, npmDist.Keywords)
+		}
+	} else if npmDist.KeywordsConfigured() {
+		if _, present := pkgJSON["keywords"]; present {
+			addVerificationErrorf(result, "Meta package keywords mismatch in %s: expected no keywords", metaPackage)
 		}
 	}
 	if expectedRepositoryURL != "" {

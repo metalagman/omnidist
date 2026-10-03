@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/github/go-spdx/v2/spdxexp"
 	"gopkg.in/yaml.v3"
 )
 
@@ -33,6 +34,9 @@ const maxNPMPackageNameLength = 214
 
 // Config is the root omnidist configuration loaded from omnidist.yaml.
 type Config struct {
+	Description   string
+	Keywords      []string
+	License       string
 	Tool          ToolConfig
 	Version       VersionConfig
 	ReadmePath    string
@@ -42,6 +46,7 @@ type Config struct {
 	Runtime       RuntimeConfig
 
 	selectedDistributions []DistributionName
+	metadataSet           metadataPresence
 }
 
 // DistributionName identifies a supported release backend.
@@ -190,26 +195,34 @@ type NPMDistributionConfig struct {
 	Keywords        []string `yaml:"keywords,omitempty"`
 	ReadmePath      string   `yaml:"readme-path,omitempty"`
 	IncludeREADME   *bool    `yaml:"include-readme,omitempty"`
+	metadataSet     metadataPresence
 }
 
 // UVDistributionConfig stores uv/PyPI packaging settings.
 type UVDistributionConfig struct {
-	Package       string `yaml:"package"`
-	IndexURL      string `yaml:"index-url,omitempty"`
-	LinuxTag      string `yaml:"linux-tag,omitempty"`
-	ReadmePath    string `yaml:"readme-path,omitempty"`
-	IncludeREADME *bool  `yaml:"include-readme,omitempty"`
+	Package       string   `yaml:"package"`
+	Description   string   `yaml:"description,omitempty"`
+	Keywords      []string `yaml:"keywords,omitempty"`
+	License       string   `yaml:"license,omitempty"`
+	IndexURL      string   `yaml:"index-url,omitempty"`
+	LinuxTag      string   `yaml:"linux-tag,omitempty"`
+	ReadmePath    string   `yaml:"readme-path,omitempty"`
+	IncludeREADME *bool    `yaml:"include-readme,omitempty"`
+	metadataSet   metadataPresence
 }
 
 // GemDistributionConfig stores RubyGems packaging settings.
 type GemDistributionConfig struct {
-	Package       string `yaml:"package"`
-	Registry      string `yaml:"registry,omitempty"`
-	PublishAuth   string `yaml:"publish-auth,omitempty"`
-	RepositoryURL string `yaml:"repository-url,omitempty"`
-	License       string `yaml:"license,omitempty"`
-	ReadmePath    string `yaml:"readme-path,omitempty"`
-	IncludeREADME *bool  `yaml:"include-readme,omitempty"`
+	Package       string   `yaml:"package"`
+	Description   string   `yaml:"description,omitempty"`
+	Keywords      []string `yaml:"keywords,omitempty"`
+	Registry      string   `yaml:"registry,omitempty"`
+	PublishAuth   string   `yaml:"publish-auth,omitempty"`
+	RepositoryURL string   `yaml:"repository-url,omitempty"`
+	License       string   `yaml:"license,omitempty"`
+	ReadmePath    string   `yaml:"readme-path,omitempty"`
+	IncludeREADME *bool    `yaml:"include-readme,omitempty"`
+	metadataSet   metadataPresence
 }
 
 type rawNPMDistributionConfig NPMDistributionConfig
@@ -229,6 +242,9 @@ type rawDistributionSelector struct {
 }
 
 type rawConfig struct {
+	Description          string                 `yaml:"description,omitempty"`
+	Keywords             []string               `yaml:"keywords,omitempty"`
+	License              string                 `yaml:"license,omitempty"`
 	Tool                 ToolConfig             `yaml:"tool"`
 	Version              VersionConfig          `yaml:"version"`
 	ReadmePath           string                 `yaml:"readme-path,omitempty"`
@@ -236,6 +252,7 @@ type rawConfig struct {
 	Build                BuildConfig            `yaml:"build"`
 	EnabledDistributions yaml.Node              `yaml:"enabled-distributions,omitempty"`
 	Distributions        rawDistributionConfigs `yaml:"distributions"`
+	metadataSet          metadataPresence
 }
 
 type rawProfilesDocument struct {
@@ -243,6 +260,9 @@ type rawProfilesDocument struct {
 }
 
 type persistedConfig struct {
+	Description   *string             `yaml:"description,omitempty"`
+	Keywords      *[]string           `yaml:"keywords,omitempty"`
+	License       *string             `yaml:"license,omitempty"`
 	Tool          ToolConfig          `yaml:"tool"`
 	Version       VersionConfig       `yaml:"version"`
 	ReadmePath    string              `yaml:"readme-path,omitempty"`
@@ -269,6 +289,9 @@ func persistedConfigFromResolved(cfg *Config) (persistedConfig, error) {
 		return persistedConfig{}, fmt.Errorf("cannot write canonical config with inactive legacy distributions (selected: %s; configured: %s)", strings.Join(DistributionNameStrings(selected), ","), strings.Join(DistributionNameStrings(configured), ","))
 	}
 	return persistedConfig{
+		Description:   optionalMetadataString(cfg.Description, cfg.metadataSet.description),
+		Keywords:      optionalMetadataKeywords(cfg.Keywords, cfg.metadataSet.keywords),
+		License:       optionalMetadataString(cfg.License, cfg.metadataSet.license),
 		Tool:          cfg.Tool,
 		Version:       cfg.Version,
 		ReadmePath:    cfg.ReadmePath,
@@ -561,6 +584,11 @@ func loadLegacyConfig(path string, data []byte) (*Config, error) {
 	if err := decodeStrict(path, data, &raw); err != nil {
 		return nil, err
 	}
+	root, err := parseRootMap(data, path)
+	if err != nil {
+		return nil, err
+	}
+	markRawMetadataPresence(&raw, root)
 	cfg, err := resolveRawConfig(raw)
 	if err != nil {
 		return nil, fmt.Errorf("invalid config file %s: %w", path, err)
@@ -595,6 +623,13 @@ func loadProfileConfig(path string, data []byte, selected string) (*Config, erro
 		}
 	}
 
+	root, err := parseRootMap(data, path)
+	if err != nil {
+		return nil, err
+	}
+	profiles, _ := root["profiles"].(map[string]interface{})
+	scope, _ := profiles[selectedProfile].(map[string]interface{})
+	markRawMetadataPresence(&raw, scope)
 	cfg, err := resolveRawConfig(raw)
 	if err != nil {
 		return nil, fmt.Errorf("invalid config file %s: profiles.%s: %w", path, selectedProfile, err)
@@ -621,6 +656,10 @@ func decodeStrict(path string, data []byte, out interface{}) error {
 
 func resolveRawConfig(raw rawConfig) (*Config, error) {
 	cfg := &Config{
+		Description:   raw.Description,
+		Keywords:      append([]string(nil), raw.Keywords...),
+		License:       raw.License,
+		metadataSet:   raw.metadataSet,
 		Tool:          raw.Tool,
 		Version:       raw.Version,
 		ReadmePath:    raw.ReadmePath,
@@ -770,6 +809,10 @@ func containsLegacyFixedVersionKey(raw interface{}) bool {
 }
 
 func applyDistributionDefaults(cfg *Config) {
+	cfg.metadataSet = metadataPresenceFor(cfg.Description, cfg.Keywords, cfg.License, cfg.metadataSet)
+	cfg.Description = strings.TrimSpace(cfg.Description)
+	cfg.Keywords = normalizeKeywords(cfg.Keywords)
+	cfg.License = strings.TrimSpace(cfg.License)
 	cfg.ReadmePath = strings.TrimSpace(cfg.ReadmePath)
 
 	if cfg.Distributions.NPM != nil {
@@ -835,7 +878,7 @@ func hasRootKey(root map[string]interface{}, key string) bool {
 }
 
 func hasTopLevelLegacyFields(root map[string]interface{}) bool {
-	for _, key := range []string{"tool", "version", "readme-path", "targets", "build", "enabled-distributions", "distributions"} {
+	for _, key := range []string{"description", "keywords", "license", "tool", "version", "readme-path", "targets", "build", "enabled-distributions", "distributions"} {
 		if hasRootKey(root, key) {
 			return true
 		}
@@ -922,6 +965,7 @@ func (cfg *Config) RequireNPM() (NPMDistributionConfig, error) {
 		return NPMDistributionConfig{}, fmt.Errorf("distributions.npm is required")
 	}
 	dist := *cfg.Distributions.NPM
+	cfg.inheritMetadata(&dist.Description, &dist.Keywords, &dist.License, &dist.metadataSet)
 	normalizeNPMDistribution(&dist)
 	if err := validateNPMDistribution(dist, cfg.Targets); err != nil {
 		return NPMDistributionConfig{}, err
@@ -941,6 +985,7 @@ func (cfg *Config) RequireUV() (UVDistributionConfig, error) {
 		return UVDistributionConfig{}, fmt.Errorf("distributions.uv is required")
 	}
 	dist := *cfg.Distributions.UV
+	cfg.inheritMetadata(&dist.Description, &dist.Keywords, &dist.License, &dist.metadataSet)
 	normalizeUVDistribution(&dist)
 	if err := validateUVDistribution(dist); err != nil {
 		return UVDistributionConfig{}, err
@@ -957,6 +1002,7 @@ func (cfg *Config) RequireGem() (GemDistributionConfig, error) {
 		return GemDistributionConfig{}, fmt.Errorf("distributions.gem is required")
 	}
 	dist := *cfg.Distributions.Gem
+	cfg.inheritMetadata(&dist.Description, &dist.Keywords, &dist.License, &dist.metadataSet)
 	normalizeGemDistribution(&dist)
 	if err := validateGemDistribution(dist); err != nil {
 		return GemDistributionConfig{}, err
@@ -965,6 +1011,7 @@ func (cfg *Config) RequireGem() (GemDistributionConfig, error) {
 }
 
 func normalizeNPMDistribution(dist *NPMDistributionConfig) {
+	dist.metadataSet = metadataPresenceFor(dist.Description, dist.Keywords, dist.License, dist.metadataSet)
 	dist.Package = strings.TrimSpace(dist.Package)
 	dist.Aliases = append([]string(nil), dist.Aliases...)
 	for i := range dist.Aliases {
@@ -994,7 +1041,11 @@ func normalizeNPMDistribution(dist *NPMDistributionConfig) {
 }
 
 func normalizeUVDistribution(dist *UVDistributionConfig) {
+	dist.metadataSet = metadataPresenceFor(dist.Description, dist.Keywords, dist.License, dist.metadataSet)
 	dist.Package = strings.TrimSpace(dist.Package)
+	dist.Description = strings.TrimSpace(dist.Description)
+	dist.Keywords = normalizeKeywords(dist.Keywords)
+	dist.License = strings.TrimSpace(dist.License)
 	dist.ReadmePath = strings.TrimSpace(dist.ReadmePath)
 	dist.IndexURL = strings.TrimSpace(dist.IndexURL)
 	dist.LinuxTag = strings.TrimSpace(dist.LinuxTag)
@@ -1010,7 +1061,10 @@ func normalizeUVDistribution(dist *UVDistributionConfig) {
 }
 
 func normalizeGemDistribution(dist *GemDistributionConfig) {
+	dist.metadataSet = metadataPresenceFor(dist.Description, dist.Keywords, dist.License, dist.metadataSet)
 	dist.Package = strings.TrimSpace(dist.Package)
+	dist.Description = strings.TrimSpace(dist.Description)
+	dist.Keywords = normalizeKeywords(dist.Keywords)
 	dist.Registry = strings.TrimSpace(dist.Registry)
 	dist.PublishAuth = strings.TrimSpace(dist.PublishAuth)
 	dist.RepositoryURL = dist.RepositoryURLValue()
@@ -1071,6 +1125,18 @@ func validateNPMDistribution(dist NPMDistributionConfig, targets []Target) error
 func validateUVDistribution(dist UVDistributionConfig) error {
 	if dist.Package == "" {
 		return fmt.Errorf("distributions.uv.package is required")
+	}
+	if err := validateDistributionMetadata("uv", dist.Description, dist.Keywords); err != nil {
+		return err
+	}
+	if dist.License != "" {
+		if strings.ContainsAny(dist.License, "\r\n") {
+			return fmt.Errorf("distributions.uv.license must be a single-line SPDX expression")
+		}
+		valid, _ := spdxexp.ValidateLicensesWithOptions([]string{dist.License}, spdxexp.ValidateLicensesOptions{FailAllDocumentRefs: true})
+		if !valid {
+			return fmt.Errorf("distributions.uv.license %q must be a valid SPDX expression without DocumentRef references", dist.License)
+		}
 	}
 	switch dist.LinuxTag {
 	case "manylinux2014", "musllinux_1_2":
@@ -1150,6 +1216,12 @@ func validateGemDistribution(dist GemDistributionConfig) error {
 	if dist.Package == "" {
 		return fmt.Errorf("distributions.gem.package is required")
 	}
+	if err := validateDistributionMetadata("gem", dist.Description, dist.Keywords); err != nil {
+		return err
+	}
+	if len(strings.Join(dist.Keywords, ",")) > 1024 {
+		return fmt.Errorf("distributions.gem.keywords must fit within 1024 bytes of gem metadata")
+	}
 	if !gemPackageNamePattern.MatchString(dist.Package) {
 		return fmt.Errorf("invalid distributions.gem.package %q", dist.Package)
 	}
@@ -1160,6 +1232,18 @@ func validateGemDistribution(dist GemDistributionConfig) error {
 	}
 	if dist.PublishAuth == "trusted" && dist.Registry != "" && dist.Registry != "https://rubygems.org" {
 		return fmt.Errorf("distributions.gem.publish-auth %q requires distributions.gem.registry %q", "trusted", "https://rubygems.org")
+	}
+	return nil
+}
+
+func validateDistributionMetadata(backend, description string, keywords []string) error {
+	if strings.ContainsAny(description, "\r\n") {
+		return fmt.Errorf("distributions.%s.description must be a single line", backend)
+	}
+	for i, keyword := range keywords {
+		if strings.ContainsAny(keyword, ",\r\n") {
+			return fmt.Errorf("distributions.%s.keywords[%d] must not contain commas or line breaks", backend, i)
+		}
 	}
 	return nil
 }

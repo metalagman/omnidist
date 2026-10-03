@@ -354,13 +354,13 @@ func TestVerifyGemArchive(t *testing.T) {
 	dir := t.TempDir()
 	goodPath := filepath.Join(dir, "good.gem")
 	writeFakeGem(t, goodPath, true)
-	if err := verifyGemArchive(goodPath, "omnidist"); err != nil {
+	if err := verifyGemArchive(goodPath, "omnidist", config.GemDistributionConfig{}); err != nil {
 		t.Fatalf("verifyGemArchive(good) error = %v", err)
 	}
 
 	badPath := filepath.Join(dir, "bad.gem")
 	writeFakeGem(t, badPath, false)
-	if err := verifyGemArchive(badPath, "omnidist"); err == nil {
+	if err := verifyGemArchive(badPath, "omnidist", config.GemDistributionConfig{}); err == nil {
 		t.Fatalf("verifyGemArchive(bad) error = nil, want error")
 	}
 }

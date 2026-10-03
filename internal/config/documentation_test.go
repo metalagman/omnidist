@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -82,6 +83,65 @@ func TestRepositoryConfigUsesDualNPMMetaPackages(t *testing.T) {
 	}
 	if npmDist.PlatformPackage != "@omnidist/omnidist" {
 		t.Errorf("npm platform-package = %q, want @omnidist/omnidist", npmDist.PlatformPackage)
+	}
+}
+
+func TestRepositoryProjectMetadata(t *testing.T) {
+	cfg, err := Load(filepath.Join("..", "..", ".omnidist", "omnidist.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := metadataValues{
+		"Build Go binaries and distribute them through npm, PyPI, and RubyGems",
+		[]string{"golang", "cli", "cross-platform", "prebuilt-binaries", "release-automation", "npm", "pypi", "uv", "rubygems"},
+		"MIT",
+	}
+	if cfg.Description != want.Description || !slices.Equal(cfg.Keywords, want.Keywords) || cfg.License != want.License {
+		t.Fatalf("repository project metadata = %q %q %q", cfg.Description, cfg.Keywords, cfg.License)
+	}
+	for _, backend := range []string{"npm", "uv", "gem"} {
+		got := effectiveMetadata(t, cfg, backend)
+		if got.Description != want.Description || !slices.Equal(got.Keywords, want.Keywords) || got.License != want.License {
+			t.Fatalf("repository %s metadata = %#v", backend, got)
+		}
+	}
+	for _, source := range []metadataValues{
+		{cfg.Distributions.NPM.Description, cfg.Distributions.NPM.Keywords, cfg.Distributions.NPM.License},
+		{cfg.Distributions.UV.Description, cfg.Distributions.UV.Keywords, cfg.Distributions.UV.License},
+		{cfg.Distributions.Gem.Description, cfg.Distributions.Gem.Keywords, cfg.Distributions.Gem.License},
+	} {
+		if source.Description != "" || len(source.Keywords) != 0 || source.License != "" {
+			t.Fatalf("repository duplicates metadata in distribution: %#v", source)
+		}
+	}
+}
+
+func TestMetadataReferenceExamples(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("..", "..", "docs", "configuration.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	count := 0
+	for _, fence := range strings.Split(string(data), "```yaml\n")[1:] {
+		example := strings.SplitN(fence, "\n```", 2)[0]
+		if !strings.Contains(example, "description:") {
+			continue
+		}
+		path := filepath.Join(t.TempDir(), "config.yaml")
+		if err := os.WriteFile(path, []byte(example), 0644); err != nil {
+			t.Fatal(err)
+		}
+		cfg, err := Load(path)
+		if err != nil {
+			t.Fatalf("metadata example does not load: %v\n%s", err, example)
+		}
+		for _, backend := range DistributionNameStrings(cfg.Distributions.Names()) {
+			_ = effectiveMetadata(t, cfg, backend)
+		}
+		count++
+	}
+	if count < 3 {
+		t.Fatalf("metadata examples = %d, want profile, legacy and override examples", count)
 	}
 }
 

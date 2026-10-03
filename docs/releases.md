@@ -30,7 +30,7 @@ Never commit tokens or place them in generated workflow YAML. The CI generator r
    omnidist publish --dry-run
    ```
 
-7. Inspect staged package names and versions. All must represent the same release.
+7. Inspect staged package names, versions, descriptions, keywords and licenses. All must represent the same release. Project metadata and channel overrides are documented in [configuration](configuration.md#project-metadata-and-distribution-overrides); gem staging must pass its strict native build.
 8. Publish from one controlled environment. For tag-driven CI, create and push an exact SemVer tag only after credentials and workflow settings are ready.
 
 ## What preflight checks
