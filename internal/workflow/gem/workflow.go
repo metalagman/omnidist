@@ -376,13 +376,17 @@ func gemPlatform(target config.Target) string {
 		}
 		return "aarch64-linux"
 	case "windows":
+		cpu := "x64"
+		if target.Arch == "arm64" {
+			cpu = "aarch64"
+		}
 		switch target.Variant {
 		case "mingw32":
-			return "x64-mingw32"
+			return cpu + "-mingw32"
 		case "mingw-ucrt", "":
-			return "x64-mingw-ucrt"
+			return cpu + "-mingw-ucrt"
 		default:
-			return "x64-" + target.Variant
+			return cpu + "-" + target.Variant
 		}
 	default:
 		return target.Arch + "-" + target.OS

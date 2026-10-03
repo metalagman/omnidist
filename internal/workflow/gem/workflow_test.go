@@ -64,14 +64,173 @@ func TestGemPlatform(t *testing.T) {
 		{target: config.Target{OS: "linux", Arch: "amd64"}, want: "x86_64-linux"},
 		{target: config.Target{OS: "linux", Arch: "arm64", Variant: "musl"}, want: "aarch64-linux-musl"},
 		{target: config.Target{OS: "windows", Arch: "amd64"}, want: "x64-mingw-ucrt"},
+		{target: config.Target{OS: "windows", Arch: "amd64", Variant: "mingw-ucrt"}, want: "x64-mingw-ucrt"},
 		{target: config.Target{OS: "windows", Arch: "amd64", Variant: "mingw32"}, want: "x64-mingw32"},
+		{target: config.Target{OS: "windows", Arch: "amd64", Variant: "custom"}, want: "x64-custom"},
+		{target: config.Target{OS: "windows", Arch: "arm64"}, want: "aarch64-mingw-ucrt"},
+		{target: config.Target{OS: "windows", Arch: "arm64", Variant: "mingw-ucrt"}, want: "aarch64-mingw-ucrt"},
+		{target: config.Target{OS: "windows", Arch: "arm64", Variant: "mingw32"}, want: "aarch64-mingw32"},
+		{target: config.Target{OS: "windows", Arch: "arm64", Variant: "custom"}, want: "aarch64-custom"},
 	}
 
 	for _, tc := range tests {
 		if got := gemPlatform(tc.target); got != tc.want {
-			t.Fatalf("gemPlatform(%+v) = %q, want %q", tc.target, got, tc.want)
+			t.Errorf("gemPlatform(%+v) = %q, want %q", tc.target, got, tc.want)
 		}
 	}
+}
+
+func TestDocumentedGemPlatforms(t *testing.T) {
+	t.Parallel()
+	data, err := os.ReadFile(filepath.Join("..", "..", "..", "docs", "targets.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	foundWindowsARM64 := false
+	for _, line := range strings.Split(string(data), "\n") {
+		cells := strings.Split(line, "|")
+		if len(cells) != 7 {
+			continue
+		}
+		targetParts := strings.Split(strings.Trim(cells[1], " `"), "/")
+		if len(targetParts) != 2 {
+			continue
+		}
+		target := config.Target{OS: targetParts[0], Arch: targetParts[1]}
+		if target.OS == "windows" && target.Arch == "arm64" {
+			foundWindowsARM64 = true
+		}
+		want := strings.Trim(cells[5], " `")
+		if got := gemPlatform(target); got != want {
+			t.Errorf("documented %s/%s platform = %q, mapper produces %q", target.OS, target.Arch, want, got)
+		}
+	}
+	if !foundWindowsARM64 {
+		t.Error("target reference has no Windows ARM64 platform mapping")
+	}
+}
+
+func TestStagePreservesWindowsArchitectures(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell command based gem build simulation")
+	}
+	cfg, layout := windowsGemConfig(t)
+	for _, target := range cfg.Targets {
+		binary := filepath.Join(layout.DistDir, "windows", target.Arch, "omnidist.exe")
+		if err := os.MkdirAll(filepath.Dir(binary), 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(binary, []byte(target.Arch), 0755); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	originalCommand := command
+	t.Cleanup(func() { command = originalCommand })
+	var outputs []string
+	command = func(name string, args ...string) *exec.Cmd {
+		if name != "gem" || len(args) != 5 || args[0] != "build" || args[1] != "omnidist.gemspec" || args[2] != "--strict" || args[3] != "--output" {
+			t.Fatalf("unexpected gem build command: %s %v", name, args)
+		}
+		outputs = append(outputs, filepath.Base(args[4]))
+		writeFakeGem(t, args[4], true)
+		return exec.Command("sh", "-c", "exit 0")
+	}
+	if err := Stage(cfg, StageOptions{}); err != nil {
+		t.Fatalf("Stage() error = %v", err)
+	}
+
+	platforms := []string{"x64-mingw-ucrt", "aarch64-mingw-ucrt"}
+	if len(outputs) != len(platforms) {
+		t.Fatalf("gem build count = %d, want %d", len(outputs), len(platforms))
+	}
+	for i, platform := range platforms {
+		wantArtifact := "omnidist-1.2.3-" + platform + ".gem"
+		if outputs[i] != wantArtifact {
+			t.Errorf("gem build output = %q, want %q", outputs[i], wantArtifact)
+		}
+		if _, err := os.Stat(filepath.Join(layout.GemPkgDir, wantArtifact)); err != nil {
+			t.Errorf("staged artifact %s: %v", wantArtifact, err)
+		}
+		stagingDir := filepath.Join(layout.GemBuildDir, platform)
+		binary, err := os.ReadFile(filepath.Join(stagingDir, "libexec", "omnidist.exe"))
+		if err != nil {
+			t.Errorf("read %s binary: %v", platform, err)
+			continue
+		}
+		if string(binary) != cfg.Targets[i].Arch {
+			t.Errorf("%s binary = %q, want %q", platform, binary, cfg.Targets[i].Arch)
+		}
+		gemspec, err := os.ReadFile(filepath.Join(stagingDir, "omnidist.gemspec"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if want := `spec.platform = Gem::Platform.new("` + platform + `")`; !strings.Contains(string(gemspec), want) {
+			t.Errorf("%s gemspec missing %q", platform, want)
+		}
+	}
+}
+
+func TestVerifyRequiresWindowsARM64Artifact(t *testing.T) {
+	t.Parallel()
+	cfg, layout := windowsGemConfig(t)
+	writeFakeGem(t, filepath.Join(layout.GemPkgDir, "omnidist-1.2.3-x64-mingw-ucrt.gem"), true)
+	armArtifact := filepath.Join(layout.GemPkgDir, "omnidist-1.2.3-aarch64-mingw-ucrt.gem")
+
+	result := Verify(cfg)
+	if result.Valid || len(result.Errors) != 1 || !strings.Contains(result.Errors[0], armArtifact) {
+		t.Fatalf("Verify() = %+v, want missing ARM64 artifact %s", result, armArtifact)
+	}
+	writeFakeGem(t, armArtifact, true)
+	if result := Verify(cfg); !result.Valid {
+		t.Fatalf("Verify() with both Windows artifacts = %+v", result)
+	}
+}
+
+func TestPublishDryRunListsWindowsArchitectures(t *testing.T) {
+	cfg, _ := windowsGemConfig(t)
+	originalCommand := command
+	t.Cleanup(func() { command = originalCommand })
+	command = func(name string, args ...string) *exec.Cmd {
+		t.Fatalf("dry-run invoked external command: %s %v", name, args)
+		return nil
+	}
+	var output bytes.Buffer
+	if err := Publish(cfg, PublishOptions{DryRun: true, Stdout: &output}); err != nil {
+		t.Fatalf("Publish(dry-run) error = %v", err)
+	}
+	for _, artifact := range []string{
+		"omnidist-1.2.3-x64-mingw-ucrt.gem",
+		"omnidist-1.2.3-aarch64-mingw-ucrt.gem",
+	} {
+		if count := strings.Count(output.String(), artifact); count != 1 {
+			t.Errorf("dry-run lists %s %d times, want once:\n%s", artifact, count, output.String())
+		}
+	}
+}
+
+func windowsGemConfig(t *testing.T) (*config.Config, paths.Layout) {
+	t.Helper()
+	cfg := config.DefaultConfig()
+	cfg.Tool.Name = "omnidist"
+	cfg.Distributions.Gem.Package = "omnidist"
+	cfg.Distributions.Gem.IncludeREADME = boolPtr(false)
+	cfg.Runtime.WorkspaceDir = t.TempDir()
+	cfg.Targets = []config.Target{
+		{OS: "windows", Arch: "amd64"},
+		{OS: "windows", Arch: "arm64"},
+	}
+	layout := layoutForConfig(cfg)
+	if err := os.MkdirAll(layout.DistDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(layout.DistVersionPath, []byte("1.2.3\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(layout.GemPkgDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	return cfg, layout
 }
 
 func TestGemspecContent(t *testing.T) {
