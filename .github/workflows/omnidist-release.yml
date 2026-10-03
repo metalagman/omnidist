@@ -26,9 +26,9 @@ jobs:
       - name: Build artifacts
         run: go run ./cmd/omnidist build
       - name: Stage artifacts
-        run: go run ./cmd/omnidist stage --only 'npm,uv,gem'
+        run: go run ./cmd/omnidist stage --only 'npm,pypi,gem'
       - name: Verify artifacts
-        run: go run ./cmd/omnidist verify --only 'npm,uv,gem'
+        run: go run ./cmd/omnidist verify --only 'npm,pypi,gem'
       - name: Pack staged artifacts
         run: tar -czf omnidist-staged.tgz .omnidist
       - name: Upload staged artifacts
@@ -70,12 +70,13 @@ jobs:
       - name: Publish npm artifacts
         run: go run ./cmd/omnidist npm publish
 
-  publish_uv:
+  publish_pypi:
     needs: prepare
     runs-on: ubuntu-latest
     permissions:
       contents: read
     env:
+      PYPI_PUBLISH_TOKEN: ${{ secrets.PYPI_PUBLISH_TOKEN }}
       UV_PUBLISH_TOKEN: ${{ secrets.UV_PUBLISH_TOKEN }}
     steps:
       - uses: actions/checkout@v4
@@ -91,8 +92,8 @@ jobs:
           name: omnidist-staged
       - name: Restore staged artifacts
         run: tar -xzf omnidist-staged.tgz
-      - name: Publish uv artifacts
-        run: go run ./cmd/omnidist uv publish
+      - name: Publish PyPI artifacts
+        run: go run ./cmd/omnidist pypi publish
 
   publish_gem:
     needs: prepare

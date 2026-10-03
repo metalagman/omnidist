@@ -14,7 +14,7 @@ go run ./cmd/omnidist --help
 Some integration paths need ecosystem tools:
 
 - Node.js/npm for npm publish and auth command tests;
-- uv for uv stage/publish flows;
+- uv for PyPI stage/publish flows;
 - Ruby/RubyGems for gem stage/publish flows.
 
 Most unit tests isolate external commands with fakes. CI installs uv; release environments must install only the tools needed by selected backends.
@@ -46,7 +46,7 @@ internal/workflow/gem/        gem staging, verification, publication
 docs/                         User configuration, release, target references
 ```
 
-The config layer owns the canonical enabled-backend plan. Aggregate commands and CI generation must consume that plan rather than implement their own ordering. Canonical execution order is npm → uv → gem. Backend-specific commands remain available for explicit recovery.
+The config layer owns the canonical enabled-backend plan. Aggregate commands and CI generation must consume that plan rather than implement their own ordering. Canonical execution order is npm → pypi → gem. Backend-specific commands remain available for explicit recovery. Python interfaces use `pypi` with compatible `uv` aliases; see [legacy compatibility](docs/configuration.md#legacy-compatibility).
 
 Publish is deliberately two-phase: every selected backend preflights before aggregate upload begins, then uploads run deterministically. Keep preflight free of registry upload operations and retain unit/package context in errors. External registries do not provide a shared rollback transaction.
 

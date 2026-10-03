@@ -44,14 +44,14 @@ var stageCmd = &cobra.Command{
 				}
 				fmt.Println("npm stage completed")
 			case distributionUV:
-				fmt.Println("==> uv stage")
+				fmt.Println("==> PyPI stage")
 				if err := uvworkflow.CheckDependency(); err != nil {
 					return err
 				}
 				if err := uvworkflow.Stage(cfg, uvworkflow.StageOptions{Dev: stageDevFlag}); err != nil {
-					return fmt.Errorf("uv stage failed: %w", err)
+					return fmt.Errorf("PyPI stage failed: %w", err)
 				}
-				fmt.Println("uv stage completed")
+				fmt.Println("PyPI stage completed")
 			case distributionGem:
 				fmt.Println("==> gem stage")
 				if err := gemworkflow.CheckDependency(); err != nil {
@@ -74,6 +74,6 @@ var stageCmd = &cobra.Command{
 
 func init() {
 	stageCmd.Flags().BoolVar(&stageDevFlag, "dev", false, "Generate dev versions during staging")
-	stageCmd.Flags().StringVar(&stageOnlyFlag, "only", "", "Run only selected distributions (comma-separated: npm,uv,gem)")
+	stageCmd.Flags().StringVar(&stageOnlyFlag, "only", "", "Run only selected distributions (comma-separated: npm,pypi,gem)")
 	AddCommand(stageCmd)
 }

@@ -70,7 +70,11 @@ func PreflightPublish(cfg *config.Config, opts PublishOptions) error {
 	if err := CheckDependency(); err != nil {
 		return err
 	}
-	result := Verify(cfg)
+	dist, err := uvDistribution(cfg)
+	if err != nil {
+		return err
+	}
+	result := verifyWithPublishURL(cfg, resolvePublishURL(dist.IndexURL, opts))
 	if !result.Valid {
 		return fmt.Errorf("staged artifact verification failed: %s", strings.Join(result.Errors, "; "))
 	}
@@ -121,6 +125,10 @@ func resetUVStagingDir(layout paths.Layout) error {
 
 // Verify validates staged uv wheel artifacts and returns accumulated findings.
 func Verify(cfg *config.Config) *VerificationResult {
+	return verifyWithPublishURL(cfg, "")
+}
+
+func verifyWithPublishURL(cfg *config.Config, publishURL string) *VerificationResult {
 	result := &VerificationResult{
 		Valid:    true,
 		Errors:   []string{},
@@ -141,7 +149,10 @@ func Verify(cfg *config.Config) *VerificationResult {
 		result.Errors = append(result.Errors, err.Error())
 		return result
 	}
-	if err := validatePublishVersionPolicy(uvDist.IndexURL, version); err != nil {
+	if publishURL == "" {
+		publishURL = uvDist.IndexURL
+	}
+	if err := validatePublishVersionPolicy(publishURL, version); err != nil {
 		result.Valid = false
 		result.Errors = append(result.Errors, err.Error())
 		return result
@@ -180,13 +191,14 @@ func Publish(cfg *config.Config, opts PublishOptions) error {
 	if err != nil {
 		return err
 	}
+	opts.PublishURL = resolvePublishURL(uvDist.IndexURL, opts)
 	layout := layoutForConfig(cfg)
 
 	version, err := resolveUVPublishVersionWithLayout(cfg, layout)
 	if err != nil {
 		return err
 	}
-	if err := validatePublishVersionPolicy(uvDist.IndexURL, version); err != nil {
+	if err := validatePublishVersionPolicy(opts.PublishURL, version); err != nil {
 		return err
 	}
 
@@ -230,10 +242,7 @@ func buildPublishArgs(defaultIndexURL string, opts PublishOptions, artifacts []s
 		args = append(args, "--dry-run")
 	}
 
-	publishURL := strings.TrimSpace(defaultIndexURL)
-	if v := strings.TrimSpace(opts.PublishURL); v != "" {
-		publishURL = v
-	}
+	publishURL := resolvePublishURL(defaultIndexURL, opts)
 	if publishURL != "" {
 		args = append(args, "--publish-url", publishURL)
 	}
@@ -242,13 +251,25 @@ func buildPublishArgs(defaultIndexURL string, opts PublishOptions, artifacts []s
 	return args
 }
 
+func resolvePublishURL(defaultIndexURL string, opts PublishOptions) string {
+	for _, value := range []string{opts.PublishURL, os.Getenv("PYPI_PUBLISH_URL"), os.Getenv("UV_PUBLISH_URL"), defaultIndexURL} {
+		if value = strings.TrimSpace(value); value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
 func resolvePublishToken(opts PublishOptions) (string, error) {
 	token := strings.TrimSpace(opts.Token)
+	if token == "" {
+		token = strings.TrimSpace(os.Getenv("PYPI_PUBLISH_TOKEN"))
+	}
 	if token == "" {
 		token = strings.TrimSpace(os.Getenv("UV_PUBLISH_TOKEN"))
 	}
 	if token == "" && !opts.DryRun {
-		return "", fmt.Errorf("uv publish requires token auth: pass --token or set UV_PUBLISH_TOKEN")
+		return "", fmt.Errorf("PyPI publish requires token auth: pass --token or set PYPI_PUBLISH_TOKEN (UV_PUBLISH_TOKEN is also supported)")
 	}
 	return token, nil
 }

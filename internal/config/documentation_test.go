@@ -160,6 +160,9 @@ func TestConfigurationReferenceProfileExampleLoads(t *testing.T) {
 		t.Fatal("configuration reference YAML fence is not closed")
 	}
 	example := string(data)[start : start+end]
+	if !strings.Contains(example, "pypi:") || strings.Contains(example, "uv:") {
+		t.Fatalf("canonical profile example uses legacy Python naming: %s", example)
+	}
 	if strings.Contains(example, "enabled-distributions:") {
 		t.Fatalf("canonical profiles example contains legacy enabled-distributions:\n%s", example)
 	}
@@ -188,7 +191,7 @@ func TestConfigurationReferenceRejectsStaleDistributionSemantics(t *testing.T) {
 		}
 	}
 	for _, current := range []string{
-		"Section presence enables npm, uv, or gem",
+		"Section presence enables npm, pypi, or gem",
 		"loading never invents an identity",
 		"selector that names a missing section now fails",
 	} {

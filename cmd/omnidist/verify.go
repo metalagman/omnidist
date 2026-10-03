@@ -35,15 +35,15 @@ var verifyCmd = &cobra.Command{
 				}
 				fmt.Println("npm verify passed")
 			case distributionUV:
-				fmt.Println("==> uv verify")
+				fmt.Println("==> PyPI verify")
 				if err := uvworkflow.CheckDependency(); err != nil {
 					return err
 				}
 				result := uvworkflow.Verify(cfg)
-				if err := verifyResult("uv", result.Errors, result.Warnings, result.Valid); err != nil {
+				if err := verifyResult("PyPI", result.Errors, result.Warnings, result.Valid); err != nil {
 					return err
 				}
-				fmt.Println("uv verify passed")
+				fmt.Println("PyPI verify passed")
 			case distributionGem:
 				fmt.Println("==> gem verify")
 				if err := gemworkflow.CheckDependency(); err != nil {
@@ -82,6 +82,6 @@ func verifyResult(name string, errors []string, warnings []string, valid bool) e
 }
 
 func init() {
-	verifyCmd.Flags().StringVar(&verifyOnlyFlag, "only", "", "Run only selected distributions (comma-separated: npm,uv,gem)")
+	verifyCmd.Flags().StringVar(&verifyOnlyFlag, "only", "", "Run only selected distributions (comma-separated: npm,pypi,gem)")
 	AddCommand(verifyCmd)
 }

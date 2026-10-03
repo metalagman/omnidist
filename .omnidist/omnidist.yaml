@@ -40,9 +40,9 @@ distributions:
         access: public
         publish-auth: trusted
         repository-url: git+https://github.com/metalagman/omnidist.git
-    uv:
+    pypi:
         package: omnidist
-        # Used as default publish endpoint for `omnidist uv publish`.
+        # Used as default publish endpoint for `omnidist pypi publish`.
         index-url: https://upload.pypi.org/legacy/
         linux-tag: manylinux2014
     gem:

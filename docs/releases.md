@@ -7,10 +7,12 @@ Registry publication is irreversible and not transactional across packages or ba
 | Backend | Token mode | Trusted mode |
 | --- | --- | --- |
 | npm | `NPM_PUBLISH_TOKEN`; optional CLI `--registry`, `--tag`, `--otp` | Set `publish-auth: trusted`, provide `repository-url`, configure every npm package as a trusted publisher, and grant `id-token: write`. |
-| uv | `UV_PUBLISH_TOKEN` or `uv publish --token`; optional `--publish-url` | Not implemented; use token authentication. |
+| PyPI | `PYPI_PUBLISH_TOKEN` or `pypi publish --token`; optional `PYPI_PUBLISH_URL` / `--publish-url` | Not implemented; use token authentication. |
 | gem | `GEM_HOST_API_KEY` or `RUBYGEMS_API_KEY`; optional `GEM_HOST_OTP_CODE` / `--otp` | Set `publish-auth: trusted`, use rubygems.org, configure the repository/workflow on RubyGems, and grant `id-token: write`. |
 
 Dry-run validates tooling, staged artifacts, and known version policy without requiring live credentials or npm `whoami`. Trusted-publishing preflight validates local configuration only; it cannot prove registry-side OIDC eligibility.
+
+For PyPI, explicit flags override canonical environment variables. Compatible `UV_*` fallbacks, deprecated flags and legacy workflow behavior are documented in [legacy compatibility](configuration.md#legacy-compatibility). Publication preflight checks version policy against the effective upload destination, including URL overrides; standalone verify checks the configured index.
 
 Never commit tokens or place them in generated workflow YAML. The CI generator references GitHub secrets only for enabled token-auth backends.
 
@@ -43,19 +45,19 @@ Before aggregate `publish` uploads anything, Omnidist checks every selected back
 - token presence, or locally verifiable trusted-publishing configuration;
 - npm token authentication through `npm whoami` outside dry-run.
 
-If any selected backend fails, the command reports all preflight failures and attempts zero uploads. Direct `npm publish`, `uv publish`, and `gem publish` subcommands perform their own backend preflight too.
+If any selected backend fails, the command reports all preflight failures and attempts zero uploads. Direct `npm publish`, `pypi publish`, and `gem publish` subcommands perform their own backend preflight too.
 
 Preflight cannot reserve names or versions, attest remote OIDC configuration, prevent concurrent publication, or roll back an accepted upload.
 
 ## Publishing and progress
 
-Aggregate upload order is npm, then uv, then gem, independent of YAML order. npm publishes each unique platform package first, then the primary package followed by aliases in configured order; gems are sorted deterministically. Progress messages name completed units/backends. Preserve the complete log when a failure occurs.
+Aggregate upload order is npm, then PyPI, then gem, independent of YAML order. npm publishes each unique platform package first, then the primary package followed by aliases in configured order; gems are sorted deterministically. Progress messages name completed units/backends. Preserve the complete log when a failure occurs.
 
 Use backend commands when options differ by registry:
 
 ```bash
 omnidist npm publish --tag latest --registry https://registry.npmjs.org
-omnidist uv publish --publish-url https://test.pypi.org/legacy/
+omnidist pypi publish --publish-url https://test.pypi.org/legacy/
 omnidist gem publish --host https://rubygems.org
 ```
 

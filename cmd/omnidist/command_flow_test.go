@@ -144,7 +144,7 @@ func TestPublishPreflightFailureAttemptsNoUploads(t *testing.T) {
 	}
 
 	_, err = executeCommand("publish", "--dry-run")
-	if err == nil || !strings.Contains(err.Error(), "no uploads attempted") || !strings.Contains(err.Error(), "uv:") {
+	if err == nil || !strings.Contains(err.Error(), "no uploads attempted") || !strings.Contains(err.Error(), "PyPI:") {
 		t.Fatalf("publish preflight error = %v", err)
 	}
 	if data, readErr := os.ReadFile(logPath); readErr == nil {

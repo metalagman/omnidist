@@ -45,6 +45,10 @@ func markRawMetadataPresence(raw *rawConfig, scope map[string]interface{}) {
 		fields, _ := distributions["uv"].(map[string]interface{})
 		raw.Distributions.UV.metadataSet = metadataPresenceIn(fields)
 	}
+	if raw.Distributions.PyPI != nil {
+		fields, _ := distributions["pypi"].(map[string]interface{})
+		raw.Distributions.PyPI.metadataSet = metadataPresenceIn(fields)
+	}
 	if raw.Distributions.Gem != nil {
 		fields, _ := distributions["gem"].(map[string]interface{})
 		raw.Distributions.Gem.metadataSet = metadataPresenceIn(fields)

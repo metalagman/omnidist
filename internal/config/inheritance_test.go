@@ -19,7 +19,7 @@ type metadataValues struct {
 
 func TestProjectMetadataInheritanceRoundTrip(t *testing.T) {
 	for _, profile := range []bool{false, true} {
-		for _, backend := range []string{"npm", "uv", "gem"} {
+		for _, backend := range []string{"npm", "uv", "pypi", "gem"} {
 			for _, tc := range []struct {
 				name, override string
 				want           metadataValues
@@ -66,7 +66,14 @@ func TestProjectMetadataInheritanceRoundTrip(t *testing.T) {
 						if source["description"] != "Project description" || source["license"] != "MIT" {
 							t.Fatalf("project declarations lost: %s", data)
 						}
-						dist := source["distributions"].(map[string]interface{})[backend].(map[string]interface{})
+						key := backend
+						if key == "uv" {
+							key = "pypi"
+						}
+						dist, ok := source["distributions"].(map[string]interface{})[key].(map[string]interface{})
+						if !ok {
+							t.Fatalf("missing canonical distribution %s: %s", key, data)
+						}
 						for _, field := range []string{"description", "keywords", "license"} {
 							_, present := dist[field]
 							wantPresent := false
@@ -177,7 +184,7 @@ func effectiveMetadata(t *testing.T, cfg *Config, backend string) metadataValues
 	switch backend {
 	case "npm":
 		dist, err = cfg.RequireNPM()
-	case "uv":
+	case "uv", "pypi":
 		dist, err = cfg.RequireUV()
 	case "gem":
 		dist, err = cfg.RequireGem()

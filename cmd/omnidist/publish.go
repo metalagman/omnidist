@@ -40,7 +40,7 @@ var publishCmd = &cobra.Command{
 			case distributionUV:
 				opts := uvworkflow.PublishOptions{DryRun: publishDryRunFlag}
 				if err := uvworkflow.PreflightPublish(cfg, opts); err != nil {
-					preflightErrors = append(preflightErrors, fmt.Errorf("uv: %w", err))
+					preflightErrors = append(preflightErrors, fmt.Errorf("PyPI: %w", err))
 				}
 			case distributionGem:
 				opts := gemworkflow.PublishOptions{DryRun: publishDryRunFlag}
@@ -68,15 +68,15 @@ var publishCmd = &cobra.Command{
 				}
 				fmt.Println("npm publish completed")
 			case distributionUV:
-				fmt.Println("==> uv publish")
+				fmt.Println("==> PyPI publish")
 				if err := uvworkflow.Publish(cfg, uvworkflow.PublishOptions{
 					DryRun: publishDryRunFlag,
 					Stdout: cmd.OutOrStdout(),
 					Stderr: cmd.ErrOrStderr(),
 				}); err != nil {
-					return fmt.Errorf("uv publish failed: %w", err)
+					return fmt.Errorf("PyPI publish failed: %w", err)
 				}
-				fmt.Println("uv publish completed")
+				fmt.Println("PyPI publish completed")
 			case distributionGem:
 				fmt.Println("==> gem publish")
 				if err := gemworkflow.Publish(cfg, gemworkflow.PublishOptions{
@@ -105,6 +105,6 @@ var publishCmd = &cobra.Command{
 
 func init() {
 	publishCmd.Flags().BoolVar(&publishDryRunFlag, "dry-run", false, "Run publish without uploading artifacts")
-	publishCmd.Flags().StringVar(&publishOnlyFlag, "only", "", "Run only selected distributions (comma-separated: npm,uv,gem)")
+	publishCmd.Flags().StringVar(&publishOnlyFlag, "only", "", "Run only selected distributions (comma-separated: npm,pypi,gem)")
 	AddCommand(publishCmd)
 }

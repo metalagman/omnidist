@@ -46,7 +46,11 @@ func TestDistributionMetadataRoundTrip(t *testing.T) {
 				if err := yaml.Unmarshal(data, &distributions); err != nil {
 					t.Fatal(err)
 				}
-				got := distributions[backend]
+				key := backend
+				if key == "uv" {
+					key = "pypi"
+				}
+				got := distributions[key]
 				if got.Description != "Distribute Go binaries" || !reflect.DeepEqual(got.Keywords, []string{"cli", "golang"}) {
 					t.Fatalf("roundtrip metadata = %#v, want trimmed description and unique non-empty keywords", got)
 				}
@@ -73,7 +77,7 @@ func TestDistributionMetadataValidation(t *testing.T) {
 				}
 				path := writeMetadataConfig(t, backend, "    "+tc.field+": "+value+"\n", false)
 				_, err := Load(path)
-				if err == nil || !strings.Contains(err.Error(), "distributions."+backend+"."+tc.field) {
+				if err == nil || !strings.Contains(err.Error(), "distributions."+strings.ReplaceAll(backend, "uv", "pypi")+"."+tc.field) {
 					t.Fatalf("Load() error = %v, want %s field validation error", err, tc.field)
 				}
 			})

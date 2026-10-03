@@ -109,7 +109,7 @@ func TestLoadSelectorPresenceMatrix(t *testing.T) {
 		{
 			name:    "selected section is null",
 			yaml:    "enabled-distributions: [uv]\ndistributions:\n  uv: null\n",
-			wantErr: "distributions.uv is required",
+			wantErr: "distributions.pypi is required",
 		},
 	}
 
@@ -226,9 +226,9 @@ distributions:
 		t.Fatalf("Load() error = %v", err)
 	}
 	if cfg.Distributions.UV == nil {
-		t.Fatal("Load() discarded inactive distributions.uv")
+		t.Fatal("Load() discarded inactive distributions.pypi")
 	}
-	if _, err := cfg.RequireUV(); err == nil || !strings.Contains(err.Error(), "distributions.uv.linux-tag") {
+	if _, err := cfg.RequireUV(); err == nil || !strings.Contains(err.Error(), "distributions.pypi.linux-tag") {
 		t.Fatalf("RequireUV() error = %v, want inactive uv validation error", err)
 	}
 }

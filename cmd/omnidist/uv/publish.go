@@ -2,6 +2,7 @@ package uv
 
 import (
 	"fmt"
+	"strings"
 
 	uvworkflow "github.com/metalagman/omnidist/internal/workflow/uv"
 	"github.com/spf13/cobra"
@@ -17,15 +18,15 @@ var (
 func init() {
 	Cmd.AddCommand(publishCmd)
 	publishCmd.Flags().BoolVar(&publishDryRun, "dry-run", false, "Run publish without uploading artifacts")
-	publishCmd.Flags().StringVar(&publishURL, "publish-url", "", "Override uv publish URL (upload endpoint)")
+	publishCmd.Flags().StringVar(&publishURL, "publish-url", "", "Override upload endpoint (or set PYPI_PUBLISH_URL; UV_PUBLISH_URL is also supported)")
 	publishCmd.Flags().StringVar(&publishLegacyURL, "repository-url", "", "Deprecated alias for --publish-url")
 	_ = publishCmd.Flags().MarkDeprecated("repository-url", "use --publish-url instead")
-	publishCmd.Flags().StringVar(&publishToken, "token", "", "PyPI token for uv publish (or set UV_PUBLISH_TOKEN)")
+	publishCmd.Flags().StringVar(&publishToken, "token", "", "PyPI publish token (or set PYPI_PUBLISH_TOKEN; UV_PUBLISH_TOKEN is also supported)")
 }
 
 var publishCmd = &cobra.Command{
 	Use:   "publish",
-	Short: "Publish uv wheel artifacts to a PyPI-compatible index",
+	Short: "Publish PyPI wheel artifacts to a PyPI-compatible index",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := loadConfig()
 		if err != nil {
@@ -34,7 +35,7 @@ var publishCmd = &cobra.Command{
 
 		opts := uvworkflow.PublishOptions{
 			DryRun:     publishDryRun,
-			PublishURL: publishURL,
+			PublishURL: strings.TrimSpace(publishURL),
 			Token:      publishToken,
 			Stdout:     cmd.OutOrStdout(),
 			Stderr:     cmd.ErrOrStderr(),
@@ -43,14 +44,14 @@ var publishCmd = &cobra.Command{
 			opts.PublishURL = publishLegacyURL
 		}
 		if err := uvworkflow.PreflightPublish(cfg, opts); err != nil {
-			return fmt.Errorf("uv publish preflight failed: %w", err)
+			return fmt.Errorf("PyPI publish preflight failed: %w", err)
 		}
 
 		if err := uvworkflow.Publish(cfg, opts); err != nil {
-			return fmt.Errorf("publish uv artifacts: %w", err)
+			return fmt.Errorf("publish PyPI artifacts: %w", err)
 		}
 
-		fmt.Println("UV publish completed successfully")
+		fmt.Println("PyPI publish completed successfully")
 		return nil
 	},
 }

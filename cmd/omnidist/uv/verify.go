@@ -13,7 +13,7 @@ func init() {
 
 var verifyCmd = &cobra.Command{
 	Use:   "verify",
-	Short: "Verify uv wheel artifacts before publishing",
+	Short: "Verify PyPI wheel artifacts before publishing",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if err := uvworkflow.CheckDependency(); err != nil {
 			return err
@@ -44,6 +44,6 @@ var verifyCmd = &cobra.Command{
 			fmt.Println("Verification PASSED")
 			return nil
 		}
-		return fmt.Errorf("uv verification failed")
+		return fmt.Errorf("PyPI verification failed")
 	},
 }

@@ -26,7 +26,7 @@ func TestUVLicenseValidation(t *testing.T) {
 					cfg.Distributions.UV.License = tc.license
 				}
 				_, err := cfg.RequireUV()
-				if tc.valid && err != nil || !tc.valid && (err == nil || !strings.Contains(err.Error(), "distributions.uv.license")) {
+				if tc.valid && err != nil || !tc.valid && (err == nil || !strings.Contains(err.Error(), "distributions.pypi.license")) {
 					t.Fatalf("license %q inherited=%v error=%v, want valid=%v", tc.license, inherited, err, tc.valid)
 				}
 			}

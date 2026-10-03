@@ -53,9 +53,10 @@ type Config struct {
 type DistributionName string
 
 const (
-	DistributionNPM DistributionName = "npm"
-	DistributionUV  DistributionName = "uv"
-	DistributionGem DistributionName = "gem"
+	DistributionNPM  DistributionName = "npm"
+	DistributionPyPI DistributionName = "pypi"
+	DistributionUV                    = DistributionPyPI // Compatibility identifier for the Python backend.
+	DistributionGem  DistributionName = "gem"
 )
 
 var supportedDistributionNames = []DistributionName{
@@ -72,11 +73,14 @@ func SupportedDistributionNames() []DistributionName {
 // ParseDistributionName parses a backend name.
 func ParseDistributionName(raw string) (DistributionName, error) {
 	name := DistributionName(strings.ToLower(strings.TrimSpace(raw)))
+	if name == "uv" {
+		name = DistributionPyPI
+	}
 	switch name {
 	case DistributionNPM, DistributionUV, DistributionGem:
 		return name, nil
 	default:
-		return "", fmt.Errorf("invalid distribution %q: expected npm, uv, or gem", raw)
+		return "", fmt.Errorf("invalid distribution %q: expected npm, pypi, or gem", raw)
 	}
 }
 
@@ -99,7 +103,7 @@ func (cfg *Config) SelectedDistributionNames() ([]DistributionName, error) {
 	}
 	names := cfg.Distributions.Names()
 	if len(names) == 0 {
-		return nil, fmt.Errorf("distributions must configure at least one of npm, uv, or gem")
+		return nil, fmt.Errorf("distributions must configure at least one of npm, pypi, or gem")
 	}
 	return names, nil
 }
@@ -148,7 +152,7 @@ type Target struct {
 // DistributionConfigs stores explicitly configured release backends.
 type DistributionConfigs struct {
 	NPM *NPMDistributionConfig `yaml:"npm,omitempty"`
-	UV  *UVDistributionConfig  `yaml:"uv,omitempty"`
+	UV  *UVDistributionConfig  `yaml:"pypi,omitempty"`
 	Gem *GemDistributionConfig `yaml:"gem,omitempty"`
 }
 
@@ -230,9 +234,10 @@ type rawUVDistributionConfig UVDistributionConfig
 type rawGemDistributionConfig GemDistributionConfig
 
 type rawDistributionConfigs struct {
-	NPM *rawNPMDistributionConfig `yaml:"npm,omitempty"`
-	UV  *rawUVDistributionConfig  `yaml:"uv,omitempty"`
-	Gem *rawGemDistributionConfig `yaml:"gem,omitempty"`
+	NPM  *rawNPMDistributionConfig `yaml:"npm,omitempty"`
+	PyPI *rawUVDistributionConfig  `yaml:"pypi,omitempty"`
+	UV   *rawUVDistributionConfig  `yaml:"uv,omitempty"`
+	Gem  *rawGemDistributionConfig `yaml:"gem,omitempty"`
 }
 
 type rawDistributionSelector struct {
@@ -655,6 +660,10 @@ func decodeStrict(path string, data []byte, out interface{}) error {
 }
 
 func resolveRawConfig(raw rawConfig) (*Config, error) {
+	distributions, err := resolveRawDistributions(raw.Distributions)
+	if err != nil {
+		return nil, err
+	}
 	cfg := &Config{
 		Description:   raw.Description,
 		Keywords:      append([]string(nil), raw.Keywords...),
@@ -665,7 +674,7 @@ func resolveRawConfig(raw rawConfig) (*Config, error) {
 		ReadmePath:    raw.ReadmePath,
 		Targets:       append([]Target(nil), raw.Targets...),
 		Build:         raw.Build,
-		Distributions: resolveRawDistributions(raw.Distributions),
+		Distributions: distributions,
 	}
 	selector, err := decodeRawSelector(raw.EnabledDistributions)
 	if err != nil {
@@ -702,28 +711,35 @@ func decodeRawSelector(node yaml.Node) (rawDistributionSelector, error) {
 	return selector, nil
 }
 
-func resolveRawDistributions(raw rawDistributionConfigs) DistributionConfigs {
+func resolveRawDistributions(raw rawDistributionConfigs) (DistributionConfigs, error) {
+	if raw.PyPI != nil && raw.UV != nil {
+		return DistributionConfigs{}, fmt.Errorf("distributions must not configure both pypi and uv; use distributions.pypi")
+	}
 	var resolved DistributionConfigs
 	if raw.NPM != nil {
 		value := NPMDistributionConfig(*raw.NPM)
 		resolved.NPM = &value
 	}
-	if raw.UV != nil {
-		value := UVDistributionConfig(*raw.UV)
+	python := raw.PyPI
+	if python == nil {
+		python = raw.UV
+	}
+	if python != nil {
+		value := UVDistributionConfig(*python)
 		resolved.UV = &value
 	}
 	if raw.Gem != nil {
 		value := GemDistributionConfig(*raw.Gem)
 		resolved.Gem = &value
 	}
-	return resolved
+	return resolved, nil
 }
 
 func resolveRawSelection(selector rawDistributionSelector, distributions DistributionConfigs) ([]DistributionName, error) {
 	if !selector.present {
 		names := distributions.Names()
 		if len(names) == 0 {
-			return nil, fmt.Errorf("distributions must configure at least one of npm, uv, or gem")
+			return nil, fmt.Errorf("distributions must configure at least one of npm, pypi, or gem")
 		}
 		return names, nil
 	}
@@ -731,14 +747,14 @@ func resolveRawSelection(selector rawDistributionSelector, distributions Distrib
 		return nil, fmt.Errorf("enabled-distributions must not be null")
 	}
 	if len(selector.values) == 0 {
-		return nil, fmt.Errorf("enabled-distributions must contain at least one of npm, uv, or gem")
+		return nil, fmt.Errorf("enabled-distributions must contain at least one of npm, pypi, or gem")
 	}
 
 	seen := make(map[DistributionName]bool, len(selector.values))
 	for _, rawName := range selector.values {
 		name, err := ParseDistributionName(rawName)
 		if err != nil {
-			return nil, fmt.Errorf("invalid enabled distribution %q: expected npm, uv, or gem", rawName)
+			return nil, fmt.Errorf("invalid enabled distribution %q: expected npm, pypi, or gem", rawName)
 		}
 		if seen[name] {
 			return nil, fmt.Errorf("duplicate enabled distribution %q", name)
@@ -982,7 +998,7 @@ func (cfg *Config) RequireUV() (UVDistributionConfig, error) {
 		return UVDistributionConfig{}, fmt.Errorf("config is nil")
 	}
 	if cfg.Distributions.UV == nil {
-		return UVDistributionConfig{}, fmt.Errorf("distributions.uv is required")
+		return UVDistributionConfig{}, fmt.Errorf("distributions.pypi is required")
 	}
 	dist := *cfg.Distributions.UV
 	cfg.inheritMetadata(&dist.Description, &dist.Keywords, &dist.License, &dist.metadataSet)
@@ -1124,24 +1140,24 @@ func validateNPMDistribution(dist NPMDistributionConfig, targets []Target) error
 
 func validateUVDistribution(dist UVDistributionConfig) error {
 	if dist.Package == "" {
-		return fmt.Errorf("distributions.uv.package is required")
+		return fmt.Errorf("distributions.pypi.package is required")
 	}
-	if err := validateDistributionMetadata("uv", dist.Description, dist.Keywords); err != nil {
+	if err := validateDistributionMetadata("pypi", dist.Description, dist.Keywords); err != nil {
 		return err
 	}
 	if dist.License != "" {
 		if strings.ContainsAny(dist.License, "\r\n") {
-			return fmt.Errorf("distributions.uv.license must be a single-line SPDX expression")
+			return fmt.Errorf("distributions.pypi.license must be a single-line SPDX expression")
 		}
 		valid, _ := spdxexp.ValidateLicensesWithOptions([]string{dist.License}, spdxexp.ValidateLicensesOptions{FailAllDocumentRefs: true})
 		if !valid {
-			return fmt.Errorf("distributions.uv.license %q must be a valid SPDX expression without DocumentRef references", dist.License)
+			return fmt.Errorf("distributions.pypi.license %q must be a valid SPDX expression without DocumentRef references", dist.License)
 		}
 	}
 	switch dist.LinuxTag {
 	case "manylinux2014", "musllinux_1_2":
 	default:
-		return fmt.Errorf("invalid distributions.uv.linux-tag %q: expected manylinux2014 or musllinux_1_2", dist.LinuxTag)
+		return fmt.Errorf("invalid distributions.pypi.linux-tag %q: expected manylinux2014 or musllinux_1_2", dist.LinuxTag)
 	}
 	return nil
 }

@@ -4,7 +4,7 @@ Configuration always uses Go spellings: `os` is `GOOS` and `arch` is `GOARCH`. U
 
 ## Default matrix
 
-| Config target | Binary | npm suffix (`os`/`cpu`) | uv wheel platform tag | RubyGems platform |
+| Config target | Binary | npm suffix (`os`/`cpu`) | PyPI wheel platform tag | RubyGems platform |
 | --- | --- | --- | --- | --- |
 | `darwin/amd64` | `<name>` | `darwin-x64` | `macosx_10_13_x86_64` | `x86_64-darwin` |
 | `darwin/arm64` | `<name>` | `darwin-arm64` | `macosx_11_0_arm64` | `arm64-darwin` |
@@ -12,13 +12,13 @@ Configuration always uses Go spellings: `os` is `GOOS` and `arch` is `GOARCH`. U
 | `linux/arm64` | `<name>` | `linux-arm64` | `manylinux2014_aarch64` | `aarch64-linux` |
 | `windows/amd64` | `<name>.exe` | `win32-x64` | `win_amd64` | `x64-mingw-ucrt` |
 
-uv Linux tags use `distributions.uv.linux-tag`; replacing the default with `musllinux_1_2` yields `musllinux_1_2_x86_64` or `musllinux_1_2_aarch64`.
+PyPI Linux tags use `distributions.pypi.linux-tag`; replacing the default with `musllinux_1_2` yields `musllinux_1_2_x86_64` or `musllinux_1_2_aarch64`.
 
 ## Opt-in Windows ARM64
 
 Add `os: windows`, `arch: arm64` explicitly to target Windows on ARM; it is not part of the generated default matrix.
 
-| Config target | Binary | npm suffix (`os`/`cpu`) | uv wheel platform tag | RubyGems platform |
+| Config target | Binary | npm suffix (`os`/`cpu`) | PyPI wheel platform tag | RubyGems platform |
 | --- | --- | --- | --- | --- |
 | `windows/arm64` | `<name>.exe` | `win32-arm64` | `win_arm64` | `aarch64-mingw-ucrt` |
 
@@ -28,9 +28,9 @@ Windows ARM64 gems use the `aarch64` CPU prefix, keeping their metadata, staging
 
 `targets[].variant` is packaging metadata; it does not change the Go compiler target or automatically select a different libc/toolchain.
 
-| Variant | npm | uv | gem |
+| Variant | npm | PyPI | gem |
 | --- | --- | --- | --- |
-| Empty | Standard `<package>-<os>-<cpu>` | Platform tag determined by OS/arch and uv `linux-tag` | Standard platform mapping above |
+| Empty | Standard `<package>-<os>-<cpu>` | Platform tag determined by OS/arch and PyPI `linux-tag` | Standard platform mapping above |
 | `musl` on Linux | Adds `-musl` to platform package name | Set `linux-tag: musllinux_1_2` separately; target variant itself does not select the wheel tag | `x86_64-linux-musl` / `aarch64-linux-musl` |
 | `mingw32` on Windows amd64 | Adds `-mingw32` suffix | Still `win_amd64` | `x64-mingw32` |
 | `mingw-ucrt` on Windows amd64 | Adds `-mingw-ucrt` suffix | Still `win_amd64` | `x64-mingw-ucrt` |
@@ -38,6 +38,6 @@ Windows ARM64 gems use the `aarch64` CPU prefix, keeping their metadata, staging
 
 Windows ARM64 retains the same variant suffix rules: `mingw32` produces `aarch64-mingw32`, and custom values produce `aarch64-<variant>`. These labels are packaging metadata; they do not establish native Ruby runtime support for those variants.
 
-Only amd64 and arm64 are supported by the current uv wheel mapper for Linux, macOS, and Windows. Treat non-default targets as opt-in and verify all generated packages before release.
+Only amd64 and arm64 are supported by the current PyPI wheel mapper for Linux, macOS, and Windows. Treat non-default targets as opt-in and verify all generated packages before release.
 
 With `build.cgo: false` (the default), Go binaries are generally more portable. A musl label does not make a CGO-linked binary musl-compatible; provide the correct toolchain and runtime compatibility yourself when enabling CGO or custom variants.

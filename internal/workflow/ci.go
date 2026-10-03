@@ -175,12 +175,13 @@ func renderUVPublishJob(installCmd, omnidistCmd string, useLocalSource bool) str
 	if !useLocalSource {
 		nodeSetup = githubActionsNodeSetupStep()
 	}
-	return fmt.Sprintf(`  publish_uv:
+	return fmt.Sprintf(`  publish_pypi:
     needs: prepare
     runs-on: ubuntu-latest
     permissions:
       contents: read
     env:
+      PYPI_PUBLISH_TOKEN: ${{ secrets.PYPI_PUBLISH_TOKEN }}
       UV_PUBLISH_TOKEN: ${{ secrets.UV_PUBLISH_TOKEN }}
     steps:
       - uses: actions/checkout@v4
@@ -194,8 +195,8 @@ func renderUVPublishJob(installCmd, omnidistCmd string, useLocalSource bool) str
           name: omnidist-staged
       - name: Restore staged artifacts
         run: tar -xzf omnidist-staged.tgz
-      - name: Publish uv artifacts
-        run: %s uv publish
+      - name: Publish PyPI artifacts
+        run: %s pypi publish
 
 `, workflowGoSetupStep(useLocalSource), nodeSetup, workflowInstallStep(installCmd), omnidistCmd)
 }

@@ -35,7 +35,7 @@ profiles:
         access: public
         publish-auth: token
         include-readme: true
-      uv:
+      pypi:
         package: mytool
         index-url: https://upload.pypi.org/legacy/
         linux-tag: manylinux2014
@@ -57,31 +57,6 @@ This example is a complete, copyable profile. Select another profile with `--pro
 | Legacy | runtime fields at document root | `.omnidist/` |
 
 Do not mix `profiles` with top-level runtime fields. Existing legacy files remain supported. In canonical configuration, each key present under `distributions` selects that backend. `version.fixed-version` is not supported; use `version.fixed`.
-
-Legacy-only shape, shown for compatibility rather than new projects:
-
-```yaml
-description: Build and distribute mytool binaries
-keywords: [golang, cli]
-license: MIT
-tool:
-  name: mytool
-  main: ./cmd/mytool
-version:
-  source: file
-  file: VERSION
-targets:
-  - os: linux
-    arch: amd64
-build:
-  ldflags: -s -w
-  tags: []
-  cgo: false
-enabled-distributions: [npm]
-distributions:
-  npm:
-    package: "@my-org/mytool"
-```
 
 ## Top-level profile fields
 
@@ -107,15 +82,15 @@ distributions:
 | `build.tags` | string list | `[]` | Go build tags. |
 | `build.cgo` | boolean | `false` | Sets `CGO_ENABLED`; cross-compilation usually needs `false`. |
 | `enabled-distributions` | legacy non-empty unique list | Omit in new configs | Compatibility selector for existing files. Every listed backend must have a matching `distributions` section. Empty, null, duplicate, and unknown values are rejected. |
-| `distributions` | typed map | At least one backend section | Backend configuration and the canonical aggregate selection. Section presence enables npm, uv, or gem in canonical files. |
+| `distributions` | typed map | At least one backend section | Backend configuration and the canonical aggregate selection. Section presence enables npm, pypi, or gem in canonical files. |
 
-Aggregate commands and generated CI use configured sections in npm → uv → gem order. `--only` narrows that set and errors when asked for an unavailable backend. A backend-specific command requires its explicit section. In a legacy file, an extra section excluded by `enabled-distributions` remains available to a direct backend command and is validated when invoked.
+Aggregate commands and generated CI use configured sections in npm → pypi → gem order. `--only` narrows that set and errors when asked for an unavailable backend. A backend-specific command requires its explicit section. `pypi` is the canonical Python backend key. Defining both non-null `pypi` and `uv` sections in one profile or legacy scope fails; a null section is absent. Each profile may use either spelling independently. In a legacy file, an extra section excluded by `enabled-distributions` remains available to a direct backend command and is validated when invoked.
 
 ## Distribution fields
 
 Every backend-specific field is listed below. A dash means the field is invalid for that backend; strict loading rejects misplaced and unknown fields.
 
-| Field | npm | uv | gem | Default / condition |
+| Field | npm | PyPI | gem | Default / condition |
 | --- | --- | --- | --- | --- |
 | `package` | Meta package name | Python distribution name | Gem name | Required in every configured backend. `omnidist init` writes a project-derived value; loading never invents an identity. |
 | `aliases` | Additional equivalent meta package names | — | — | Empty. npm stages and publishes the primary `package` followed by aliases in configured order. Values must be unique valid npm names. |
@@ -154,7 +129,7 @@ profiles:
         package: "@my-org/mytool"
         description: Install mytool through npm
         keywords: [npm, cli]
-      uv:
+      pypi:
         package: mytool
         description: null  # inherits project description
         keywords: []      # clears project keywords
@@ -166,11 +141,11 @@ profiles:
 
 npm applies effective metadata to the primary package and aliases. Binary packages retain their platform descriptions and receive the effective license. When the effective license is empty, npm includes a detected `LICENSE`, `LICENSE.md`, or `LICENSE.txt` and uses `SEE LICENSE IN <file>`; without a license file it omits the license field.
 
-uv emits a non-empty effective license as `License-Expression` with metadata version 2.4; without a license it retains version 2.1. Licenses must be valid SPDX expressions. Custom `LicenseRef-` identifiers may contain letters, digits, `.` and `-`; `DocumentRef-` references are rejected. The deprecated `License` header is not emitted. A cleared description uses `Binary distribution for <tool.name>`, and cleared keywords/license produce no corresponding headers. README content remains the wheel's long description.
+PyPI emits a non-empty effective license as `License-Expression` with metadata version 2.4; without a license it retains version 2.1. Licenses must be valid SPDX expressions. Custom `LicenseRef-` identifiers may contain letters, digits, `.` and `-`; `DocumentRef-` references are rejected. The deprecated `License` header is not emitted. A cleared description uses `Binary distribution for <tool.name>`, and cleared keywords/license produce no corresponding headers. README content remains the wheel's long description.
 
 Gem uses the effective description as its summary and appends `. Includes prebuilt binaries for the current platform.` for its longer description so `gem build --strict` succeeds. An empty description retains the existing separate generic summary/description. Keywords are stored in custom gem metadata, not standardized searchable RubyGems tags; the joined value must fit within 1024 bytes. An empty license retains the existing `MIT` fallback. Gem's license field is one license entry, and strict RubyGems builds reject unsupported compound SPDX expressions; use a gem-specific override when a project expression is incompatible. Omnidist does not split or reinterpret license expressions.
 
-uv and gem descriptions/keywords must be single-line values; individual keywords cannot contain commas. Verification checks resolved values and rejects stale metadata after project edits or explicit clears. Configurations without project metadata retain existing distribution defaults. GitHub description/topics can be aligned manually from project metadata; releases do not synchronize them automatically.
+PyPI and gem descriptions/keywords must be single-line values; individual keywords cannot contain commas. Verification checks resolved values and rejects stale metadata after project edits or explicit clears. Configurations without project metadata retain existing distribution defaults. GitHub description/topics can be aligned manually from project metadata; releases do not synchronize them automatically.
 
 ### Multiple npm meta packages
 
@@ -227,16 +202,66 @@ Build writes the resolved value to `<workspace>/dist/VERSION`; every backend sta
 | --- | --- | --- |
 | Build binaries/version | `.omnidist/<profile>/dist/` | `.omnidist/dist/` |
 | npm stage | `.omnidist/<profile>/npm/` | `.omnidist/npm/` |
-| uv stage/wheels | `.omnidist/<profile>/uv/` | `.omnidist/uv/` |
+| PyPI stage/wheels | `.omnidist/<profile>/uv/` | `.omnidist/uv/` |
 | gem stage/packages | `.omnidist/<profile>/gem/` | `.omnidist/gem/` |
 
 CLI flags take precedence over their environment-backed selectors. Omnidist loads `.env` before command execution. Publishing credentials and their precedence are documented in the [release runbook](releases.md).
+
+## Legacy compatibility
+
+Existing configuration files and scripts remain supported. The canonical name is `pypi` and display name is PyPI; `uv` remains an alias with no removal deadline.
+
+| Canonical interface | Compatible legacy interface |
+| --- | --- |
+| `distributions.pypi` | `distributions.uv`, with the same fields and metadata inheritance/clearing |
+| `omnidist pypi stage`, `verify`, `publish` | `omnidist uv stage`, `verify`, `publish`, with the same flags |
+| `--only pypi` | `--only uv` |
+| `enabled-distributions: [pypi]` | `enabled-distributions: [uv]` |
+| `PYPI_PUBLISH_TOKEN` | `UV_PUBLISH_TOKEN` |
+| `PYPI_PUBLISH_URL` | `UV_PUBLISH_URL` |
+
+Both configuration keys work in profile and top-level layouts. Use one non-null Python section per scope: two non-null sections fail explicitly, even if their settings match. A null alias is absent. Both command names work with either configuration spelling and share the existing `<workspace>/uv/` staged artifacts.
+
+`--only uv,pypi` resolves to one backend and runs it once. Legacy `enabled-distributions: [uv,pypi]` is rejected as a duplicate, matching the existing unique-list rule. Either selector spelling still requires a configured Python section and cannot add an unavailable backend. An inactive section excluded by a legacy selector remains available to its direct backend command.
+
+Credential precedence is `--token` → `PYPI_PUBLISH_TOKEN` → `UV_PUBLISH_TOKEN`. Upload endpoint precedence is `--publish-url` (or the existing deprecated `--repository-url` alias) → `PYPI_PUBLISH_URL` → `UV_PUBLISH_URL` → `index-url`. Values are trimmed; blank canonical values fall back to legacy values. A non-empty `--publish-url` takes precedence over `--repository-url`. Actual publication still uses uv and receives the resolved token as `UV_PUBLISH_TOKEN`; other uv tool-specific environment settings continue to pass through.
+
+Generated CI emits both token environment variables from their corresponding GitHub secrets, so repositories using only the legacy secret continue to work. New workflow jobs/commands use `publish_pypi` / `pypi`. Earlier workflows calling `uv` also work against canonical configs.
+
+Loading a config does not rewrite it. Explicit config writes emit `pypi` and preserve metadata omissions and explicit clears. Init remains non-destructive unless `--force` is intentionally used.
+
+Legacy-only shape, shown for compatibility rather than new projects:
+
+```yaml
+description: Build and distribute mytool binaries
+keywords: [golang, cli]
+license: MIT
+tool:
+  name: mytool
+  main: ./cmd/mytool
+version:
+  source: file
+  file: VERSION
+targets:
+  - os: linux
+    arch: amd64
+build:
+  ldflags: -s -w
+  tags: []
+  cgo: false
+enabled-distributions: [npm, uv]
+distributions:
+  npm:
+    package: "@my-org/mytool"
+  uv:
+    package: mytool
+```
 
 ## Safe migration
 
 Do not run `omnidist init --force` merely to upgrade an existing config. Edit the current file in place:
 
-1. Keep only the `distributions` sections you publish, and set each section's `package` explicitly.
+1. Keep only the `distributions` sections you publish, and set each section's `package` explicitly. To adopt canonical Python naming, rename `uv` to `pypi` in place; do not add a second section.
 2. Remove `enabled-distributions` to adopt the canonical presence-based shape. If a legacy file intentionally keeps inactive sections, retain a non-empty selector whose values all have matching sections.
 3. Run `omnidist build`, `omnidist stage`, and `omnidist verify`.
 4. Inspect `omnidist ci --dry-run`, then replace an existing generated workflow only with `omnidist ci --force`.

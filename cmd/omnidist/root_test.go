@@ -15,12 +15,11 @@ import (
 )
 
 func TestUVCommandRegistered(t *testing.T) {
-	cmd, _, err := rootCmd.Find([]string{"uv"})
-	if err != nil {
-		t.Fatalf("rootCmd.Find(uv) error = %v", err)
-	}
-	if cmd == nil || cmd.Name() != "uv" {
-		t.Fatalf("uv command not registered")
+	for _, name := range []string{"pypi", "uv"} {
+		cmd, _, err := rootCmd.Find([]string{name})
+		if err != nil || cmd == nil || cmd.Name() != "pypi" {
+			t.Fatalf("Find(%s) = %v, %v; want canonical pypi group", name, cmd, err)
+		}
 	}
 }
 
@@ -70,7 +69,7 @@ func TestDirectBackendStageRejectsAbsentDistributionBeforeSideEffects(t *testing
 	} {
 		t.Run(tc.backend, func(t *testing.T) {
 			_, err := executeCommand(tc.backend, "stage")
-			if err == nil || !strings.Contains(err.Error(), "distributions."+tc.backend+" is required") {
+			if err == nil || !strings.Contains(err.Error(), "distributions."+strings.ReplaceAll(tc.backend, "uv", "pypi")+" is required") {
 				t.Fatalf("executeCommand(%s stage) error = %v, want missing distribution", tc.backend, err)
 			}
 			if _, statErr := os.Stat(tc.path); !os.IsNotExist(statErr) {
@@ -110,7 +109,7 @@ distributions:
 	}
 
 	_, err = executeCommand("uv", "stage")
-	if err == nil || !strings.Contains(err.Error(), "distributions.uv.linux-tag") {
+	if err == nil || !strings.Contains(err.Error(), "distributions.pypi.linux-tag") {
 		t.Fatalf("executeCommand(uv stage) error = %v, want uv validation error", err)
 	}
 	if _, statErr := os.Stat(paths.UVDir); !os.IsNotExist(statErr) {

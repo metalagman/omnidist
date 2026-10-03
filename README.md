@@ -32,7 +32,7 @@ go install github.com/metalagman/omnidist/cmd/omnidist@latest
 | --- | --- |
 | Build the Go CLI | Go 1.25+; Git when `version.source: git-tag` |
 | npm stage/verify | Go build artifacts; npm is required at publish preflight/upload |
-| uv stage/verify/publish | `uv` |
+| PyPI stage/verify/publish | `uv` |
 | gem stage/verify/publish | Ruby and RubyGems (`gem`) |
 | Token publish | The selected backend's token environment variable |
 
@@ -79,11 +79,11 @@ profiles:
     distributions:
       npm:
         package: "@my-org/mytool"
-      uv:
+      pypi:
         package: mytool
 ```
 
-The `npm` and `uv` sections select those two backends. Add or remove `npm`, `uv`, and `gem` sections to define the canonical aggregate set. Existing files with a non-empty `enabled-distributions` selector remain readable, but every selected backend must have its own section. Aggregate commands always execute in npm → uv → gem order. `--only` can narrow the configured set but cannot enable an unavailable backend; backend-specific commands also require an explicit section.
+The `npm` and `pypi` sections select those two backends. Add or remove `npm`, `pypi`, and `gem` sections to define the canonical aggregate set. Existing files with a non-empty `enabled-distributions` selector remain readable, but every selected backend must have its own section. Aggregate commands always execute in npm → pypi → gem order. `--only` can narrow the configured set but cannot enable an unavailable backend; backend-specific commands also require an explicit section.
 
 To offer both unscoped and scoped install names while publishing one shared platform package set, configure the unscoped package as primary, add the scoped name to `aliases`, and use the scoped base for platform packages:
 
@@ -140,18 +140,18 @@ The workflow contains setup, credentials, and publish jobs only for selected bac
 omnidist init [--force] [--name <name>] [--main <package>]
 omnidist quickstart
 omnidist build
-omnidist stage [--dev] [--only npm,uv,gem]
-omnidist verify [--only npm,uv,gem]
-omnidist publish [--dry-run] [--only npm,uv,gem]
+omnidist stage [--dev] [--only npm,pypi,gem]
+omnidist verify [--only npm,pypi,gem]
+omnidist publish [--dry-run] [--only npm,pypi,gem]
 omnidist ci [--force] [--dry-run]
 omnidist npm stage|verify|publish|trust
-omnidist uv stage|verify|publish
+omnidist pypi stage|verify|publish
 omnidist gem stage|verify|publish
 ```
 
 Global flags are `--config`, `--profile`, and `--omnidist-root`. Omnidist also loads `.env`; corresponding selectors are `OMNIDIST_CONFIG`, `OMNIDIST_PROFILE`, and `OMNIDIST_OMNIDIST_ROOT`.
 
-Use `omnidist <command> --help` for backend-specific options.
+Use `omnidist <command> --help` for backend-specific options. Earlier configuration, commands and environment variables remain supported; see [legacy compatibility](docs/configuration.md#legacy-compatibility).
 
 ## Common failures
 

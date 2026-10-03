@@ -32,6 +32,8 @@ func TestResolveDistributions(t *testing.T) {
 			only: "uv",
 			want: []distribution{distributionUV},
 		},
+		{name: "only_pypi", only: "pypi", want: []distribution{distributionUV}},
+		{name: "aliases_once", only: "uv,pypi, UV , PyPI", want: []distribution{distributionUV}},
 		{
 			name: "both_preserves_execution_order",
 			only: "uv,npm",
@@ -184,7 +186,7 @@ func TestDistributionListSortsNames(t *testing.T) {
 	t.Parallel()
 
 	got := distributionList([]distribution{distributionUV, distributionGem, distributionNPM})
-	if got != "gem, npm, uv" {
-		t.Fatalf("distributionList() = %q, want %q", got, "gem, npm, uv")
+	if got != "gem, npm, pypi" {
+		t.Fatalf("distributionList() = %q, want %q", got, "gem, npm, pypi")
 	}
 }

@@ -187,8 +187,8 @@ func TestLoadRejectsEnabledDistributionWithoutSection(t *testing.T) {
 			}
 
 			_, err := Load(path)
-			if err == nil || !strings.Contains(err.Error(), "distributions.uv is required") {
-				t.Fatalf("Load() error = %v, want missing distributions.uv", err)
+			if err == nil || !strings.Contains(err.Error(), "distributions.pypi is required") {
+				t.Fatalf("Load() error = %v, want missing distributions.pypi", err)
 			}
 		})
 	}
@@ -212,7 +212,7 @@ func TestLoadRejectsMissingDistributionPackageIdentity(t *testing.T) {
 				}
 
 				_, err := Load(path)
-				want := "distributions." + backend + ".package is required"
+				want := "distributions." + strings.ReplaceAll(backend, "uv", "pypi") + ".package is required"
 				if err == nil || !strings.Contains(err.Error(), want) {
 					t.Fatalf("Load() error = %v, want containing %q", err, want)
 				}
@@ -446,7 +446,7 @@ distributions:
 		t.Fatalf("distributions.npm.readme-path = %q, want %q", got, "docs/npm.md")
 	}
 	if got := cfg.Distributions.UV.ReadmePath; got != "docs/uv.md" {
-		t.Fatalf("distributions.uv.readme-path = %q, want %q", got, "docs/uv.md")
+		t.Fatalf("distributions.pypi.readme-path = %q, want %q", got, "docs/uv.md")
 	}
 }
 
@@ -913,7 +913,7 @@ distributions:
 	if err == nil {
 		t.Fatalf("Load() error = nil, want invalid linux-tag error")
 	}
-	if !strings.Contains(err.Error(), "invalid distributions.uv.linux-tag") {
+	if !strings.Contains(err.Error(), "invalid distributions.pypi.linux-tag") {
 		t.Fatalf("Load() error = %v, want linux-tag validation error", err)
 	}
 }
@@ -1308,7 +1308,7 @@ func TestValidate(t *testing.T) {
 					UV: &UVDistributionConfig{LinuxTag: "manylinux2014"},
 				},
 			},
-			wantErr: "distributions.uv.package is required",
+			wantErr: "distributions.pypi.package is required",
 		},
 	}
 

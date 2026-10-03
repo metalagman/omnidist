@@ -61,6 +61,9 @@ func TestInitCreatesNPMAndUVStructure(t *testing.T) {
 		t.Fatalf("os.ReadFile(config) error = %v", err)
 	}
 	configContent := string(configData)
+	if !strings.Contains(configContent, "pypi:") || strings.Contains(configContent, "uv:") {
+		t.Fatalf("noncanonical generated config: %s", configContent)
+	}
 	if !strings.Contains(configContent, "profiles:") {
 		t.Fatalf("generated config missing profiles root, got:\n%s", configContent)
 	}

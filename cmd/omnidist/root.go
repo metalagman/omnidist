@@ -24,7 +24,7 @@ var initRootErr error
 var rootCmd = &cobra.Command{
 	Use:           "omnidist",
 	Short:         "Omni-platform Binary Distribution Toolkit",
-	Long:          `A repeatable way to build, package, and publish a Go CLI for npm, uv, and RubyGems distributions.`,
+	Long:          `A repeatable way to build, package, and publish a Go CLI for npm, PyPI, and RubyGems distributions.`,
 	SilenceUsage:  true,
 	SilenceErrors: true,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {

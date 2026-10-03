@@ -24,11 +24,11 @@ Keep discovered follow-up work in Beads and link it with `discovered-from`. Pres
 
 ## Product invariants
 
-Omnidist builds a Go CLI and distributes prebuilt binaries through npm, uv/PyPI-compatible indexes, and RubyGems.
+Omnidist builds a Go CLI and distributes prebuilt binaries through npm, PyPI-compatible indexes, and RubyGems.
 
 - The release sequence is build → stage → verify → publish.
-- Canonical configs select backends by the presence of `distributions.npm`, `distributions.uv`, and `distributions.gem`. Existing non-empty `enabled-distributions` lists remain a compatibility selector and may only reference present sections.
-- Aggregate commands and generated CI use selected backends in npm → uv → gem order. `--only` may narrow, never add an unavailable backend.
+- Canonical configs select backends by the presence of `distributions.npm`, `distributions.pypi`, and `distributions.gem`. Existing non-empty `enabled-distributions` lists remain a compatibility selector and may only reference present sections.
+- Aggregate commands and generated CI use selected backends in npm → pypi → gem order. `--only` may narrow, never add an unavailable backend.
 - Aggregate publish preflights every selected backend before upload. Registry publication remains non-transactional and cannot be rolled back atomically.
 - npm packages must contain no `postinstall` script or install-time downloader.
 - All backend artifacts in one release derive from the build version file.
@@ -63,13 +63,15 @@ Use `os: windows`, `arch: amd64`, and the field name `arch`. npm mappings such a
 ```text
 omnidist init [--force] [--name <name>] [--main <package>]
 omnidist build
-omnidist stage|verify|publish [--only npm,uv,gem]
+omnidist stage|verify|publish [--only npm,pypi,gem]
 omnidist publish [--dry-run]
 omnidist ci [--dry-run] [--force]
 omnidist npm stage|verify|publish|trust
-omnidist uv stage|verify|publish
+omnidist pypi stage|verify|publish
 omnidist gem stage|verify|publish
 ```
+
+Legacy `distributions.uv`, `omnidist uv`, selector `uv`, and `UV_PUBLISH_TOKEN` / `UV_PUBLISH_URL` remain supported aliases. Canonical publication envs are `PYPI_PUBLISH_TOKEN` / `PYPI_PUBLISH_URL`; explicit flags override canonical envs, which override legacy envs. Both non-null Python sections in one scope are rejected. Keep the historical `uv/` artifact layout and actual uv publisher.
 
 Use command help and the current code as authority for detailed flags. User references live in `docs/configuration.md`, `docs/releases.md`, and `docs/targets.md`.
 

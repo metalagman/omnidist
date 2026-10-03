@@ -29,17 +29,18 @@ func TestGenerateGitHubReleaseWorkflow(t *testing.T) {
 		`FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"`,
 		`prepare:`,
 		`publish_npm:`,
-		`publish_uv:`,
+		`publish_pypi:`,
 		`publish_gem:`,
 		`release:`,
 		`needs: prepare`,
 		`run: go run ./cmd/omnidist build`,
-		`run: go run ./cmd/omnidist stage --only 'npm,uv,gem'`,
-		`run: go run ./cmd/omnidist verify --only 'npm,uv,gem'`,
+		`run: go run ./cmd/omnidist stage --only 'npm,pypi,gem'`,
+		`run: go run ./cmd/omnidist verify --only 'npm,pypi,gem'`,
 		`run: go run ./cmd/omnidist npm publish`,
-		`run: go run ./cmd/omnidist uv publish`,
+		`run: go run ./cmd/omnidist pypi publish`,
 		`run: go run ./cmd/omnidist gem publish`,
 		`NPM_PUBLISH_TOKEN: ${{ secrets.NPM_PUBLISH_TOKEN }}`,
+		`PYPI_PUBLISH_TOKEN: ${{ secrets.PYPI_PUBLISH_TOKEN }}`,
 		`UV_PUBLISH_TOKEN: ${{ secrets.UV_PUBLISH_TOKEN }}`,
 		`GEM_HOST_API_KEY: ${{ secrets.RUBYGEMS_API_KEY }}`,
 		`ruby/setup-ruby@v1`,
@@ -155,13 +156,13 @@ func TestGenerateGitHubReleaseWorkflowUsesConfiguredDistributions(t *testing.T) 
 				`stage --only 'npm'`, `verify --only 'npm'`, `publish_npm:`,
 				`actions/setup-node@v6`, `NPM_PUBLISH_TOKEN`, `release:`,
 			},
-			wantAbsent: []string{`publish_uv:`, `publish_gem:`, `setup-uv`, `ruby/setup-ruby`, `UV_PUBLISH_TOKEN`, `GEM_HOST_API_KEY`},
+			wantAbsent: []string{`publish_pypi:`, `publish_gem:`, `setup-uv`, `ruby/setup-ruby`, `UV_PUBLISH_TOKEN`, `GEM_HOST_API_KEY`},
 		},
 		{
 			name:    "uv only",
-			enabled: []string{"uv"},
+			enabled: []string{"pypi"},
 			want: []string{
-				`stage --only 'uv'`, `verify --only 'uv'`, `publish_uv:`,
+				`stage --only 'pypi'`, `verify --only 'pypi'`, `publish_pypi:`,
 				`astral-sh/setup-uv@v6`, `UV_PUBLISH_TOKEN`, `release:`,
 			},
 			wantAbsent: []string{`publish_npm:`, `publish_gem:`, `actions/setup-node`, `ruby/setup-ruby`, `NPM_PUBLISH_TOKEN`, `GEM_HOST_API_KEY`},
@@ -173,7 +174,7 @@ func TestGenerateGitHubReleaseWorkflowUsesConfiguredDistributions(t *testing.T) 
 				`stage --only 'gem'`, `verify --only 'gem'`, `publish_gem:`,
 				`ruby/setup-ruby@v1`, `GEM_HOST_API_KEY`, `release:`,
 			},
-			wantAbsent: []string{`publish_npm:`, `publish_uv:`, `actions/setup-node`, `setup-uv`, `NPM_PUBLISH_TOKEN`, `UV_PUBLISH_TOKEN`},
+			wantAbsent: []string{`publish_npm:`, `publish_pypi:`, `actions/setup-node`, `setup-uv`, `NPM_PUBLISH_TOKEN`, `UV_PUBLISH_TOKEN`},
 		},
 	}
 
@@ -184,7 +185,7 @@ func TestGenerateGitHubReleaseWorkflowUsesConfiguredDistributions(t *testing.T) 
 			if !slices.Contains(tc.enabled, "npm") {
 				cfg.Distributions.NPM = nil
 			}
-			if !slices.Contains(tc.enabled, "uv") {
+			if !slices.Contains(tc.enabled, "pypi") {
 				cfg.Distributions.UV = nil
 			}
 			if !slices.Contains(tc.enabled, "gem") {
@@ -213,12 +214,12 @@ func TestGenerateGitHubReleaseWorkflowCoversEveryDistributionSubset(t *testing.T
 
 	subsets := [][]string{
 		{"npm"},
-		{"uv"},
+		{"pypi"},
 		{"gem"},
-		{"npm", "uv"},
+		{"npm", "pypi"},
 		{"npm", "gem"},
-		{"uv", "gem"},
-		{"npm", "uv", "gem"},
+		{"pypi", "gem"},
+		{"npm", "pypi", "gem"},
 	}
 	for _, selected := range subsets {
 		selected := selected
@@ -228,7 +229,7 @@ func TestGenerateGitHubReleaseWorkflowCoversEveryDistributionSubset(t *testing.T
 			if !slices.Contains(selected, "npm") {
 				cfg.Distributions.NPM = nil
 			}
-			if !slices.Contains(selected, "uv") {
+			if !slices.Contains(selected, "pypi") {
 				cfg.Distributions.UV = nil
 			}
 			if !slices.Contains(selected, "gem") {
@@ -244,7 +245,7 @@ func TestGenerateGitHubReleaseWorkflowCoversEveryDistributionSubset(t *testing.T
 					t.Fatalf("workflow for %v missing %q", selected, command)
 				}
 			}
-			for _, backend := range []string{"npm", "uv", "gem"} {
+			for _, backend := range []string{"npm", "pypi", "gem"} {
 				hasJob := strings.Contains(content, "publish_"+backend+":")
 				if hasJob != slices.Contains(selected, backend) {
 					t.Fatalf("workflow for %v publish_%s presence = %v", selected, backend, hasJob)
@@ -287,10 +288,10 @@ func TestGenerateGitHubReleaseWorkflowProfilesMode(t *testing.T) {
 
 	for _, want := range []string{
 		`run: go run ./cmd/omnidist --profile 'release' build`,
-		`run: go run ./cmd/omnidist --profile 'release' stage --only 'npm,uv,gem'`,
-		`run: go run ./cmd/omnidist --profile 'release' verify --only 'npm,uv,gem'`,
+		`run: go run ./cmd/omnidist --profile 'release' stage --only 'npm,pypi,gem'`,
+		`run: go run ./cmd/omnidist --profile 'release' verify --only 'npm,pypi,gem'`,
 		`run: go run ./cmd/omnidist --profile 'release' npm publish`,
-		`run: go run ./cmd/omnidist --profile 'release' uv publish`,
+		`run: go run ./cmd/omnidist --profile 'release' pypi publish`,
 		`run: go run ./cmd/omnidist --profile 'release' gem publish`,
 		`run: tar -czf omnidist-staged.tgz .omnidist/release`,
 		`path: .omnidist/release/dist/**/*`,

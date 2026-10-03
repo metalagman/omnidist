@@ -47,18 +47,17 @@ func resolveDistributions(cfg *config.Config, only string) ([]distribution, erro
 
 	parts := strings.Split(filter, ",")
 	for _, part := range parts {
-		name := distribution(strings.ToLower(strings.TrimSpace(part)))
-		switch name {
-		case distributionNPM, distributionUV, distributionGem:
-			if !available[name] {
-				return nil, fmt.Errorf("invalid --only value %q: distribution %q is unavailable (selected: %s)", only, name, strings.Join(config.DistributionNameStrings(availableNames), ","))
-			}
-			selected[name] = true
-		case "":
+		if strings.TrimSpace(part) == "" {
 			return nil, fmt.Errorf("invalid --only value %q: empty distribution name", only)
-		default:
-			return nil, fmt.Errorf("invalid --only value %q: unsupported distribution %q (allowed: npm,uv,gem)", only, part)
 		}
+		name, err := config.ParseDistributionName(part)
+		if err != nil {
+			return nil, fmt.Errorf("invalid --only value %q: unsupported distribution %q (allowed: npm,pypi,gem; uv is an alias)", only, part)
+		}
+		if !available[name] {
+			return nil, fmt.Errorf("invalid --only value %q: distribution %q is unavailable (selected: %s)", only, name, strings.Join(config.DistributionNameStrings(availableNames), ","))
+		}
+		selected[name] = true
 	}
 
 	var resolved []distribution
@@ -68,7 +67,7 @@ func resolveDistributions(cfg *config.Config, only string) ([]distribution, erro
 		}
 	}
 	if len(resolved) == 0 {
-		return nil, fmt.Errorf("invalid --only value %q: expected at least one of npm,uv,gem", only)
+		return nil, fmt.Errorf("invalid --only value %q: expected at least one of npm,pypi,gem", only)
 	}
 
 	return resolved, nil

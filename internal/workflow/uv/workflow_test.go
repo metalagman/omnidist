@@ -576,14 +576,14 @@ func TestUVDistValidation(t *testing.T) {
 			cfg: &config.Config{Distributions: config.DistributionConfigs{
 				UV: &config.UVDistributionConfig{Package: "", LinuxTag: "manylinux2014"},
 			}},
-			wantErr: "distributions.uv.package is required",
+			wantErr: "distributions.pypi.package is required",
 		},
 		{
 			name: "invalid_linux_tag",
 			cfg: &config.Config{Distributions: config.DistributionConfigs{
 				UV: &config.UVDistributionConfig{Package: "omnidist", LinuxTag: "bad"},
 			}},
-			wantErr: "invalid distributions.uv.linux-tag",
+			wantErr: "invalid distributions.pypi.linux-tag",
 		},
 	}
 
@@ -635,6 +635,7 @@ func TestResolvePublishToken(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Setenv("UV_PUBLISH_TOKEN", tc.envToken)
+			t.Setenv("PYPI_PUBLISH_TOKEN", "")
 			got, err := resolvePublishToken(tc.opts)
 			if tc.wantErr {
 				if err == nil {

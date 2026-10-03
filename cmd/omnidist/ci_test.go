@@ -38,17 +38,17 @@ func TestCICommandCreatesWorkflow(t *testing.T) {
 		`FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"`,
 		`prepare:`,
 		`publish_npm:`,
-		`publish_uv:`,
+		`publish_pypi:`,
 		`release:`,
 		`needs: prepare`,
 		`run: go run ./cmd/omnidist build`,
-		`run: go run ./cmd/omnidist stage --only 'npm,uv,gem'`,
-		`run: go run ./cmd/omnidist verify --only 'npm,uv,gem'`,
+		`run: go run ./cmd/omnidist stage --only 'npm,pypi,gem'`,
+		`run: go run ./cmd/omnidist verify --only 'npm,pypi,gem'`,
 		`run: tar -czf omnidist-staged.tgz .omnidist`,
 		`path: .omnidist/dist/**/*`,
 		`if-no-files-found: error`,
 		`run: go run ./cmd/omnidist npm publish`,
-		`run: go run ./cmd/omnidist uv publish`,
+		`run: go run ./cmd/omnidist pypi publish`,
 		`actions/setup-node@v6`,
 		`node-version: '24'`,
 		`sha256sum -- ./* > checksums.txt`,
@@ -145,7 +145,7 @@ func TestCICommandDryRunPrintsWorkflow(t *testing.T) {
 }
 
 func TestCICommandDryRunRespectsConfiguredDistributions(t *testing.T) {
-	for _, selected := range []string{"npm", "uv", "gem"} {
+	for _, selected := range []string{"npm", "pypi", "gem"} {
 		t.Run(selected, func(t *testing.T) {
 			dir := t.TempDir()
 			t.Chdir(dir)
@@ -154,7 +154,7 @@ func TestCICommandDryRunRespectsConfiguredDistributions(t *testing.T) {
 			case "npm":
 				cfg.Distributions.UV = nil
 				cfg.Distributions.Gem = nil
-			case "uv":
+			case "pypi":
 				cfg.Distributions.NPM = nil
 				cfg.Distributions.Gem = nil
 			case "gem":
@@ -174,7 +174,7 @@ func TestCICommandDryRunRespectsConfiguredDistributions(t *testing.T) {
 					t.Fatalf("%s-only workflow missing %q: %s", selected, want, output)
 				}
 			}
-			for _, other := range []string{"npm", "uv", "gem"} {
+			for _, other := range []string{"npm", "pypi", "gem"} {
 				if other != selected && strings.Contains(output, "publish_"+other+":") {
 					t.Fatalf("%s-only workflow contains publish_%s: %s", selected, other, output)
 				}
@@ -204,7 +204,7 @@ func TestCICommandDryRunInfersSelectedDistributionsFromLegacyConfig(t *testing.T
 			t.Fatalf("legacy npm-only workflow missing %q: %s", want, output)
 		}
 	}
-	for _, unwanted := range []string{"publish_uv:", "publish_gem:"} {
+	for _, unwanted := range []string{"publish_pypi:", "publish_gem:"} {
 		if strings.Contains(output, unwanted) {
 			t.Fatalf("legacy npm-only workflow contains %q: %s", unwanted, output)
 		}

@@ -20,7 +20,7 @@ func init() {
 
 var stageCmd = &cobra.Command{
 	Use:   "stage",
-	Short: "Assemble uv wheel artifacts from built binaries",
+	Short: "Assemble PyPI wheel artifacts from built binaries",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := loadConfig()
 		if err != nil {
@@ -39,15 +39,15 @@ var stageCmd = &cobra.Command{
 		}
 		pep440Version, err := shared.ToPEP440(version)
 		if err != nil {
-			return fmt.Errorf("resolve uv version: %w", err)
+			return fmt.Errorf("resolve PyPI version: %w", err)
 		}
 		fmt.Println("Version:", pep440Version)
 
 		if err := uvworkflow.Stage(cfg, uvworkflow.StageOptions{Dev: stageDev}); err != nil {
-			return fmt.Errorf("stage uv artifacts: %w", err)
+			return fmt.Errorf("stage PyPI artifacts: %w", err)
 		}
 
-		fmt.Println("UV staging completed successfully")
+		fmt.Println("PyPI staging completed successfully")
 		return nil
 	},
 }
