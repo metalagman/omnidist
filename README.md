@@ -26,6 +26,30 @@ Maintainers can also install from Go:
 go install github.com/metalagman/omnidist/cmd/omnidist@latest
 ```
 
+## Agent skill
+
+The [Omnidist agent skill](skills/omnidist/SKILL.md) helps coding agents set up and run release workflows. Installing the skill adds agent instructions; install the Omnidist CLI separately using the commands above.
+
+With Node.js and npm/npx available, run this from the project where you want to use the skill:
+
+```bash
+npx skills add metalagman/omnidist --skill omnidist
+```
+
+Installation is scoped to the current project by default; add `--global` to make the skill available across your projects:
+
+```bash
+npx skills add metalagman/omnidist --skill omnidist --global
+```
+
+The repository commands require the skill files to be published on GitHub. To install from a local checkout, including before publication, run this from the Omnidist repository root:
+
+```bash
+npx skills add ./skills/omnidist --skill omnidist
+```
+
+To check discovery without installing, use `npx skills add ./skills/omnidist --list`. See the [skills installer documentation](https://github.com/vercel-labs/skills#install-a-skill) for supported agents and options.
+
 ## Maintainer prerequisites
 
 | Activity | Required locally or in CI |
@@ -133,6 +157,7 @@ The workflow contains setup, credentials, and publish jobs only for selected bac
 - [Release runbook](docs/releases.md) — credentials, first release, preflight, trusted publishing, and partial-release recovery.
 - [Targets and variants](docs/targets.md) — Go target values and npm/wheel/gem mappings.
 - [Contributing](CONTRIBUTING.md) — repository layout, tests, lint, and development workflow.
+- [Omnidist agent skill](skills/omnidist/SKILL.md) — guidance for agents setting up and running release workflows.
 
 ## Commands
 
