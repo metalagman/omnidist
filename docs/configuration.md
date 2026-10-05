@@ -164,6 +164,13 @@ distributions:
 
 For a Linux amd64 target, this stages the primary package followed by aliases—`omnidist` and `@omnidist/omnidist`—plus one binary package, `@omnidist/omnidist-linux-x64`. Both meta packages list the same scoped binary package in `optionalDependencies` and resolve it at runtime. Meta aliases do not redirect through or depend on the primary package.
 
+For this configuration, users can install either equivalent meta package:
+
+```bash
+npm install -g omnidist
+npm install -g @omnidist/omnidist
+```
+
 Aliases are optional. Existing configs with only `package`, including configs that already use an independent `platform-package`, retain their current artifacts and publication order. An alias may be scoped or unscoped, but it must not duplicate `package` or another alias after whitespace normalization.
 
 ### Independent npm platform package names
@@ -206,6 +213,23 @@ Build writes the resolved value to `<workspace>/dist/VERSION`; every backend sta
 | gem stage/packages | `.omnidist/<profile>/gem/` | `.omnidist/gem/` |
 
 CLI flags take precedence over their environment-backed selectors. Omnidist loads `.env` before command execution. Publishing credentials and their precedence are documented in the [release runbook](releases.md).
+
+## Commands and help
+
+```text
+omnidist init [--force] [--name <name>] [--main <package>]
+omnidist quickstart
+omnidist build
+omnidist stage [--dev] [--only npm,pypi,gem]
+omnidist verify [--only npm,pypi,gem]
+omnidist publish [--dry-run] [--only npm,pypi,gem]
+omnidist ci [--force] [--dry-run]
+omnidist npm stage|verify|publish|trust
+omnidist pypi stage|verify|publish
+omnidist gem stage|verify|publish
+```
+
+Global flags are `--config`, `--profile`, and `--omnidist-root`, with corresponding environment selectors `OMNIDIST_CONFIG`, `OMNIDIST_PROFILE`, and `OMNIDIST_OMNIDIST_ROOT`. Use `omnidist <command> --help` for detailed flags and backend-specific options. Earlier uv names and selectors are covered separately in [legacy compatibility](#legacy-compatibility).
 
 ## Legacy compatibility
 

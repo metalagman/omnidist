@@ -2,6 +2,16 @@
 
 Start with the [README](README.md) for product usage. This guide covers repository development and review gates.
 
+## Agent skill development
+
+The agent skill lives in `skills/omnidist/`. From the repository root, install your local version with:
+
+```bash
+npx skills add ./skills/omnidist --skill omnidist
+```
+
+Check discovery without installing with `npx skills add ./skills/omnidist --list`. See the [skills installer documentation](https://github.com/vercel-labs/skills#install-a-skill) for supported agents and options.
+
 ## Setup
 
 Use the Go version declared in `go.mod` (currently Go 1.25+):

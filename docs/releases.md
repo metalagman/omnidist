@@ -2,6 +2,20 @@
 
 Registry publication is irreversible and not transactional across packages or backends. Omnidist preflights every selected backend before aggregate upload begins, but a registry rejection, race, or network failure during upload can still produce a partial release.
 
+## Tooling
+
+Install only the tools needed by the channels in your configuration:
+
+| Activity | Required locally or in CI |
+| --- | --- |
+| Build the Go CLI | Go 1.25+; Git when `version.source: git-tag` |
+| npm stage/verify | Go build artifacts; npm is required at publish preflight/upload |
+| PyPI stage/verify/publish | `uv` |
+| gem stage/verify/publish | Ruby and RubyGems (`gem`) |
+| Token publish | The selected backend's token environment variable |
+
+Run `omnidist init` in your Go repository to generate `.omnidist/omnidist.yaml`. When command discovery is ambiguous, pass `--name mytool --main ./cmd/mytool`. Initialization preserves an existing config; use `init --force` only when you intend to replace it.
+
 ## Credentials
 
 | Backend | Token mode | Trusted mode |
@@ -79,6 +93,25 @@ Omnidist does not delete or overwrite registry releases automatically.
 
 ## CI releases
 
+Choose a release version source before generating CI. If you used the README's fixed `0.1.0` trial, update `profiles.default.version` for real releases. For tag-driven releases, set `source: git-tag`; the build must run at an exact SemVer tag. See [versions and build variables](configuration.md#versions-and-build-variables) for other sources.
+
+Generate the workflow after reviewing package names and registry access:
+
+```bash
+omnidist ci --dry-run
+omnidist ci
+```
+
+Use `ci --force` only to intentionally replace an existing workflow. Configure the required secrets or trusted publishers before pushing a release tag.
+
 `omnidist ci` generates `.github/workflows/omnidist-release.yml`. It uses only the resolved selected backends, stages and verifies with an explicit `--only` list, creates backend publish jobs, and creates a separate GitHub Release job for binaries/checksums.
 
 Separate publish jobs can fail independently after another registry succeeds. Treat the GitHub Actions run as a coordinated workflow, not a cross-registry transaction, and use the recovery procedure above.
+
+## Troubleshooting
+
+- **Version resolution fails:** `git-tag` requires an exact SemVer tag at `HEAD`; `file` reads `version.file`; `env` reads `OMNIDIST_VERSION`; `fixed` reads `version.fixed`. Check the configured [version source](configuration.md#versions-and-build-variables).
+- **Build version is missing:** run `omnidist build` before staging. Profiles store it at `.omnidist/<profile>/dist/VERSION`; legacy config uses `.omnidist/dist/VERSION`.
+- **npm platform package is missing:** run `omnidist npm verify` and check the target matrix and matching versions of the meta and platform packages.
+- **PyPI rejects a version containing `+`:** public PyPI and TestPyPI reject local version metadata. Stage a publishable release version instead.
+- **Trusted publishing fails:** local preflight cannot prove remote OIDC eligibility. Check `repository-url`, the workflow filename/environment, `id-token: write`, and registry-side trusted publisher settings for every generated package.

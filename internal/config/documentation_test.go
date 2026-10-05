@@ -34,12 +34,8 @@ func TestDualNPMMetaPackageDocumentation(t *testing.T) {
 		want []string
 	}{
 		{
-			path: filepath.Join("..", "..", "README.md"),
-			want: []string{"aliases:", "npm install -g omnidist", "npm install -g @omnidist/omnidist"},
-		},
-		{
 			path: filepath.Join("..", "..", "docs", "configuration.md"),
-			want: []string{"`aliases`", "primary package followed by aliases", "shared platform package set"},
+			want: []string{"`aliases`", "aliases:", "primary package followed by aliases", "shared platform package set", "npm install -g omnidist", "npm install -g @omnidist/omnidist"},
 		},
 		{
 			path: filepath.Join("..", "..", "docs", "releases.md"),
@@ -207,12 +203,17 @@ func TestReadmeKeepsSafeReleaseOrderAndReferenceLinks(t *testing.T) {
 		t.Fatal(err)
 	}
 	doc := string(data)
-	sectionStart := strings.Index(doc, "## Safe quick start")
-	sectionEnd := strings.Index(doc, "## Release flow")
-	if sectionStart < 0 || sectionEnd <= sectionStart {
-		t.Fatal("README safe quick-start section is missing")
+	var quickstart string
+	for _, fence := range strings.Split(doc, "```bash\n")[1:] {
+		block, _, closed := strings.Cut(fence, "\n```")
+		if closed && strings.Contains(block, "omnidist build") {
+			quickstart = block
+			break
+		}
 	}
-	quickstart := doc[sectionStart:sectionEnd]
+	if quickstart == "" {
+		t.Fatal("README quick-start command sequence is missing")
+	}
 	positions := []int{
 		strings.Index(quickstart, "omnidist build"),
 		strings.Index(quickstart, "omnidist stage"),
