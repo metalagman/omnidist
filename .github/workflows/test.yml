@@ -7,6 +7,33 @@ on:
     branches: [ main, master ]
 
 jobs:
+  windows_arm64:
+    name: npm launcher on Windows ARM64
+    runs-on: windows-11-arm
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up native ARM64 Go
+      uses: actions/setup-go@v5
+      with:
+        go-version-file: 'go.mod'
+        architecture: arm64
+
+    - name: Set up native ARM64 Node.js
+      uses: actions/setup-node@v6
+      with:
+        node-version: '24'
+        architecture: arm64
+        package-manager-cache: false
+
+    - name: Verify native Windows ARM64 launch
+      shell: pwsh
+      run: |
+        node -e "if (process.platform !== 'win32' || process.arch !== 'arm64') process.exit(1)"
+        if ($LASTEXITCODE -ne 0) { throw 'Native Windows ARM64 Node.js is required' }
+        if ((go env GOOS) -ne 'windows' -or (go env GOARCH) -ne 'arm64') { throw 'Native Windows ARM64 Go is required' }
+        go test -v ./internal/workflow/npm -run '^TestNPMShim' -count=1
+
   test:
     name: Test
     runs-on: ubuntu-latest
